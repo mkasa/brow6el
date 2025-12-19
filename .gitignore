@@ -1,0 +1,26 @@
+# Build directory
+build/
+
+# CEF binary distribution
+cef_binary/
+cef_binary_*.tar.bz2
+
+# Compiled binaries
+*.o
+*.so
+*.a
+
+# Cache and logs
+/tmp/
+*.log
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Core dumps
+core
+core.*
