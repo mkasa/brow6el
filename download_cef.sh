@@ -2,7 +2,7 @@
 
 set -e
 
-CEF_VERSION="120.1.10+g3ce3184+chromium-120.0.6099.129"
+CEF_VERSION="143.0.11+g1e6e84d+chromium-143.0.7499.147"
 PLATFORM="linux64"
 
 echo "Downloading CEF binary distribution..."

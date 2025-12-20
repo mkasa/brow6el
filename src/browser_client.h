@@ -37,6 +37,7 @@ public:
     virtual void OnBeforeClose(CefRefPtr<CefBrowser> browser) override;
     virtual bool OnBeforePopup(CefRefPtr<CefBrowser> browser,
                                CefRefPtr<CefFrame> frame,
+                               int popup_id,
                                const CefString& target_url,
                                const CefString& target_frame_name,
                                CefLifeSpanHandler::WindowOpenDisposition target_disposition,
@@ -92,7 +93,7 @@ public:
     const std::string& GetJSDialogPromptDefault() const { return js_dialog_prompt_default_; }
     
     // CefDownloadHandler methods
-    virtual void OnBeforeDownload(CefRefPtr<CefBrowser> browser,
+    virtual bool OnBeforeDownload(CefRefPtr<CefBrowser> browser,
                                   CefRefPtr<CefDownloadItem> download_item,
                                   const CefString& suggested_name,
                                   CefRefPtr<CefBeforeDownloadCallback> callback) override;

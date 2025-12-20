@@ -64,6 +64,7 @@ void BrowserClient::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
 
 bool BrowserClient::OnBeforePopup(CefRefPtr<CefBrowser> browser,
                                    CefRefPtr<CefFrame> frame,
+                                   int popup_id,
                                    const CefString& target_url,
                                    const CefString& target_frame_name,
                                    CefLifeSpanHandler::WindowOpenDisposition target_disposition,
@@ -455,7 +456,7 @@ void BrowserClient::HandleJSDialogResponse(bool success, const std::string& inpu
     }
 }
 
-void BrowserClient::OnBeforeDownload(CefRefPtr<CefBrowser> browser,
+bool BrowserClient::OnBeforeDownload(CefRefPtr<CefBrowser> browser,
                                      CefRefPtr<CefDownloadItem> download_item,
                                      const CefString& suggested_name,
                                      CefRefPtr<CefBeforeDownloadCallback> callback) {
@@ -471,6 +472,8 @@ void BrowserClient::OnBeforeDownload(CefRefPtr<CefBrowser> browser,
     // Show download confirmation dialog
     std::lock_guard<std::mutex> render_lock(render_mutex_);
     status_bar_->showDownloadConfirm(download_filename_, download_url_);
+    
+    return true;
 }
 
 void BrowserClient::OnDownloadUpdated(CefRefPtr<CefBrowser> browser,
