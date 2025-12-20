@@ -4,6 +4,13 @@ A full-featured web browser for the terminal using Chromium (CEF) and libsixel f
 
 WARNING: this is POC code quality, it is known it doesn't work with localized keyboards, it lacks support for accented characters for input. Tested only with foot terminal, it is known not to work with windows terminal, however it works in wsl2 when run inside foot. Build process tested in Ubuntu and Debian.
 
+## Screenshots
+### Page view
+![brow6el web browser running in linux virtual terminal window showing codeberg website](https://codeberg.org/janantos/brow6el/raw/branch/main/screenshots/brow6el.png "brow6el page view")
+
+### JavaScript console
+![brow6el web browser running in linux virtual terminal window showing codeberg website and opended javascript console](https://codeberg.org/janantos/brow6el/raw/branch/main/screenshots/brow6el_js_console.png "brow6el js console")
+
 ## Features
 
 - **Sixel Graphics** - Full page rendering with automatic resolution detection
@@ -68,20 +75,6 @@ sudo pacman -S base-devel cmake git pkg-config curl \
 CEF renders web pages offscreen → libsixel converts to sixel graphics → Output to terminal
 
 The browser continuously renders frames as pages update, with synchronized input handling for mouse and keyboard events.
-
-## Project Structure
-
-```
-brow6el/
-├── src/
-│   ├── main.cpp           # Browser core and CEF integration
-│   ├── sixel_renderer.cpp # Sixel graphics output
-│   ├── input_handler.cpp  # Mouse & keyboard handling
-│   └── select_detector.js # Form element detection
-├── CMakeLists.txt         # Build configuration
-├── download_cef.sh        # CEF download script
-└── build.sh               # Build script
-```
 
 ## License
 MIT
