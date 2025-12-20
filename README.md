@@ -2,6 +2,8 @@
 
 A full-featured web browser for the terminal using Chromium (CEF) and libsixel for graphics rendering.
 
+WARNING: this is POC code quality, it is known it doesn't work with localized keyboards, it lacks support for accented characters for input. Tested only with foot terminal, it is known not to work with windows terminal, however it works in wsl2 when run inside foot. Build process tested in Ubuntu and Debian.
+
 ## Features
 
 - **Sixel Graphics** - Full page rendering with automatic resolution detection
@@ -26,7 +28,7 @@ A full-featured web browser for the terminal using Chromium (CEF) and libsixel f
 
 ```bash
 # 1. Download CEF binary (~670MB, one-time)
-./download_cef.sh
+./download_cef.sh #(or ./download_def_arm64.sh)
 
 # 2. Build
 ./build.sh
@@ -78,10 +80,10 @@ brow6el/
 │   └── select_detector.js # Form element detection
 ├── CMakeLists.txt         # Build configuration
 ├── download_cef.sh        # CEF download script
-└── build.sh              # Build script
+└── build.sh               # Build script
 ```
 
 ## License
 MIT
 
-Uses CEF (BSD-style) and libsixel (MIT). See respective licenses for details.
+Uses CEF (BSD clause 3 exception) and libsixel (MIT). See respective licenses for details.

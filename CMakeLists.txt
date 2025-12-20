@@ -12,7 +12,6 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CEF_ROOT}/cmake")
 find_package(CEF REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SIXEL REQUIRED libsixel)
-pkg_check_modules(TERMKEY REQUIRED termkey)
 
 # Include directories
 include_directories(
@@ -52,7 +51,6 @@ target_link_libraries(${PROJECT_NAME}
     ${CEF_ROOT}/build/libcef_dll_wrapper/libcef_dll_wrapper.a
     ${CEF_STANDARD_LIBS}
     ${SIXEL_LIBRARIES}
-    ${TERMKEY_LIBRARIES}
     pthread
 )
 
