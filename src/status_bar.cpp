@@ -504,3 +504,104 @@ void StatusBar::showDownloadConfirm(const std::string& filename, const std::stri
     
     is_showing_ = true;
 }
+
+void StatusBar::showBookmarks(const std::vector<std::string>& bookmarks, int selected_index) {
+    if (bookmarks.empty()) {
+        std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
+        
+        saveCursorPosition();
+        
+        struct winsize w;
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+        int rows = w.ws_row;
+        
+        // Clear status area
+        clearStatusArea();
+        
+        std::cout << "\033[" << (rows - 2) << ";1H";
+        std::cout << "\033[44m\033[97m\033[1m"; // Blue background, white bold text
+        std::cout << " 📚 Bookmarks ";
+        std::cout << "\033[K\033[0m\n";
+        
+        std::cout << "\033[40m\033[97m"; // Black background, white text
+        std::cout << " No bookmarks yet. Press Ctrl+D to bookmark current page.";
+        std::cout << "\033[K\033[0m";
+        
+        std::cout << std::flush;
+        restoreCursorPosition();
+        
+        is_showing_ = true;
+        return;
+    }
+    
+    std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
+    
+    // Save state for redrawing
+    is_showing_ = true;
+    current_options_ = bookmarks;
+    current_selected_ = selected_index;
+    
+    saveCursorPosition();
+    
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    int rows = w.ws_row;
+    int cols = w.ws_col;
+    
+    // Calculate how many bookmarks to show (max 10 lines)
+    int max_display = std::min(10, (int)bookmarks.size());
+    int start_line = rows - max_display - 2;
+    
+    // Clear status area
+    clearStatusArea();
+    
+    // Draw header
+    std::cout << "\033[" << start_line << ";1H";
+    std::cout << "\033[44m\033[97m\033[1m"; // Blue background, white bold text
+    std::cout << " 📚 Bookmarks (↑↓ navigate, Enter open, d delete, Esc close) ";
+    std::cout << "\033[K\033[0m\n";
+    
+    // Determine which bookmarks to show (with scrolling)
+    int start_idx = 0;
+    if (selected_index >= max_display - 1) {
+        start_idx = std::min(selected_index - max_display + 2, (int)bookmarks.size() - max_display);
+    }
+    
+    // Draw bookmarks
+    for (int i = 0; i < max_display && (start_idx + i) < bookmarks.size(); i++) {
+        int opt_idx = start_idx + i;
+        std::string bookmark = bookmarks[opt_idx];
+        
+        // Truncate if too long
+        int max_width = cols - 6;
+        if (bookmark.length() > max_width) {
+            bookmark = bookmark.substr(0, max_width - 3) + "...";
+        }
+        
+        // Highlight selected bookmark
+        if (opt_idx == selected_index) {
+            std::cout << "\033[42m\033[30m"; // Green background, black text
+            std::cout << " ► " << bookmark;
+        } else {
+            std::cout << "\033[40m\033[97m"; // Black background, white text
+            std::cout << "   " << bookmark;
+        }
+        std::cout << "\033[K\033[0m\n"; // Clear to end of line and reset
+    }
+    
+    // Show scroll indicators if needed
+    if (start_idx > 0 || (start_idx + max_display) < bookmarks.size()) {
+        std::cout << "\033[44m\033[97m"; // Blue background
+        if (start_idx > 0) {
+            std::cout << " ▲ More above";
+        }
+        if ((start_idx + max_display) < bookmarks.size()) {
+            if (start_idx > 0) std::cout << "  ";
+            std::cout << " ▼ More below";
+        }
+        std::cout << "\033[K\033[0m\n";
+    }
+    
+    std::cout << std::flush;
+    restoreCursorPosition();
+}

@@ -28,6 +28,7 @@ set(SOURCES
     src/terminal_detector.cpp
     src/input_handler.cpp
     src/status_bar.cpp
+    src/bookmarks.cpp
 )
 
 set(HEADERS
@@ -37,6 +38,7 @@ set(HEADERS
     src/terminal_detector.h
     src/input_handler.h
     src/status_bar.h
+    src/bookmarks.h
 )
 
 # Create executable

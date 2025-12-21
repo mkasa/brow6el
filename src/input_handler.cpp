@@ -159,6 +159,9 @@ void InputHandler::readLoop() {
                             browser_client_->HandleJSDialogResponse(false);
                             js_prompt_input_.clear();
                         }
+                    } else if (browser_client_ && browser_client_->IsBookmarksActive()) {
+                        // Close bookmarks on ESC
+                        browser_client_->SetBookmarksActive(false);
                     } else {
                         sendKeyEvent(VKEY_ESCAPE, 0, false);
                     }
@@ -314,6 +317,11 @@ void InputHandler::readLoop() {
                         url_input_buffer_.clear();
                         continue;
                     }
+                    // Check if bookmarks is active and handle Enter
+                    if (browser_client_ && browser_client_->IsBookmarksActive()) {
+                        browser_client_->HandleBookmarkConfirm();
+                        continue;
+                    }
                     // Check if status bar is active and handle Enter
                     if (browser_client_ && browser_client_->HandleSelectConfirm()) {
                         // Status bar handled the Enter key - don't send to CEF
@@ -401,6 +409,11 @@ void InputHandler::readLoop() {
                                     browser_client_->GetJSDialogMessage(), 
                                     js_prompt_input_);
                             }
+                        }
+                    } else if (browser_client_ && browser_client_->IsBookmarksActive()) {
+                        // Handle bookmark deletion
+                        if (c == 'd' || c == 'D') {
+                            browser_client_->HandleBookmarkDelete();
                         }
                     } else if (console_input_active_) {
                         console_input_buffer_ += c;
@@ -501,6 +514,14 @@ void InputHandler::readLoop() {
                                     }
                                 }
                             }
+                        }
+                    } else if (c == 4) { // Ctrl+D - Add bookmark
+                        if (!url_input_active_ && !console_input_active_ && browser_client_) {
+                            browser_client_->AddCurrentPageToBookmarks();
+                        }
+                    } else if (c == 2) { // Ctrl+B - Open bookmarks
+                        if (!url_input_active_ && !console_input_active_ && browser_client_) {
+                            browser_client_->SetBookmarksActive(true);
                         }
                     } else {
                         if (!url_input_active_ && !console_input_active_) {
@@ -678,6 +699,11 @@ void InputHandler::parseKeySequence(const char* seq, int len) {
                         browser_client_->GetConsoleLogs(), 
                         console_input_buffer_, 
                         console_scroll_offset_);
+                    return;
+                }
+                // Check if bookmarks is showing - handle navigation there
+                if (browser_client_ && browser_client_->IsBookmarksActive()) {
+                    browser_client_->HandleBookmarkNavigation(seq[2] == 'A' ? -1 : 1);
                     return;
                 }
                 // Check if status bar is showing - handle selection there

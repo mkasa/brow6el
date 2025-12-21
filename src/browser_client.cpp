@@ -26,8 +26,8 @@ void BrowserClient::OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType type
                            int width, int height) {
     std::lock_guard<std::mutex> lock(render_mutex_);
     
-    // Skip rendering when URL input, console, popup confirm, JS dialog, or download confirm is active
-    if (url_input_active_ || console_active_ || popup_confirm_active_ || js_dialog_active_ || download_confirm_active_) {
+    // Skip rendering when URL input, console, popup confirm, JS dialog, download confirm, or bookmarks is active
+    if (url_input_active_ || console_active_ || popup_confirm_active_ || js_dialog_active_ || download_confirm_active_ || bookmarks_active_) {
         return;
     }
     
@@ -91,10 +91,14 @@ void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame>
         std::string url = frame->GetURL().ToString();
         LOGB("OnLoadEnd: url=" << url << " status=" << httpStatusCode);
         
-        // Clear status bar on new page load
+        // Clear status bar on new page load only if something is showing
         if (status_bar_) {
             std::lock_guard<std::mutex> lock(render_mutex_);
-            status_bar_->clear();
+            // Only clear if we're showing something (not just blank)
+            if (!current_options_.empty() || url_input_active_ || console_active_ || 
+                popup_confirm_active_ || js_dialog_active_ || download_confirm_active_ || bookmarks_active_) {
+                status_bar_->clear();
+            }
         }
         current_options_.clear();
         
@@ -164,8 +168,13 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
 
 void BrowserClient::OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString& title) {
     std::string page_title = title.ToString();
-    std::string window_title = "Brow6el - " + page_title;
-    std::cout << "\033]0;" << window_title << "\007" << std::flush;
+    current_page_title_ = page_title; // Store for bookmarks
+    std::string window_title = "brow6el - " + page_title;
+    LOGB("OnTitleChange called: " << page_title);
+    
+    // Use printf and fflush for immediate output
+    printf("\033]0;%s\007", window_title.c_str());
+    fflush(stdout);
 }
 
 void BrowserClient::injectSelectDetector() {
@@ -514,4 +523,118 @@ void BrowserClient::HandleDownloadResponse(bool accept, const std::string& path)
     if (browser_ && browser_->GetHost()) {
         browser_->GetHost()->Invalidate(PET_VIEW);
     }
+}
+
+void BrowserClient::AddCurrentPageToBookmarks() {
+    if (!browser_) return;
+    
+    std::string url = browser_->GetMainFrame()->GetURL().ToString();
+    if (url.empty() || url == "about:blank") return;
+    
+    bookmarks_manager_.addBookmark(current_page_title_, url);
+    
+    std::lock_guard<std::mutex> lock(render_mutex_);
+    status_bar_->showMessage("📚 Bookmark added: " + current_page_title_);
+}
+
+void BrowserClient::SetBookmarksActive(bool active) {
+    bookmarks_active_ = active;
+    if (active) {
+        bookmarks_selected_index_ = 0;
+        
+        // Build display list
+        const auto& bookmarks = bookmarks_manager_.getBookmarks();
+        std::vector<std::string> display_list;
+        for (const auto& bookmark : bookmarks) {
+            display_list.push_back(bookmark.title + " - " + bookmark.url);
+        }
+        
+        std::lock_guard<std::mutex> lock(render_mutex_);
+        status_bar_->showBookmarks(display_list, bookmarks_selected_index_);
+    } else {
+        std::lock_guard<std::mutex> lock(render_mutex_);
+        status_bar_->clear();
+        
+        // Force a repaint
+        if (browser_ && browser_->GetHost()) {
+            browser_->GetHost()->Invalidate(PET_VIEW);
+        }
+    }
+}
+
+bool BrowserClient::HandleBookmarkNavigation(int direction) {
+    if (!bookmarks_active_) return false;
+    
+    const auto& bookmarks = bookmarks_manager_.getBookmarks();
+    if (bookmarks.empty()) return true;
+    
+    bookmarks_selected_index_ += direction;
+    if (bookmarks_selected_index_ < 0) {
+        bookmarks_selected_index_ = 0;
+    } else if (bookmarks_selected_index_ >= bookmarks.size()) {
+        bookmarks_selected_index_ = bookmarks.size() - 1;
+    }
+    
+    // Build display list
+    std::vector<std::string> display_list;
+    for (const auto& bookmark : bookmarks) {
+        display_list.push_back(bookmark.title + " - " + bookmark.url);
+    }
+    
+    std::lock_guard<std::mutex> lock(render_mutex_);
+    status_bar_->showBookmarks(display_list, bookmarks_selected_index_);
+    
+    return true;
+}
+
+bool BrowserClient::HandleBookmarkConfirm() {
+    if (!bookmarks_active_) return false;
+    
+    const auto& bookmarks = bookmarks_manager_.getBookmarks();
+    LOGB("HandleBookmarkConfirm: bookmarks.size=" << bookmarks.size() << " selected=" << bookmarks_selected_index_);
+    
+    if (bookmarks.empty() || bookmarks_selected_index_ >= bookmarks.size()) {
+        return false;
+    }
+    
+    std::string url = bookmarks[bookmarks_selected_index_].url;
+    LOGB("Opening bookmark: " << url);
+    
+    // Close bookmarks view
+    SetBookmarksActive(false);
+    
+    // Navigate to URL
+    if (browser_ && browser_->GetMainFrame()) {
+        browser_->GetMainFrame()->LoadURL(url);
+    }
+    
+    return true;
+}
+
+bool BrowserClient::HandleBookmarkDelete() {
+    if (!bookmarks_active_) return false;
+    
+    const auto& bookmarks = bookmarks_manager_.getBookmarks();
+    if (bookmarks.empty() || bookmarks_selected_index_ >= bookmarks.size()) {
+        return false;
+    }
+    
+    bookmarks_manager_.removeBookmark(bookmarks_selected_index_);
+    
+    // Adjust selection
+    const auto& updated_bookmarks = bookmarks_manager_.getBookmarks();
+    if (bookmarks_selected_index_ >= updated_bookmarks.size() && bookmarks_selected_index_ > 0) {
+        bookmarks_selected_index_--;
+    }
+    
+    // Update display
+    std::vector<std::string> display_list;
+    for (const auto& bookmark : updated_bookmarks) {
+        display_list.push_back(bookmark.title + " - " + bookmark.url);
+    }
+    
+    std::lock_guard<std::mutex> lock(render_mutex_);
+    status_bar_->showBookmarks(display_list, bookmarks_selected_index_);
+    
+    return true;
 }

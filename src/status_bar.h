@@ -16,6 +16,7 @@ public:
     void showJSConfirm(const std::string& message);
     void showJSPrompt(const std::string& message, const std::string& default_value);
     void showDownloadConfirm(const std::string& filename, const std::string& url);
+    void showBookmarks(const std::vector<std::string>& bookmarks, int selected_index);
     void showMessage(const std::string& message);
     void clear();
     void redraw(); // Redraw last shown content

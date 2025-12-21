@@ -7,6 +7,7 @@
 #include "include/cef_download_handler.h"
 #include "sixel_renderer.h"
 #include "status_bar.h"
+#include "bookmarks.h"
 #include <memory>
 #include <atomic>
 #include <mutex>
@@ -107,6 +108,15 @@ public:
     const std::string& GetDownloadUrl() const { return download_url_; }
     void HandleDownloadResponse(bool accept, const std::string& path = "");
     
+    // Bookmarks
+    void AddCurrentPageToBookmarks();
+    void SetBookmarksActive(bool active);
+    bool IsBookmarksActive() const { return bookmarks_active_; }
+    bool HandleBookmarkNavigation(int direction);
+    bool HandleBookmarkConfirm();
+    bool HandleBookmarkDelete();
+    BookmarksManager* GetBookmarksManager() { return &bookmarks_manager_; }
+    
 private:
     int width_;
     int height_;
@@ -142,6 +152,12 @@ private:
     std::string download_url_;
     CefRefPtr<CefBeforeDownloadCallback> download_callback_;
     std::mutex download_mutex_;
+    
+    // Bookmarks handling
+    bool bookmarks_active_ = false;
+    int bookmarks_selected_index_ = 0;
+    BookmarksManager bookmarks_manager_;
+    std::string current_page_title_;
     
     void injectSelectDetector();
     void parseSelectMessage(const std::string& message);
