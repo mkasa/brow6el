@@ -104,6 +104,12 @@ void InputHandler::readLoop() {
     }
     
     while (running_) {
+        // Sync file input state with browser client
+        if (browser_client_ && browser_client_->IsFileInputActive() && !file_input_active_) {
+            file_input_active_ = true;
+            file_input_buffer_.clear();
+        }
+        
         char c;
         ssize_t n = read(STDIN_FILENO, &c, 1);
         
@@ -134,6 +140,17 @@ void InputHandler::readLoop() {
                         url_input_buffer_.clear();
                         if (browser_client_) {
                             browser_client_->SetUrlInputActive(false);
+                            browser_client_->GetStatusBar()->clear();
+                            // Invalidate to trigger immediate repaint
+                            if (browser_) {
+                                browser_->GetHost()->Invalidate(PET_VIEW);
+                            }
+                        }
+                    } else if (file_input_active_) {
+                        file_input_active_ = false;
+                        file_input_buffer_.clear();
+                        if (browser_client_) {
+                            browser_client_->HandleFileDialogResponse("");
                             browser_client_->GetStatusBar()->clear();
                             // Invalidate to trigger immediate repaint
                             if (browser_) {
@@ -190,6 +207,17 @@ void InputHandler::readLoop() {
                                 browser_->GetHost()->Invalidate(PET_VIEW);
                             }
                         }
+                    } else if (file_input_active_) {
+                        file_input_active_ = false;
+                        file_input_buffer_.clear();
+                        if (browser_client_) {
+                            browser_client_->HandleFileDialogResponse("");
+                            browser_client_->GetStatusBar()->clear();
+                            // Invalidate to trigger immediate repaint
+                            if (browser_) {
+                                browser_->GetHost()->Invalidate(PET_VIEW);
+                            }
+                        }
                     } else if (console_input_active_) {
                         console_input_active_ = false;
                         console_input_buffer_.clear();
@@ -228,6 +256,11 @@ void InputHandler::readLoop() {
                             url_input_buffer_ += c;
                             if (browser_client_) {
                                 browser_client_->GetStatusBar()->showURLInput(url_input_buffer_);
+                            }
+                        } else if (file_input_active_) {
+                            file_input_buffer_ += c;
+                            if (browser_client_) {
+                                browser_client_->GetStatusBar()->showFileInput(file_input_buffer_);
                             }
                         } else if (console_input_active_) {
                             console_input_buffer_ += c;
@@ -351,6 +384,16 @@ void InputHandler::readLoop() {
                         url_input_buffer_.clear();
                         continue;
                     }
+                    // Check if File input is active
+                    if (file_input_active_) {
+                        file_input_active_ = false;
+                        if (browser_client_) {
+                            browser_client_->HandleFileDialogResponse(file_input_buffer_);
+                            browser_client_->GetStatusBar()->clear();
+                        }
+                        file_input_buffer_.clear();
+                        continue;
+                    }
                     // Check if bookmarks is active and handle Enter
                     if (browser_client_ && browser_client_->IsBookmarksActive()) {
                         browser_client_->HandleBookmarkConfirm();
@@ -368,7 +411,7 @@ void InputHandler::readLoop() {
                     }
                     sendKeyEvent(VKEY_RETURN, '\r', false);
                 } else if (c == '\t') {
-                    if (!url_input_active_ && !console_input_active_) {
+                    if (!url_input_active_ && !file_input_active_ && !console_input_active_) {
                         sendKeyEvent(VKEY_TAB, '\t', false);
                     }
                 } else if (c == 127) { // Backspace/DEL
@@ -397,6 +440,13 @@ void InputHandler::readLoop() {
                             url_input_buffer_.pop_back();
                             if (browser_client_) {
                                 browser_client_->GetStatusBar()->showURLInput(url_input_buffer_);
+                            }
+                        }
+                    } else if (file_input_active_) {
+                        if (!file_input_buffer_.empty()) {
+                            file_input_buffer_.pop_back();
+                            if (browser_client_) {
+                                browser_client_->GetStatusBar()->showFileInput(file_input_buffer_);
                             }
                         }
                     } else {
@@ -467,6 +517,11 @@ void InputHandler::readLoop() {
                         if (browser_client_) {
                             browser_client_->GetStatusBar()->showURLInput(url_input_buffer_);
                         }
+                    } else if (file_input_active_) {
+                        file_input_buffer_ += c;
+                        if (browser_client_) {
+                            browser_client_->GetStatusBar()->showFileInput(file_input_buffer_);
+                        }
                     } else {
                         // Map special shifted characters to their base keys + shift modifier
                         int keycode = c;
@@ -517,11 +572,11 @@ void InputHandler::readLoop() {
                         }
                         requestShutdown();
                     } else if (c == 18) { // Ctrl+R - Reload
-                        if (!url_input_active_ && !console_input_active_ && browser_) {
+                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_) {
                             browser_->Reload();
                         }
                     } else if (c == 12) { // Ctrl+L - Navigate to URL
-                        if (!url_input_active_ && !console_input_active_) {
+                        if (!url_input_active_ && !file_input_active_ && !console_input_active_) {
                             url_input_active_ = true;
                             url_input_buffer_.clear();
                             if (browser_client_) {
@@ -532,7 +587,7 @@ void InputHandler::readLoop() {
                             }
                         }
                     } else if (c == 11) { // Ctrl+K - Toggle console
-                        if (!url_input_active_) {
+                        if (!url_input_active_ && !file_input_active_) {
                             console_input_active_ = !console_input_active_;
                             if (console_input_active_) {
                                 console_input_buffer_.clear();
@@ -555,23 +610,23 @@ void InputHandler::readLoop() {
                             }
                         }
                     } else if (c == 4) { // Ctrl+D - Add bookmark
-                        if (!url_input_active_ && !console_input_active_ && browser_client_) {
+                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_client_) {
                             browser_client_->AddCurrentPageToBookmarks();
                         }
                     } else if (c == 2) { // Ctrl+B - Open bookmarks
-                        if (!url_input_active_ && !console_input_active_ && browser_client_) {
+                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_client_) {
                             browser_client_->SetBookmarksActive(true);
                         }
                     } else if (c == 21) { // Ctrl+U - Open user scripts
-                        if (!url_input_active_ && !console_input_active_ && browser_client_) {
+                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_client_) {
                             browser_client_->SetUserScriptsActive(true);
                         }
                     } else if (c == 25) { // Ctrl+Y - Toggle auto-inject user scripts
-                        if (!url_input_active_ && !console_input_active_ && browser_client_) {
+                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_client_) {
                             browser_client_->ToggleAutoInjectUserScripts();
                         }
                     } else {
-                        if (!url_input_active_ && !console_input_active_) {
+                        if (!url_input_active_ && !file_input_active_ && !console_input_active_) {
                             sendKeyEvent(letter, c, false);
                         }
                     }

@@ -5,6 +5,7 @@
 #include "include/cef_display_handler.h"
 #include "include/cef_jsdialog_handler.h"
 #include "include/cef_download_handler.h"
+#include "include/cef_dialog_handler.h"
 #include "sixel_renderer.h"
 #include "status_bar.h"
 #include "bookmarks.h"
@@ -19,7 +20,8 @@ class BrowserClient : public CefClient,
                       public CefLoadHandler,
                       public CefDisplayHandler,
                       public CefJSDialogHandler,
-                      public CefDownloadHandler {
+                      public CefDownloadHandler,
+                      public CefDialogHandler {
 public:
     BrowserClient(int width, int height);
     
@@ -29,6 +31,7 @@ public:
     virtual CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
     virtual CefRefPtr<CefJSDialogHandler> GetJSDialogHandler() override { return this; }
     virtual CefRefPtr<CefDownloadHandler> GetDownloadHandler() override { return this; }
+    virtual CefRefPtr<CefDialogHandler> GetDialogHandler() override { return this; }
     
     virtual void GetViewRect(CefRefPtr<CefBrowser> browser, CefRect& rect) override;
     virtual void OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType type,
@@ -74,6 +77,16 @@ public:
                            CefRefPtr<CefJSDialogCallback> callback,
                            bool& suppress_message) override;
     
+    // CefDialogHandler methods
+    virtual bool OnFileDialog(CefRefPtr<CefBrowser> browser,
+                             CefDialogHandler::FileDialogMode mode,
+                             const CefString& title,
+                             const CefString& default_file_path,
+                             const std::vector<CefString>& accept_filters,
+                             const std::vector<CefString>& accept_extensions,
+                             const std::vector<CefString>& accept_descriptions,
+                             CefRefPtr<CefFileDialogCallback> callback) override;
+    
     CefRefPtr<CefBrowser> GetBrowser() { return browser_; }
     bool IsClosing() const { return is_closing_; }
     StatusBar* GetStatusBar() { return status_bar_.get(); }
@@ -94,6 +107,11 @@ public:
     CefJSDialogHandler::JSDialogType GetJSDialogType() const { return js_dialog_type_; }
     const std::string& GetJSDialogMessage() const { return js_dialog_message_; }
     const std::string& GetJSDialogPromptDefault() const { return js_dialog_prompt_default_; }
+    
+    // File dialog handling
+    void SetFileInputActive(bool active) { file_input_active_ = active; }
+    bool IsFileInputActive() const { return file_input_active_; }
+    void HandleFileDialogResponse(const std::string& file_path);
     
     // CefDownloadHandler methods
     virtual bool OnBeforeDownload(CefRefPtr<CefBrowser> browser,
@@ -156,6 +174,11 @@ private:
     std::string js_dialog_prompt_default_;
     CefRefPtr<CefJSDialogCallback> js_dialog_callback_;
     std::mutex js_dialog_mutex_;
+    
+    // File dialog handling
+    bool file_input_active_ = false;
+    CefRefPtr<CefFileDialogCallback> file_dialog_callback_;
+    std::mutex file_dialog_mutex_;
     
     // Download handling
     bool download_confirm_active_ = false;

@@ -26,8 +26,8 @@ void BrowserClient::OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType type
                            int width, int height) {
     std::lock_guard<std::mutex> lock(render_mutex_);
     
-    // Skip rendering when URL input, console, popup confirm, JS dialog, download confirm, bookmarks, or user scripts is active
-    if (url_input_active_ || console_active_ || popup_confirm_active_ || js_dialog_active_ || download_confirm_active_ || bookmarks_active_ || user_scripts_active_) {
+    // Skip rendering when URL input, console, popup confirm, JS dialog, file input, download confirm, bookmarks, or user scripts is active
+    if (url_input_active_ || console_active_ || popup_confirm_active_ || js_dialog_active_ || file_input_active_ || download_confirm_active_ || bookmarks_active_ || user_scripts_active_) {
         return;
     }
     
@@ -96,7 +96,7 @@ void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame>
             std::lock_guard<std::mutex> lock(render_mutex_);
             // Only clear if we're showing something (not just blank)
             if (!current_options_.empty() || url_input_active_ || console_active_ || 
-                popup_confirm_active_ || js_dialog_active_ || download_confirm_active_ || bookmarks_active_) {
+                popup_confirm_active_ || js_dialog_active_ || file_input_active_ || download_confirm_active_ || bookmarks_active_) {
                 status_bar_->clear();
             }
         }
@@ -472,6 +472,53 @@ void BrowserClient::HandleJSDialogResponse(bool success, const std::string& inpu
     js_dialog_callback_ = nullptr;
     
     // Force repaint to clear the dialog
+    if (browser_ && browser_->GetHost()) {
+        browser_->GetHost()->Invalidate(PET_VIEW);
+    }
+}
+
+bool BrowserClient::OnFileDialog(CefRefPtr<CefBrowser> browser,
+                                 CefDialogHandler::FileDialogMode mode,
+                                 const CefString& title,
+                                 const CefString& default_file_path,
+                                 const std::vector<CefString>& accept_filters,
+                                 const std::vector<CefString>& accept_extensions,
+                                 const std::vector<CefString>& accept_descriptions,
+                                 CefRefPtr<CefFileDialogCallback> callback) {
+    LOGB("File Dialog: mode=" << mode << " title=" << title.ToString() << " default_path=" << default_file_path.ToString());
+    
+    std::lock_guard<std::mutex> lock(file_dialog_mutex_);
+    
+    file_input_active_ = true;
+    file_dialog_callback_ = callback;
+    
+    if (status_bar_) {
+        status_bar_->showFileInput(default_file_path.ToString());
+    }
+    
+    return true;
+}
+
+void BrowserClient::HandleFileDialogResponse(const std::string& file_path) {
+    std::lock_guard<std::mutex> lock(file_dialog_mutex_);
+    
+    if (!file_input_active_ || !file_dialog_callback_) {
+        return;
+    }
+    
+    LOGB("File Dialog response: file_path=" << file_path);
+    
+    if (!file_path.empty()) {
+        std::vector<CefString> file_paths;
+        file_paths.push_back(file_path);
+        file_dialog_callback_->Continue(file_paths);
+    } else {
+        file_dialog_callback_->Cancel();
+    }
+    
+    file_input_active_ = false;
+    file_dialog_callback_ = nullptr;
+    
     if (browser_ && browser_->GetHost()) {
         browser_->GetHost()->Invalidate(PET_VIEW);
     }

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>File Input Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+        }
+        input[type="file"] {
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            min-height: 50px;
+        }
+    </style>
+</head>
+<body>
+    <h1>File Input Test for Brow6el</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Simple File Input</h2>
+        <p>Click on the file input to select a file:</p>
+        <input type="file" id="fileInput1" />
+        <div id="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 2: Multiple File Input</h2>
+        <p>Select multiple files:</p>
+        <input type="file" id="fileInput2" multiple />
+        <div id="result2"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 3: File Input with Accept Filter</h2>
+        <p>Only images (*.jpg, *.png, *.gif):</p>
+        <input type="file" id="fileInput3" accept="image/*" />
+        <div id="result3"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 4: File Input with Specific Extensions</h2>
+        <p>Only text files (*.txt):</p>
+        <input type="file" id="fileInput4" accept=".txt" />
+        <div id="result4"></div>
+    </div>
+
+    <script>
+        // Test 1: Simple file input
+        document.getElementById('fileInput1').addEventListener('change', function(e) {
+            const result = document.getElementById('result');
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                result.innerHTML = `
+                    <strong>Selected file:</strong><br>
+                    Name: ${file.name}<br>
+                    Size: ${file.size} bytes<br>
+                    Type: ${file.type || 'unknown'}<br>
+                    Last Modified: ${new Date(file.lastModified).toLocaleString()}
+                `;
+            } else {
+                result.innerHTML = '<em>No file selected</em>';
+            }
+        });
+        
+        // Test 2: Multiple files
+        document.getElementById('fileInput2').addEventListener('change', function(e) {
+            const result = document.getElementById('result2');
+            if (e.target.files.length > 0) {
+                let html = `<strong>Selected ${e.target.files.length} file(s):</strong><br>`;
+                for (let i = 0; i < e.target.files.length; i++) {
+                    const file = e.target.files[i];
+                    html += `${i+1}. ${file.name} (${file.size} bytes)<br>`;
+                }
+                result.innerHTML = html;
+            } else {
+                result.innerHTML = '<em>No files selected</em>';
+            }
+        });
+        
+        // Test 3: Images only
+        document.getElementById('fileInput3').addEventListener('change', function(e) {
+            const result = document.getElementById('result3');
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                result.innerHTML = `
+                    <strong>Selected image:</strong><br>
+                    Name: ${file.name}<br>
+                    Size: ${file.size} bytes<br>
+                    Type: ${file.type}
+                `;
+            } else {
+                result.innerHTML = '<em>No file selected</em>';
+            }
+        });
+        
+        // Test 4: Text files only
+        document.getElementById('fileInput4').addEventListener('change', function(e) {
+            const result = document.getElementById('result4');
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    result.innerHTML = `
+                        <strong>Selected file:</strong> ${file.name}<br>
+                        <strong>Content preview:</strong><br>
+                        <pre style="background: white; padding: 10px; border: 1px solid #ccc; max-height: 200px; overflow: auto;">${e.target.result.substring(0, 500)}</pre>
+                    `;
+                };
+                reader.readAsText(file);
+            } else {
+                result.innerHTML = '<em>No file selected</em>';
+            }
+        });
+    </script>
+</body>
+</html>

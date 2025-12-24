@@ -79,6 +79,26 @@ void StatusBar::showURLInput(const std::string& current_url) {
     restoreCursorPosition();
 }
 
+void StatusBar::showFileInput(const std::string& default_path) {
+    std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
+    
+    saveCursorPosition();
+    
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    int rows = w.ws_row;
+    
+    // Move to bottom line
+    std::cout << "\033[" << rows << ";1H";
+    std::cout << "\033[44m\033[97m"; // Blue background, white text
+    std::cout << " File: " << default_path;
+    std::cout << "\033[K"; // Clear to end of line
+    std::cout << "\033[0m"; // Reset colors
+    std::cout << std::flush;
+    
+    restoreCursorPosition();
+}
+
 void StatusBar::showComboboxOptions(const std::vector<std::string>& options, int selected_index) {
     if (options.empty()) {
         return;

@@ -44,6 +44,10 @@ private:
     bool url_input_active_ = false;
     std::string url_input_buffer_;
     
+    // File input mode
+    bool file_input_active_ = false;
+    std::string file_input_buffer_;
+    
     // Console input mode
     bool console_input_active_ = false;
     std::string console_input_buffer_;

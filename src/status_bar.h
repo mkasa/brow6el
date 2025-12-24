@@ -10,6 +10,7 @@ public:
     
     void showComboboxOptions(const std::vector<std::string>& options, int selected_index);
     void showURLInput(const std::string& current_url);
+    void showFileInput(const std::string& default_path);
     void showConsole(const std::vector<std::string>& logs, const std::string& input, int scroll_offset);
     void showPopupConfirm(const std::string& url);
     void showJSAlert(const std::string& message);
