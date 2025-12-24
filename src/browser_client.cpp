@@ -26,8 +26,8 @@ void BrowserClient::OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType type
                            int width, int height) {
     std::lock_guard<std::mutex> lock(render_mutex_);
     
-    // Skip rendering when URL input, console, popup confirm, JS dialog, download confirm, or bookmarks is active
-    if (url_input_active_ || console_active_ || popup_confirm_active_ || js_dialog_active_ || download_confirm_active_ || bookmarks_active_) {
+    // Skip rendering when URL input, console, popup confirm, JS dialog, download confirm, bookmarks, or user scripts is active
+    if (url_input_active_ || console_active_ || popup_confirm_active_ || js_dialog_active_ || download_confirm_active_ || bookmarks_active_ || user_scripts_active_) {
         return;
     }
     
@@ -105,6 +105,9 @@ void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame>
         LOGB("OnLoadEnd: injecting select detector...");
         injectSelectDetector();
         LOGB("OnLoadEnd: injection complete");
+        
+        // Auto-inject user scripts if enabled
+        InjectUserScriptsForCurrentPage();
     }
 }
 
@@ -279,14 +282,23 @@ bool BrowserClient::HandleSelectNavigation(int direction) {
         return false;
     }
     
-    // Update selection
-    current_selected_index_ += direction;
-    if (current_selected_index_ < 0) {
-        current_selected_index_ = 0;
+    // Calculate new selection
+    int new_index = current_selected_index_ + direction;
+    
+    // Clamp to valid range
+    if (new_index < 0) {
+        new_index = 0;
     }
-    if (current_selected_index_ >= (int)current_options_.size()) {
-        current_selected_index_ = current_options_.size() - 1;
+    if (new_index >= (int)current_options_.size()) {
+        new_index = current_options_.size() - 1;
     }
+    
+    // Only update if index actually changed
+    if (new_index == current_selected_index_) {
+        return true; // We handled it, but no change needed
+    }
+    
+    current_selected_index_ = new_index;
     
     // Update status bar display
     {
@@ -637,4 +649,101 @@ bool BrowserClient::HandleBookmarkDelete() {
     status_bar_->showBookmarks(display_list, bookmarks_selected_index_);
     
     return true;
+}
+
+void BrowserClient::SetUserScriptsActive(bool active) {
+    user_scripts_active_ = active;
+    if (active) {
+        user_scripts_selected_index_ = 0;
+        
+        // Get all available scripts
+        std::vector<std::string> script_names = user_scripts_manager_.getAllScriptNames();
+        
+        std::lock_guard<std::mutex> lock(render_mutex_);
+        status_bar_->showUserScripts(script_names, user_scripts_selected_index_);
+    } else {
+        std::lock_guard<std::mutex> lock(render_mutex_);
+        status_bar_->clear();
+        
+        // Force a repaint
+        if (browser_ && browser_->GetHost()) {
+            browser_->GetHost()->Invalidate(PET_VIEW);
+        }
+    }
+}
+
+bool BrowserClient::HandleUserScriptNavigation(int direction) {
+    if (!user_scripts_active_) return false;
+    
+    std::vector<std::string> script_names = user_scripts_manager_.getAllScriptNames();
+    if (script_names.empty()) return true;
+    
+    user_scripts_selected_index_ += direction;
+    if (user_scripts_selected_index_ < 0) {
+        user_scripts_selected_index_ = 0;
+    } else if (user_scripts_selected_index_ >= script_names.size()) {
+        user_scripts_selected_index_ = script_names.size() - 1;
+    }
+    
+    std::lock_guard<std::mutex> lock(render_mutex_);
+    status_bar_->showUserScripts(script_names, user_scripts_selected_index_);
+    
+    return true;
+}
+
+bool BrowserClient::HandleUserScriptConfirm() {
+    if (!user_scripts_active_) return false;
+    
+    std::vector<std::string> script_names = user_scripts_manager_.getAllScriptNames();
+    if (script_names.empty() || user_scripts_selected_index_ >= script_names.size()) {
+        return false;
+    }
+    
+    std::string script_name = script_names[user_scripts_selected_index_];
+    std::string script_content = user_scripts_manager_.getScriptContent(script_name);
+    
+    LOGB("Injecting user script: " << script_name);
+    
+    // Close user scripts view
+    SetUserScriptsActive(false);
+    
+    // Execute script
+    if (!script_content.empty() && browser_ && browser_->GetMainFrame()) {
+        browser_->GetMainFrame()->ExecuteJavaScript(script_content, browser_->GetMainFrame()->GetURL(), 0);
+        
+        // Show confirmation
+        std::lock_guard<std::mutex> lock(render_mutex_);
+        status_bar_->showMessage("📜 Script injected: " + script_name);
+    }
+    
+    return true;
+}
+
+void BrowserClient::ToggleAutoInjectUserScripts() {
+    bool current = user_scripts_manager_.isAutoInjectEnabled();
+    user_scripts_manager_.setAutoInject(!current);
+    
+    LOGB("ToggleAutoInjectUserScripts: was=" << current << " now=" << !current);
+    
+    std::lock_guard<std::mutex> lock(render_mutex_);
+    if (!current) {
+        status_bar_->showMessage("📜 User scripts auto-inject: ENABLED");
+    } else {
+        status_bar_->showMessage("📜 User scripts auto-inject: DISABLED");
+    }
+}
+
+void BrowserClient::InjectUserScriptsForCurrentPage() {
+    if (!browser_ || !browser_->GetMainFrame()) return;
+    
+    std::string url = browser_->GetMainFrame()->GetURL().ToString();
+    std::vector<std::string> matching_scripts = user_scripts_manager_.getMatchingScripts(url);
+    
+    for (const auto& script_name : matching_scripts) {
+        std::string script_content = user_scripts_manager_.getScriptContent(script_name);
+        if (!script_content.empty()) {
+            LOGB("Auto-injecting user script: " << script_name << " for URL: " << url);
+            browser_->GetMainFrame()->ExecuteJavaScript(script_content, browser_->GetMainFrame()->GetURL(), 0);
+        }
+    }
 }

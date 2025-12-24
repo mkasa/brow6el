@@ -51,4 +51,8 @@ private:
     
     // JS prompt input
     std::string js_prompt_input_;
+    
+    // Mouse drag tracking
+    bool mouse_button_down_ = false;
+    CefBrowserHost::MouseButtonType mouse_button_type_ = MBT_LEFT;
 };

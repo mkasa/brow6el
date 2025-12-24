@@ -135,8 +135,10 @@ void InputHandler::readLoop() {
                         if (browser_client_) {
                             browser_client_->SetUrlInputActive(false);
                             browser_client_->GetStatusBar()->clear();
-                            // Force a screen refresh
-                            std::cout << "\033[2J\033[H" << std::flush;
+                            // Invalidate to trigger immediate repaint
+                            if (browser_) {
+                                browser_->GetHost()->Invalidate(PET_VIEW);
+                            }
                         }
                     } else if (console_input_active_) {
                         console_input_active_ = false;
@@ -162,6 +164,9 @@ void InputHandler::readLoop() {
                     } else if (browser_client_ && browser_client_->IsBookmarksActive()) {
                         // Close bookmarks on ESC
                         browser_client_->SetBookmarksActive(false);
+                    } else if (browser_client_ && browser_client_->IsUserScriptsActive()) {
+                        // Close user scripts on ESC
+                        browser_client_->SetUserScriptsActive(false);
                     } else {
                         sendKeyEvent(VKEY_ESCAPE, 0, false);
                     }
@@ -196,6 +201,22 @@ void InputHandler::readLoop() {
                                 browser_->GetHost()->Invalidate(PET_VIEW);
                             }
                         }
+                    } else if (browser_client_ && browser_client_->IsPopupConfirmActive()) {
+                        // Cancel popup confirmation on ESC
+                        browser_client_->HandlePopupResponse(false);
+                    } else if (browser_client_ && browser_client_->IsJSDialogActive()) {
+                        // Cancel JS dialog on ESC (for confirm and prompt)
+                        auto type = browser_client_->GetJSDialogType();
+                        if (type == JSDIALOGTYPE_CONFIRM || type == JSDIALOGTYPE_PROMPT) {
+                            browser_client_->HandleJSDialogResponse(false);
+                            js_prompt_input_.clear();
+                        }
+                    } else if (browser_client_ && browser_client_->IsBookmarksActive()) {
+                        // Close bookmarks on ESC
+                        browser_client_->SetBookmarksActive(false);
+                    } else if (browser_client_ && browser_client_->IsUserScriptsActive()) {
+                        // Close user scripts on ESC
+                        browser_client_->SetUserScriptsActive(false);
                     } else {
                         sendKeyEvent(VKEY_ESCAPE, 0, false);
                     }
@@ -292,7 +313,20 @@ void InputHandler::readLoop() {
                     // Check if console input is active
                     if (console_input_active_) {
                         if (!console_input_buffer_.empty() && browser_client_) {
-                            browser_client_->ExecuteJavaScript(console_input_buffer_);
+                            // Check if it's a browser command (starts with :)
+                            if (console_input_buffer_[0] == ':') {
+                                std::string command = console_input_buffer_.substr(1);
+                                if (command == "clear") {
+                                    // Clear console logs
+                                    browser_client_->ClearConsoleLogs();
+                                    console_scroll_offset_ = 0;
+                                }
+                                // Add more commands here in the future
+                                // else if (command == "help") { ... }
+                            } else {
+                                // Execute as JavaScript
+                                browser_client_->ExecuteJavaScript(console_input_buffer_);
+                            }
                             console_input_buffer_.clear();
                             // Keep console open, just clear input
                             if (browser_client_) {
@@ -320,6 +354,11 @@ void InputHandler::readLoop() {
                     // Check if bookmarks is active and handle Enter
                     if (browser_client_ && browser_client_->IsBookmarksActive()) {
                         browser_client_->HandleBookmarkConfirm();
+                        continue;
+                    }
+                    // Check if user scripts is active and handle Enter
+                    if (browser_client_ && browser_client_->IsUserScriptsActive()) {
+                        browser_client_->HandleUserScriptConfirm();
                         continue;
                     }
                     // Check if status bar is active and handle Enter
@@ -523,6 +562,14 @@ void InputHandler::readLoop() {
                         if (!url_input_active_ && !console_input_active_ && browser_client_) {
                             browser_client_->SetBookmarksActive(true);
                         }
+                    } else if (c == 21) { // Ctrl+U - Open user scripts
+                        if (!url_input_active_ && !console_input_active_ && browser_client_) {
+                            browser_client_->SetUserScriptsActive(true);
+                        }
+                    } else if (c == 25) { // Ctrl+Y - Toggle auto-inject user scripts
+                        if (!url_input_active_ && !console_input_active_ && browser_client_) {
+                            browser_client_->ToggleAutoInjectUserScripts();
+                        }
                     } else {
                         if (!url_input_active_ && !console_input_active_) {
                             sendKeyEvent(letter, c, false);
@@ -622,7 +669,13 @@ void InputHandler::parseMouseEvent(const char* seq, int len) {
     
     // Mouse motion (button & 32 means drag)
     if (button & 32) {
+        // During drag, send move event and keep the button state if button is down
         browser_->GetHost()->SendMouseMoveEvent(mouse_event, false);
+        // If we're dragging and a button was pressed, send click event to maintain selection
+        if (mouse_button_down_) {
+            // Keep sending mouse down events during drag for text selection
+            browser_->GetHost()->SendMouseClickEvent(mouse_event, mouse_button_type_, false, 1);
+        }
     }
     // Button press/release
     else {
@@ -646,6 +699,9 @@ void InputHandler::parseMouseEvent(const char* seq, int len) {
         
         if (pressed) {
             // Mouse DOWN
+            mouse_button_down_ = true;
+            mouse_button_type_ = cef_button;
+            
             if (pixel_x == last_x && pixel_y == last_y) {
                 click_count_at_pos++;
             } else {
@@ -656,6 +712,7 @@ void InputHandler::parseMouseEvent(const char* seq, int len) {
             browser_->GetHost()->SendMouseClickEvent(mouse_event, cef_button, false, click_count_at_pos);
         } else {
             // Mouse UP
+            mouse_button_down_ = false;
             browser_->GetHost()->SendMouseClickEvent(mouse_event, cef_button, true, click_count_at_pos);
         }
     }
@@ -704,6 +761,11 @@ void InputHandler::parseKeySequence(const char* seq, int len) {
                 // Check if bookmarks is showing - handle navigation there
                 if (browser_client_ && browser_client_->IsBookmarksActive()) {
                     browser_client_->HandleBookmarkNavigation(seq[2] == 'A' ? -1 : 1);
+                    return;
+                }
+                // Check if user scripts is showing - handle navigation there
+                if (browser_client_ && browser_client_->IsUserScriptsActive()) {
+                    browser_client_->HandleUserScriptNavigation(seq[2] == 'A' ? -1 : 1);
                     return;
                 }
                 // Check if status bar is showing - handle selection there

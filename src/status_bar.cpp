@@ -102,14 +102,17 @@ void StatusBar::showComboboxOptions(const std::vector<std::string>& options, int
     int max_display = std::min(8, (int)options.size());
     int start_line = rows - max_display - 1;
     
-    // Clear status area
-    clearStatusArea();
+    // Clear the entire options area
+    for (int i = start_line; i <= rows; i++) {
+        std::cout << "\033[" << i << ";1H\033[2K"; // Move to line and clear entire line
+    }
+    std::cout << std::flush; // Ensure clearing is complete before redrawing
     
     // Draw header
     std::cout << "\033[" << start_line << ";1H";
     std::cout << "\033[44m\033[97m\033[1m"; // Blue background, white bold text
     std::cout << " Select option (↑↓ to navigate, Enter to confirm, Esc to close): ";
-    std::cout << "\033[K\033[0m\n";
+    std::cout << "\033[K\033[0m";
     
     // Determine which options to show (with scrolling)
     int start_idx = 0;
@@ -117,7 +120,8 @@ void StatusBar::showComboboxOptions(const std::vector<std::string>& options, int
         start_idx = std::min(selected_index - max_display + 2, (int)options.size() - max_display);
     }
     
-    // Draw options
+    // Draw options with absolute positioning
+    int option_line = start_line + 1;
     for (int i = 0; i < max_display && (start_idx + i) < options.size(); i++) {
         int opt_idx = start_idx + i;
         std::string option = options[opt_idx];
@@ -128,6 +132,9 @@ void StatusBar::showComboboxOptions(const std::vector<std::string>& options, int
             option = option.substr(0, max_width - 3) + "...";
         }
         
+        // Position at specific line
+        std::cout << "\033[" << option_line << ";1H";
+        
         // Highlight selected option
         if (opt_idx == selected_index) {
             std::cout << "\033[42m\033[30m"; // Green background, black text
@@ -136,11 +143,13 @@ void StatusBar::showComboboxOptions(const std::vector<std::string>& options, int
             std::cout << "\033[40m\033[97m"; // Black background, white text
             std::cout << "   " << option;
         }
-        std::cout << "\033[K\033[0m\n"; // Clear to end of line and reset
+        std::cout << "\033[K\033[0m"; // Clear to end of line and reset
+        option_line++;
     }
     
-    // Show scroll indicators if needed
+    // Show scroll indicators if needed (on a separate line after options)
     if (start_idx > 0 || (start_idx + max_display) < options.size()) {
+        std::cout << "\033[" << option_line << ";1H"; // Position on next line
         std::cout << "\033[44m\033[97m"; // Blue background
         if (start_idx > 0) {
             std::cout << " ▲ More above";
@@ -159,8 +168,6 @@ void StatusBar::showComboboxOptions(const std::vector<std::string>& options, int
 void StatusBar::showConsole(const std::vector<std::string>& logs, const std::string& input, int scroll_offset) {
     std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
     
-    saveCursorPosition();
-    
     struct winsize w;
     ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
     int rows = w.ws_row;
@@ -170,16 +177,19 @@ void StatusBar::showConsole(const std::vector<std::string>& logs, const std::str
     int console_height = std::max(10, rows / 2);
     int start_line = rows - console_height + 1;
     
-    // Clear console area
-    for (int i = 0; i < console_height; i++) {
-        std::cout << "\033[" << (start_line + i) << ";1H\033[K";
+    // Save cursor position AFTER we know where we'll be drawing
+    saveCursorPosition();
+    
+    // Clear the entire console area from start_line to bottom of screen
+    for (int i = start_line; i <= rows; i++) {
+        std::cout << "\033[" << i << ";1H\033[2K"; // Move to line and clear entire line
     }
     
     // Draw header
     std::cout << "\033[" << start_line << ";1H";
     std::cout << "\033[44m\033[97m\033[1m"; // Blue background, white bold text
     std::cout << " JavaScript Console (↑↓ scroll, Esc to close, Enter to execute) ";
-    std::cout << "\033[K\033[0m\n";
+    std::cout << "\033[K\033[0m";
     
     // Calculate how many log lines we can show
     int log_display_lines = console_height - 3; // Header + input line + border
@@ -189,7 +199,8 @@ void StatusBar::showConsole(const std::vector<std::string>& logs, const std::str
     int start_idx = std::max(0, total_logs - log_display_lines - scroll_offset);
     int end_idx = std::min(total_logs, start_idx + log_display_lines);
     
-    // Draw log messages
+    // Draw log messages (starting from line after header)
+    int log_line = start_line + 1;
     for (int i = start_idx; i < end_idx; i++) {
         std::string log = logs[i];
         
@@ -198,17 +209,18 @@ void StatusBar::showConsole(const std::vector<std::string>& logs, const std::str
             log = log.substr(0, cols - 5) + "...";
         }
         
+        std::cout << "\033[" << log_line << ";1H"; // Position at specific line
         std::cout << "\033[40m\033[97m"; // Black background, white text
         std::cout << " " << log;
-        std::cout << "\033[K\033[0m\n";
+        std::cout << "\033[K\033[0m"; // Clear rest of line
+        log_line++;
     }
     
-    // Fill remaining lines
-    int current_line = start_line + 1 + (end_idx - start_idx);
+    // Fill remaining lines (clear any leftover content)
     int input_line = start_line + console_height - 2;
-    while (current_line < input_line) {
-        std::cout << "\033[" << current_line << ";1H\033[K";
-        current_line++;
+    while (log_line < input_line) {
+        std::cout << "\033[" << log_line << ";1H\033[K";
+        log_line++;
     }
     
     // Show scroll indicators
@@ -218,9 +230,7 @@ void StatusBar::showConsole(const std::vector<std::string>& logs, const std::str
         std::cout << " [" << (end_idx - start_idx) << "/" << total_logs << " messages]";
         if (start_idx > 0) std::cout << " ▲";
         if (end_idx < total_logs) std::cout << " ▼";
-        std::cout << "\033[K\033[0m\n";
-    } else {
-        current_line++;
+        std::cout << "\033[K\033[0m";
     }
     
     // Draw input line
@@ -596,6 +606,107 @@ void StatusBar::showBookmarks(const std::vector<std::string>& bookmarks, int sel
             std::cout << " ▲ More above";
         }
         if ((start_idx + max_display) < bookmarks.size()) {
+            if (start_idx > 0) std::cout << "  ";
+            std::cout << " ▼ More below";
+        }
+        std::cout << "\033[K\033[0m\n";
+    }
+    
+    std::cout << std::flush;
+    restoreCursorPosition();
+}
+
+void StatusBar::showUserScripts(const std::vector<std::string>& scripts, int selected_index) {
+    if (scripts.empty()) {
+        std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
+        
+        saveCursorPosition();
+        
+        struct winsize w;
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+        int rows = w.ws_row;
+        
+        // Clear status area
+        clearStatusArea();
+        
+        std::cout << "\033[" << (rows - 2) << ";1H";
+        std::cout << "\033[44m\033[97m\033[1m"; // Blue background, white bold text
+        std::cout << " 📜 User Scripts ";
+        std::cout << "\033[K\033[0m\n";
+        
+        std::cout << "\033[40m\033[97m"; // Black background, white text
+        std::cout << " No scripts found in ~/.brow6el_userscripts/";
+        std::cout << "\033[K\033[0m";
+        
+        std::cout << std::flush;
+        restoreCursorPosition();
+        
+        is_showing_ = true;
+        return;
+    }
+    
+    std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
+    
+    // Save state for redrawing
+    is_showing_ = true;
+    current_options_ = scripts;
+    current_selected_ = selected_index;
+    
+    saveCursorPosition();
+    
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    int rows = w.ws_row;
+    int cols = w.ws_col;
+    
+    // Calculate how many scripts to show (max 10 lines)
+    int max_display = std::min(10, (int)scripts.size());
+    int start_line = rows - max_display - 2;
+    
+    // Clear status area
+    clearStatusArea();
+    
+    // Draw header
+    std::cout << "\033[" << start_line << ";1H";
+    std::cout << "\033[44m\033[97m\033[1m"; // Blue background, white bold text
+    std::cout << " 📜 User Scripts (↑↓ navigate, Enter inject, Esc close) ";
+    std::cout << "\033[K\033[0m\n";
+    
+    // Determine which scripts to show (with scrolling)
+    int start_idx = 0;
+    if (selected_index >= max_display - 1) {
+        start_idx = std::min(selected_index - max_display + 2, (int)scripts.size() - max_display);
+    }
+    
+    // Draw scripts
+    for (int i = 0; i < max_display && (start_idx + i) < scripts.size(); i++) {
+        int opt_idx = start_idx + i;
+        std::string script_name = scripts[opt_idx];
+        
+        // Truncate if too long
+        int max_width = cols - 6;
+        if (script_name.length() > max_width) {
+            script_name = script_name.substr(0, max_width - 3) + "...";
+        }
+        
+        // Highlight selected script
+        if (opt_idx == selected_index) {
+            std::cout << "\033[42m\033[30m"; // Green background, black text
+            std::cout << " ► " << script_name;
+        } else {
+            std::cout << "\033[40m\033[97m"; // Black background, white text
+            std::cout << "   " << script_name;
+        }
+        std::cout << "\033[K\033[0m\n"; // Clear to end of line and reset
+    }
+    
+    // Show scroll indicators if needed
+    if (start_idx > 0 || (start_idx + max_display) < scripts.size()) {
+        std::cout << "\033[44m\033[97m"; // Blue background
+        if (start_idx > 0) {
+            std::cout << " ▲ More above";
+        }
+        if ((start_idx + max_display) < scripts.size()) {
             if (start_idx > 0) std::cout << "  ";
             std::cout << " ▼ More below";
         }

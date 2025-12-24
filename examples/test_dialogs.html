@@ -145,6 +145,26 @@
         <button onclick="logMessages()">Send Console Messages</button>
     </div>
 
+    <div class="test-section">
+        <h2>9. User Scripts Test</h2>
+        <p class="description">
+            <strong>Ctrl+U</strong> - Open user scripts menu<br>
+            <strong>Ctrl+Y</strong> - Toggle auto-inject on/off<br>
+            Navigate with ↑/↓, press Enter to inject, ESC to close<br>
+            <br>
+            <strong>Setup:</strong><br>
+            1. Scripts location: <code>~/.brow6el_userscripts/</code><br>
+            2. Config file: <code>~/.brow6el_userscripts.conf</code><br>
+            3. Auto-inject based on URL patterns<br>
+            <br>
+            <strong>Example scripts installed:</strong><br>
+            - google-custom.js (auto-inject on *google.com*)<br>
+            - dark-mode.js (manual inject only)
+        </p>
+        <button onclick="testUserScript()">Test User Script Detection</button>
+        <div id="userscript-result" class="result"></div>
+    </div>
+
     <script>
         function testAlert() {
             alert('This is a test alert dialog!\n\nPress Enter to dismiss.');
@@ -212,6 +232,17 @@
             console.error('This is an error message');
             console.log('[Brow6el] Special message for brow6el console');
             alert('Check console (Ctrl+K) to see the messages!');
+        }
+
+        function testUserScript() {
+            // Create a marker that a user script can detect
+            const marker = document.createElement('div');
+            marker.id = 'user-script-test-marker';
+            marker.style.display = 'none';
+            marker.textContent = 'User script test marker';
+            document.body.appendChild(marker);
+            
+            showResult('userscript-result', 'Test marker added. Try injecting the dark-mode script with Ctrl+U!');
         }
 
         function showResult(elementId, message) {

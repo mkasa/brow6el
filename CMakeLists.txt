@@ -29,6 +29,7 @@ set(SOURCES
     src/input_handler.cpp
     src/status_bar.cpp
     src/bookmarks.cpp
+    src/user_scripts.cpp
 )
 
 set(HEADERS
@@ -39,6 +40,7 @@ set(HEADERS
     src/input_handler.h
     src/status_bar.h
     src/bookmarks.h
+    src/user_scripts.h
 )
 
 # Create executable

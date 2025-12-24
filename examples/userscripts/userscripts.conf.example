@@ -1,0 +1,9 @@
+# brow6el User Scripts Configuration
+# Format: filename|name|enabled|pattern1,pattern2,...
+# Patterns support wildcards: * (any chars), ? (single char)
+
+auto_inject=false
+
+google-custom.js|Google Custom|true|*google.com*,*google.co.*
+dark-mode.js|Dark Mode|false|
+test-page.js|Test Page Banner|true|*test_dialogs.html*

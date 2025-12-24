@@ -8,6 +8,7 @@
 #include "sixel_renderer.h"
 #include "status_bar.h"
 #include "bookmarks.h"
+#include "user_scripts.h"
 #include <memory>
 #include <atomic>
 #include <mutex>
@@ -82,6 +83,7 @@ public:
     void SetConsoleActive(bool active) { console_active_ = active; }
     bool IsConsoleActive() const { return console_active_; }
     const std::vector<std::string>& GetConsoleLogs() const { return console_logs_; }
+    void ClearConsoleLogs() { console_logs_.clear(); }
     void ExecuteJavaScript(const std::string& code);
     void SetPopupConfirmActive(bool active, const std::string& url = "");
     bool IsPopupConfirmActive() const { return popup_confirm_active_; }
@@ -116,6 +118,15 @@ public:
     bool HandleBookmarkConfirm();
     bool HandleBookmarkDelete();
     BookmarksManager* GetBookmarksManager() { return &bookmarks_manager_; }
+    
+    // User Scripts
+    void SetUserScriptsActive(bool active);
+    bool IsUserScriptsActive() const { return user_scripts_active_; }
+    bool HandleUserScriptNavigation(int direction);
+    bool HandleUserScriptConfirm();
+    void ToggleAutoInjectUserScripts();
+    void InjectUserScriptsForCurrentPage();
+    UserScriptsManager* GetUserScriptsManager() { return &user_scripts_manager_; }
     
 private:
     int width_;
@@ -158,6 +169,11 @@ private:
     int bookmarks_selected_index_ = 0;
     BookmarksManager bookmarks_manager_;
     std::string current_page_title_;
+    
+    // User Scripts handling
+    bool user_scripts_active_ = false;
+    int user_scripts_selected_index_ = 0;
+    UserScriptsManager user_scripts_manager_;
     
     void injectSelectDetector();
     void parseSelectMessage(const std::string& message);

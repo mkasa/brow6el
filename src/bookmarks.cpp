@@ -15,7 +15,10 @@ std::string BookmarksManager::getBookmarksFilePath() const {
     if (!home) {
         home = getpwuid(getuid())->pw_dir;
     }
-    return std::string(home) + "/.brow6el_bookmarks";
+    std::string config_dir = std::string(home) + "/.brow6el";
+    // Create directory if it doesn't exist
+    mkdir(config_dir.c_str(), 0755);
+    return config_dir + "/bookmarks";
 }
 
 void BookmarksManager::load() {
@@ -30,7 +33,7 @@ void BookmarksManager::load() {
     while (std::getline(file, line)) {
         if (line.empty()) continue;
         
-        size_t separator = line.find('|');
+        size_t separator = line.find('\t');
         if (separator != std::string::npos) {
             Bookmark bookmark;
             bookmark.title = line.substr(0, separator);
@@ -47,7 +50,7 @@ void BookmarksManager::save() {
     }
     
     for (const auto& bookmark : bookmarks_) {
-        file << bookmark.title << "|" << bookmark.url << "\n";
+        file << bookmark.title << "\t" << bookmark.url << "\n";
     }
 }
 

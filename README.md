@@ -16,20 +16,35 @@ WARNING: this is POC code quality, it is known it doesn't work with localized ke
 - **Sixel Graphics** - Full page rendering with automatic resolution detection
 - **Mouse Support** - Click, scroll, and interact with web pages
 - **Keyboard Navigation** - Full keyboard support with shortcuts
-- **JavaScript Console** - Execute JS commands and view console logs
+- **JavaScript Console** - Execute JS commands and view console logs (Ctrl+K)
+- **Bookmarks** - Save and organize your favorite pages (Ctrl+D, Ctrl+B)
+- **User Scripts** - Inject custom JavaScript into pages (Ctrl+U, Ctrl+Y)
 - **Download Manager** - Save files with progress tracking
 - **Popup Handling** - Terminal-friendly popup dialogs
+- **Multi-Instance** - Run multiple browser windows simultaneously
+- **Private Mode** - Each session is isolated, cache cleared on exit
 - **Modern Web** - Full HTML5/CSS3/JavaScript support via Chromium
 
 ## Keyboard Shortcuts
 
+### Navigation
 - `Ctrl+L` - Navigate to URL
-- `Ctrl+J` - Toggle JavaScript console
 - `Ctrl+R` - Reload page
 - `Ctrl+Left` - Navigate back
 - `Ctrl+Right` - Navigate forward
 - `Ctrl+X` - Quit browser
+
+### Features
+- `Ctrl+K` - Toggle JavaScript console
+- `Ctrl+D` - Add current page to bookmarks
+- `Ctrl+B` - Open bookmarks dialog
+- `Ctrl+U` - Open user scripts menu
+- `Ctrl+Y` - Toggle auto-inject for user scripts
+
+### Dialogs
 - `ESC` - Cancel current dialog
+- `↑/↓` - Navigate in menus
+- `Enter` - Confirm selection
 
 ## Quick Start
 
@@ -41,6 +56,81 @@ WARNING: this is POC code quality, it is known it doesn't work with localized ke
 ./build.sh
 
 # 3. Run
+./build/run_brow6el.sh https://example.com
+
+# Try the test page with all features
+./build/run_brow6el.sh file://$PWD/../examples/test_dialogs.html
+
+# Multiple instances supported!
+# Open additional terminals and run more instances
+```
+
+## Examples
+
+The `examples/` directory contains:
+- **test_dialogs.html** - Comprehensive test page for all features
+- **userscripts/** - Example user scripts (dark mode, Google customization, etc.)
+
+See [examples/README.md](examples/README.md) for details.
+
+## Advanced Features
+
+### Bookmarks
+- Press `Ctrl+D` to bookmark the current page
+- Press `Ctrl+B` to view and manage bookmarks
+- Navigate with ↑/↓, press Enter to open, 'd' to delete
+- Bookmarks stored in `~/.brow6el/bookmarks`
+
+### User Scripts
+Custom JavaScript injection system similar to Greasemonkey/Tampermonkey.
+
+**Quick Start:**
+1. Create script directory: `mkdir -p ~/.brow6el/userscripts`
+2. Add `.js` files to the directory
+3. Configure URL patterns in `~/.brow6el/userscripts.conf`
+4. Press `Ctrl+U` to manually inject or `Ctrl+Y` to toggle auto-inject
+
+**Example config** (`~/.brow6el/userscripts.conf`):
+```
+auto_inject=true
+
+dark-mode.js|Dark Mode|true|*
+google-custom.js|Google Custom|true|*google.com*,*google.co.*
+```
+
+See [USERSCRIPTS.md](USERSCRIPTS.md) for detailed documentation.
+
+### JavaScript Console
+- Press `Ctrl+K` to open/close the console
+- Type JavaScript and press Enter to execute
+- Scroll through output with ↑/↓
+- All console.log/warn/error messages are captured
+
+### Privacy & Data
+
+**What persists:**
+- Bookmarks (`~/.brow6el/bookmarks`)
+- User scripts (`~/.brow6el/userscripts/`)
+- User script config (`~/.brow6el/userscripts.conf`)
+
+**What doesn't persist (private mode):**
+- Cookies (cleared on exit)
+- localStorage (cleared on exit)
+- Cache (cleared on exit)
+- History (not stored)
+
+Each browser instance uses an isolated cache directory `/tmp/brow6el_<PID>` that is automatically deleted when you close the browser.
+
+### Multiple Instances
+You can run multiple browser instances simultaneously:
+```bash
+# Terminal 1
+./build/run_brow6el.sh https://github.com
+
+# Terminal 2
+./build/run_brow6el.sh https://google.com
+
+# Terminal 3
 ./build/run_brow6el.sh https://example.com
 ```
 

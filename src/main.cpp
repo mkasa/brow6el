@@ -50,6 +50,31 @@ void requestShutdown() {
 int main(int argc, char* argv[]) {
     CefMainArgs main_args(argc, argv);
     
+    // Parse command line arguments
+    std::string url = "https://example.com";
+    
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        if (arg == "--help" || arg == "-h") {
+            std::cout << "Usage: brow6el [OPTIONS] [URL]\n\n";
+            std::cout << "Keyboard Shortcuts:\n";
+            std::cout << "  Ctrl+X              Exit\n";
+            std::cout << "  Ctrl+R              Reload page\n";
+            std::cout << "  Ctrl+L              Navigate to URL\n";
+            std::cout << "  Ctrl+Left/Right     Back/Forward\n";
+            std::cout << "  Ctrl+K              Toggle console\n";
+            std::cout << "  Ctrl+D              Add bookmark\n";
+            std::cout << "  Ctrl+B              Open bookmarks\n";
+            std::cout << "  Ctrl+U              Open user scripts\n";
+            std::cout << "  Ctrl+Y              Toggle auto-inject scripts\n\n";
+            std::cout << "Note: Each instance runs in private mode (cache deleted on exit)\n";
+            std::cout << "      Bookmarks and user scripts are persistent\n";
+            return 0;
+        } else if (arg[0] != '-') {
+            url = arg;
+        }
+    }
+    
     // Get executable directory for resources (needed by both main and sub-processes)
     char exe_path[1024];
     std::string exe_dir;
@@ -69,7 +94,14 @@ int main(int argc, char* argv[]) {
     settings.no_sandbox = true;
     settings.multi_threaded_message_loop = false;
     settings.command_line_args_disabled = false;
-    CefString(&settings.cache_path).FromASCII("/tmp/brow6el_cache");
+    
+    // Use unique cache per instance for multi-instance support
+    std::string user_data_dir = "/tmp/brow6el_" + std::to_string(getpid());
+    std::string cache_path = user_data_dir + "/cache";
+    
+    // Set both root cache path and user data dir
+    CefString(&settings.cache_path).FromASCII(cache_path.c_str());
+    CefString(&settings.root_cache_path).FromASCII(user_data_dir.c_str());
     
     // Disable sandbox-related features
     CefString(&settings.browser_subprocess_path).FromASCII(exe_path);
@@ -109,11 +141,6 @@ int main(int argc, char* argv[]) {
         std::cerr << "Error: Your terminal does not support Sixel graphics" << std::endl;
         std::cerr << "Please use a terminal emulator with Sixel support (e.g., mlterm, xterm with sixel)" << std::endl;
         return 1;
-    }
-    
-    std::string url = "https://example.com";
-    if (argc > 1) {
-        url = argv[1];
     }
     
     if (!CefInitialize(main_args, settings, app.get(), nullptr)) {
@@ -186,11 +213,12 @@ int main(int argc, char* argv[]) {
     client = nullptr;
     app = nullptr;
     
+    // Clean up cache directory
+    std::string rm_cmd = "rm -rf " + user_data_dir;
+    system(rm_cmd.c_str());
+    
     cleanupAndExit();
     
-    // Skip CefShutdown() as it causes trace trap in single-process mode
-    // The OS will clean up resources on process exit
-    _exit(0);  // Use _exit to bypass atexit handlers that might cause issues
-    
-    return 0;
+    // Use _exit to bypass atexit handlers that might cause issues
+    _exit(0);
 }
