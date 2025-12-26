@@ -1,0 +1,19 @@
+Using Ozone for Framebuffer
+
+   Add these flags to ~/.brow6el/cef_flags.conf:
+
+     # Ozone Platform Configuration
+     enable-features=UseOzonePlatform
+     ozone-platform=headless
+
+     # Alternative: For direct DRM/KMS framebuffer access
+     # ozone-platform=drm
+
+     # GPU Configuration for Ozone
+     use-gl=angle
+     use-angle=swiftshader-webgl
+
+     # Additional Ozone-compatible flags
+     no-xshm
+     disable-dev-shm-usage
+     disable-setuid-sandbox

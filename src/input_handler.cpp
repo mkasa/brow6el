@@ -414,7 +414,7 @@ void InputHandler::readLoop() {
                     if (!url_input_active_ && !file_input_active_ && !console_input_active_) {
                         sendKeyEvent(VKEY_TAB, '\t', false);
                     }
-                } else if (c == 127) { // Backspace/DEL
+                } else if (c == 127 || c == 8) { // Backspace/DEL (127 in xterm, 8 in mlterm)
                     if (browser_client_ && browser_client_->IsJSDialogActive() && 
                         browser_client_->GetJSDialogType() == JSDIALOGTYPE_PROMPT) {
                         if (!js_prompt_input_.empty()) {
