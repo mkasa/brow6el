@@ -155,7 +155,7 @@ You can run multiple browser instances simultaneously:
 
 ## Requirements
 
-**Sixel-capable terminal**: Any terminal emulator that supports Sixel graphics (e.g., mlterm, xterm -ti vt340, foot, wezterm, kitty, etc.)
+**Sixel-capable terminal**: Any terminal emulator that supports Sixel graphics (e.g. mlterm, xterm -ti vt340, foot, wezterm, etc.)
 
 The browser automatically detects Sixel support via terminal capability queries - no manual configuration needed.
 
