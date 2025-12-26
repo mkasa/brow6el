@@ -21,7 +21,11 @@ cp -r locales "$PORTABLE_DIR/"
 cp *.pak "$PORTABLE_DIR/" 2>/dev/null || true
 cp *.bin "$PORTABLE_DIR/" 2>/dev/null || true
 cp *.so "$PORTABLE_DIR/" 2>/dev/null || true
+cp *.so.1 "$PORTABLE_DIR/" 2>/dev/null || true
 cp *.dat "$PORTABLE_DIR/" 2>/dev/null || true
+cp *.json "$PORTABLE_DIR/" 2>/dev/null || true
+cp *.js "$PORTABLE_DIR/" 2>/dev/null || true
+
 
 # Create launcher script
 cat > "$PORTABLE_DIR/brow6el-launch" << 'EOF'
@@ -33,7 +37,7 @@ EOF
 chmod +x "$PORTABLE_DIR/brow6el-launch"
 
 # Create tarball
-TAR_NAME="brow6el-linux64-portable.tar.gz"
+TAR_NAME="brow6el-portable.tar.gz"
 tar czf "$TAR_NAME" "$PORTABLE_DIR"
 
 echo "✓ Portable package created: build/$TAR_NAME"

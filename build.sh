@@ -18,6 +18,12 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 echo "Compiling..."
 make -j$(nproc)
 
+echo "Stripping debug symbols from libcef.so..."
+if [ -f "libcef.so" ]; then
+    strip --strip-debug libcef.so
+    echo "libcef.so stripped (debug symbols removed)"
+fi
+
 echo ""
 echo "Build complete!"
 echo "Run: cd build && ./run_brow6el.sh [URL]"
