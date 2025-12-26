@@ -6,7 +6,7 @@ WARNING: this is POC code quality, it is known it doesn't work with localized ke
 
 ## Screenshots
 ### Demo
-![brow6el web browser demo video](https://codeberg.org/janantos/brow6el/raw/branch/main/screenshots/brow6el_demo.mp4 "brow6el demo video")
+[![brow6el web browser demo video](https://codeberg.org/janantos/brow6el/raw/branch/main/screenshots/brow6el.png)](https://codeberg.org/janantos/brow6el/raw/branch/main/screenshots/brow6el_demo.mp4)
 
 ### Page view
 ![brow6el web browser running in linux virtual terminal window showing codeberg website](https://codeberg.org/janantos/brow6el/raw/branch/main/screenshots/brow6el.png "brow6el page view")
