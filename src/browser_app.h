@@ -2,10 +2,14 @@
 
 #include "include/cef_app.h"
 #include "include/cef_command_line.h"
+#include "config.h"
 
 class BrowserApp : public CefApp, public CefBrowserProcessHandler {
 public:
-    BrowserApp() = default;
+    BrowserApp() {
+        // Load CEF flags from config file
+        Config::getInstance().loadCefFlags();
+    }
     
     virtual CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override {
         return this;
@@ -14,21 +18,20 @@ public:
     virtual void OnBeforeCommandLineProcessing(
         const CefString& process_type,
         CefRefPtr<CefCommandLine> command_line) override {
-        // Aggressively disable GPU to use software rendering only
-        command_line->AppendSwitch("disable-gpu");
-        command_line->AppendSwitch("disable-gpu-compositing");
-        command_line->AppendSwitch("disable-gpu-sandbox");
-        command_line->AppendSwitch("disable-gpu-rasterization");
-        command_line->AppendSwitch("disable-gpu-driver-bug-workarounds");
-        command_line->AppendSwitchWithValue("use-gl", "swiftshader");
-        command_line->AppendSwitch("disable-software-rasterizer");
-        command_line->AppendSwitch("enable-begin-frame-scheduling");
         
-        // Additional stability flags
-        command_line->AppendSwitch("single-process");
+        // Load flags from config file (~/.brow6el/cef_flags.conf)
+        const auto& flags = Config::getInstance().getCefFlags();
+        const auto& flags_with_value = Config::getInstance().getCefFlagsWithValue();
         
-        // Disable PDF viewer plugin to force downloads
-        command_line->AppendSwitch("disable-pdf-extension");
+        // Apply simple flags
+        for (const auto& flag : flags) {
+            command_line->AppendSwitch(flag);
+        }
+        
+        // Apply flags with values
+        for (const auto& pair : flags_with_value) {
+            command_line->AppendSwitchWithValue(pair.first, pair.second);
+        }
     }
     
 private:
