@@ -37,6 +37,44 @@ void StatusBar::clear() {
     clearStatusArea();
     is_showing_ = false;
     current_options_.clear();
+    // Don't clear current_title_ - it should persist
+    
+    // Immediately redraw the title bar if we have one
+    if (!current_title_.empty()) {
+        showTitle(current_title_);
+    }
+}
+
+void StatusBar::showTitle(const std::string& title) {
+    std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
+    
+    current_title_ = title;
+    
+    saveCursorPosition();
+    
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    int rows = w.ws_row;
+    int cols = w.ws_col;
+    
+    // Truncate title if too long (max cols - 5, then add "...")
+    std::string display_title = title;
+    int max_length = cols - 5;
+    if (max_length < 10) max_length = 10; // Minimum reasonable length
+    
+    if ((int)display_title.length() > max_length) {
+        display_title = display_title.substr(0, max_length) + "...";
+    }
+    
+    // Move to bottom line
+    std::cout << "\033[" << rows << ";1H";
+    std::cout << "\033[44m\033[97m"; // Blue background, white text
+    std::cout << " " << display_title;
+    std::cout << "\033[K"; // Clear to end of line
+    std::cout << "\033[0m"; // Reset colors
+    std::cout << std::flush;
+    
+    restoreCursorPosition();
 }
 
 void StatusBar::showMessage(const std::string& message) {
@@ -266,6 +304,9 @@ void StatusBar::showConsole(const std::vector<std::string>& logs, const std::str
 void StatusBar::redraw() {
     if (is_showing_ && !current_options_.empty()) {
         showComboboxOptions(current_options_, current_selected_);
+    } else if (!current_title_.empty()) {
+        // Show title bar when nothing else is active
+        showTitle(current_title_);
     }
 }
 

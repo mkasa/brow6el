@@ -2,7 +2,7 @@
 
 A full-featured web browser for the terminal using Chromium (CEF) and libsixel for graphics rendering.
 
-WARNING: this is POC code quality, it is known it doesn't work with localized keyboards, it lacks support for accented characters for input. Tested only with foot terminal, it is known not to work with windows terminal, however it works in wsl2 when run inside foot. Build process tested in Ubuntu and Debian.
+WARNING: this is POC code quality, it is known it doesn't work with localized keyboards, it lacks support for accented characters for input. Build process tested in Ubuntu and Debian.
 
 ## Screenshots
 ### Page view
@@ -106,12 +106,31 @@ See [USERSCRIPTS.md](USERSCRIPTS.md) for detailed documentation.
 - Scroll through output with ↑/↓
 - All console.log/warn/error messages are captured
 
+### CEF Configuration
+
+Brow6el uses a configuration file for Chromium command-line flags. On first run, a default configuration is created at `~/.brow6el/cef_flags.conf`.
+
+**Features:**
+- Enable/disable WebGL support
+- Configure rendering options
+- Adjust logging verbosity
+- Set custom user agent
+- And more!
+
+**Edit the config:**
+```bash
+nano ~/.brow6el/cef_flags.conf
+```
+
+Changes take effect on next browser start. See the config file for available options and documentation links.
+
 ### Privacy & Data
 
 **What persists:**
 - Bookmarks (`~/.brow6el/bookmarks`)
 - User scripts (`~/.brow6el/userscripts/`)
 - User script config (`~/.brow6el/userscripts.conf`)
+- CEF flags config (`~/.brow6el/cef_flags.conf`)
 
 **What doesn't persist (private mode):**
 - Cookies (cleared on exit)
@@ -136,7 +155,9 @@ You can run multiple browser instances simultaneously:
 
 ## Requirements
 
-**Sixel-capable terminal**: mlterm, xterm, foot, wezterm, or any terminal with sixel support
+**Sixel-capable terminal**: Any terminal emulator that supports Sixel graphics (e.g., mlterm, xterm -ti vt340, foot, wezterm, kitty, etc.)
+
+The browser automatically detects Sixel support via terminal capability queries - no manual configuration needed.
 
 **Build Dependencies**:
 ```bash

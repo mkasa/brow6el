@@ -20,6 +20,7 @@ public:
     void showBookmarks(const std::vector<std::string>& bookmarks, int selected_index);
     void showUserScripts(const std::vector<std::string>& scripts, int selected_index);
     void showMessage(const std::string& message);
+    void showTitle(const std::string& title);
     void clear();
     void redraw(); // Redraw last shown content
     void RequestRedraw() { redraw_requested_ = true; }
@@ -37,5 +38,6 @@ private:
     bool redraw_requested_ = false;
     std::vector<std::string> current_options_;
     int current_selected_;
+    std::string current_title_;
 };
 

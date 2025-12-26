@@ -1,12 +1,13 @@
 #!/bin/bash
 set -e
 
-echo "Building portable self-extracting Brow6el..."
+echo "Building portable Brow6el archve..."
 
 # Build the project first
 ./build.sh
 
 cd build
+
 
 # Create portable package directory
 PORTABLE_DIR="brow6el-portable"

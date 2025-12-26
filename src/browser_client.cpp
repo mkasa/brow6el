@@ -178,6 +178,11 @@ void BrowserClient::OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString
     // Use printf and fflush for immediate output
     printf("\033]0;%s\007", window_title.c_str());
     fflush(stdout);
+    
+    // Show title in status bar
+    if (status_bar_) {
+        status_bar_->showTitle(page_title);
+    }
 }
 
 void BrowserClient::injectSelectDetector() {

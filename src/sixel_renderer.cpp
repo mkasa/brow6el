@@ -83,6 +83,10 @@ void SixelRenderer::render(const void* buffer, int width, int height, bool hasAl
     sixel_dither_unref(frame_dither);
     delete[] safe_buffer;
     
+    // Reposition cursor to top-left after sixel output
+    // This prevents scrolling in terminals where cursor advances after sixel
+    printf("\033[H");
+    
     fflush(stdout);
 }
 
