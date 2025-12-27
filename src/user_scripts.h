@@ -9,6 +9,7 @@ struct UserScript {
     std::string filename;
     std::vector<std::string> url_patterns;
     bool enabled;
+    std::string source_dir; // Directory where this script came from
 };
 
 class UserScriptsManager {

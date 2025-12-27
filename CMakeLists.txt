@@ -69,7 +69,12 @@ COPY_FILES("${PROJECT_NAME}" "${CEF_RESOURCE_FILES}" "${CEF_RESOURCE_DIR}" "${CM
 
 # Copy JS files and run script
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/select_detector.js ${CMAKE_CURRENT_BINARY_DIR}/select_detector.js COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/hint_mode.js ${CMAKE_CURRENT_BINARY_DIR}/hint_mode.js COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/mouse_emu.js ${CMAKE_CURRENT_BINARY_DIR}/mouse_emu.js COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/run_brow6el.sh ${CMAKE_CURRENT_BINARY_DIR}/run_brow6el.sh COPYONLY)
+
+# Copy bundled scripts directory
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/src/scripts DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 # Make run script executable
 file(CHMOD ${CMAKE_CURRENT_BINARY_DIR}/run_brow6el.sh

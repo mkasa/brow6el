@@ -21,6 +21,7 @@ public:
     void showUserScripts(const std::vector<std::string>& scripts, int selected_index);
     void showMessage(const std::string& message);
     void showTitle(const std::string& title);
+    void showHintInput(const std::string& input, int hint_count);
     void clear();
     void redraw(); // Redraw last shown content
     void RequestRedraw() { redraw_requested_ = true; }

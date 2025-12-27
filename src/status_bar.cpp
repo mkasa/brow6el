@@ -777,3 +777,26 @@ void StatusBar::showUserScripts(const std::vector<std::string>& scripts, int sel
     std::cout << std::flush;
     restoreCursorPosition();
 }
+
+void StatusBar::showHintInput(const std::string& input, int hint_count) {
+    std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
+    
+    is_showing_ = true;
+    // Don't set current_title_ - we don't want "Hint Mode" to persist after ESC
+    
+    saveCursorPosition();
+    
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    int rows = w.ws_row;
+    
+    // Move to bottom line
+    std::cout << "\033[" << rows << ";1H";
+    std::cout << "\033[43m\033[30m"; // Yellow background, black text
+    std::cout << " Hint: " << input;
+    std::cout << "\033[K"; // Clear to end of line
+    std::cout << "\033[0m"; // Reset colors
+    std::cout << std::flush;
+    
+    restoreCursorPosition();
+}

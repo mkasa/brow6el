@@ -92,6 +92,7 @@ public:
     StatusBar* GetStatusBar() { return status_bar_.get(); }
     bool HandleSelectNavigation(int direction); // Returns true if handled
     bool HandleSelectConfirm(); // Returns true if handled
+    bool IsSelectOptionsActive() const { return !current_options_.empty(); }
     void SetUrlInputActive(bool active) { url_input_active_ = active; }
     void SetConsoleActive(bool active) { console_active_ = active; }
     bool IsConsoleActive() const { return console_active_; }
@@ -146,6 +147,20 @@ public:
     void InjectUserScriptsForCurrentPage();
     UserScriptsManager* GetUserScriptsManager() { return &user_scripts_manager_; }
     
+    // Hint Mode (keyboard link navigation)
+    void ActivateHintMode();
+    void SetHintModeActive(bool active);
+    bool IsHintModeActive() const { return hint_mode_active_; }
+    void HandleHintSelection(const std::string& hint);
+    
+    // Mouse Emulation Mode
+    void ActivateMouseEmuMode();
+    void SetMouseEmuModeActive(bool active);
+    bool IsMouseEmuModeActive() const { return mouse_emu_mode_active_; }
+    void HandleMouseEmuKey(const std::string& key);
+    void HandleMouseEmuClick();
+    void HandleMouseEmuPosition(int x, int y);
+    
 private:
     int width_;
     int height_;
@@ -197,6 +212,15 @@ private:
     bool user_scripts_active_ = false;
     int user_scripts_selected_index_ = 0;
     UserScriptsManager user_scripts_manager_;
+    
+    // Hint mode handling
+    bool hint_mode_active_ = false;
+    int hint_count_ = 0;
+    
+    // Mouse emulation mode handling
+    bool mouse_emu_mode_active_ = false;
+    int mouse_emu_x_ = 0;
+    int mouse_emu_y_ = 0;
     
     void injectSelectDetector();
     void parseSelectMessage(const std::string& message);

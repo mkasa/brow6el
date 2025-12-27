@@ -110,6 +110,25 @@ void InputHandler::readLoop() {
             file_input_buffer_.clear();
         }
         
+        // Sync hint mode state bidirectionally
+        if (browser_client_) {
+            if (browser_client_->IsHintModeActive() && !hint_mode_active_) {
+                hint_mode_active_ = true;
+            } else if (!browser_client_->IsHintModeActive() && hint_mode_active_) {
+                hint_mode_active_ = false;
+                hint_input_buffer_.clear();
+            }
+        }
+        
+        // Sync mouse emu mode state bidirectionally
+        if (browser_client_) {
+            if (browser_client_->IsMouseEmuModeActive() && !mouse_emu_mode_active_) {
+                mouse_emu_mode_active_ = true;
+            } else if (!browser_client_->IsMouseEmuModeActive() && mouse_emu_mode_active_) {
+                mouse_emu_mode_active_ = false;
+            }
+        }
+        
         char c;
         ssize_t n = read(STDIN_FILENO, &c, 1);
         
@@ -184,6 +203,35 @@ void InputHandler::readLoop() {
                     } else if (browser_client_ && browser_client_->IsUserScriptsActive()) {
                         // Close user scripts on ESC
                         browser_client_->SetUserScriptsActive(false);
+                    } else if (hint_mode_active_) {
+                        // Cancel hint mode on ESC
+                        hint_mode_active_ = false;
+                        hint_input_buffer_.clear();
+                        if (browser_client_) {
+                            browser_client_->SetHintModeActive(false);
+                            browser_client_->GetStatusBar()->clear();
+                            if (browser_) {
+                                browser_->GetHost()->Invalidate(PET_VIEW);
+                            }
+                        }
+                    } else if (mouse_emu_mode_active_) {
+                        // If select options are showing, close them first, don't exit mouse emu mode
+                        if (browser_client_ && browser_client_->IsSelectOptionsActive()) {
+                            browser_client_->GetStatusBar()->clear();
+                            if (browser_) {
+                                browser_->GetHost()->Invalidate(PET_VIEW);
+                            }
+                        } else {
+                            // Cancel mouse emulation mode on ESC only if no select is active
+                            mouse_emu_mode_active_ = false;
+                            if (browser_client_) {
+                                browser_client_->SetMouseEmuModeActive(false);
+                                browser_client_->GetStatusBar()->clear();
+                                if (browser_) {
+                                    browser_->GetHost()->Invalidate(PET_VIEW);
+                                }
+                            }
+                        }
                     } else {
                         sendKeyEvent(VKEY_ESCAPE, 0, false);
                     }
@@ -245,6 +293,35 @@ void InputHandler::readLoop() {
                     } else if (browser_client_ && browser_client_->IsUserScriptsActive()) {
                         // Close user scripts on ESC
                         browser_client_->SetUserScriptsActive(false);
+                    } else if (hint_mode_active_) {
+                        // Cancel hint mode on ESC
+                        hint_mode_active_ = false;
+                        hint_input_buffer_.clear();
+                        if (browser_client_) {
+                            browser_client_->SetHintModeActive(false);
+                            browser_client_->GetStatusBar()->clear();
+                            if (browser_) {
+                                browser_->GetHost()->Invalidate(PET_VIEW);
+                            }
+                        }
+                    } else if (mouse_emu_mode_active_) {
+                        // If select options are showing, close them first, don't exit mouse emu mode
+                        if (browser_client_ && browser_client_->IsSelectOptionsActive()) {
+                            browser_client_->GetStatusBar()->clear();
+                            if (browser_) {
+                                browser_->GetHost()->Invalidate(PET_VIEW);
+                            }
+                        } else {
+                            // Cancel mouse emulation mode on ESC only if no select is active
+                            mouse_emu_mode_active_ = false;
+                            if (browser_client_) {
+                                browser_client_->SetMouseEmuModeActive(false);
+                                browser_client_->GetStatusBar()->clear();
+                                if (browser_) {
+                                    browser_->GetHost()->Invalidate(PET_VIEW);
+                                }
+                            }
+                        }
                     } else {
                         sendKeyEvent(VKEY_ESCAPE, 0, false);
                     }
@@ -404,9 +481,28 @@ void InputHandler::readLoop() {
                         browser_client_->HandleUserScriptConfirm();
                         continue;
                     }
-                    // Check if status bar is active and handle Enter
+                    // Check if hint mode is active and handle Enter
+                    if (hint_mode_active_ && browser_client_) {
+                        if (!hint_input_buffer_.empty()) {
+                            browser_client_->HandleHintSelection(hint_input_buffer_);
+                        }
+                        hint_mode_active_ = false;
+                        hint_input_buffer_.clear();
+                        browser_client_->GetStatusBar()->clear();
+                        if (browser_) {
+                            browser_->GetHost()->Invalidate(PET_VIEW);
+                        }
+                        continue;
+                    }
+                    // Check if status bar is active (select options) - priority over mouse emu
                     if (browser_client_ && browser_client_->HandleSelectConfirm()) {
                         // Status bar handled the Enter key - don't send to CEF
+                        continue;
+                    }
+                    // Check if mouse emulation mode is active and handle Enter
+                    if (mouse_emu_mode_active_ && browser_client_) {
+                        // Trigger JavaScript click which will decide whether to focus or send CEF click
+                        browser_client_->HandleMouseEmuKey("Enter");
                         continue;
                     }
                     sendKeyEvent(VKEY_RETURN, '\r', false);
@@ -449,6 +545,13 @@ void InputHandler::readLoop() {
                                 browser_client_->GetStatusBar()->showFileInput(file_input_buffer_);
                             }
                         }
+                    } else if (hint_mode_active_) {
+                        if (!hint_input_buffer_.empty()) {
+                            hint_input_buffer_.pop_back();
+                            if (browser_client_ && browser_client_->GetStatusBar()) {
+                                browser_client_->GetStatusBar()->showHintInput(hint_input_buffer_, 0);
+                            }
+                        }
                     } else {
                         sendKeyEvent(VKEY_BACK, '\b', false);
                     }
@@ -459,6 +562,35 @@ void InputHandler::readLoop() {
                         if (browser_client_) {
                             browser_client_->SetUrlInputActive(false);
                             browser_client_->GetStatusBar()->clear();
+                        }
+                    } else if (hint_mode_active_) {
+                        // Cancel hint mode on ESC
+                        hint_mode_active_ = false;
+                        hint_input_buffer_.clear();
+                        if (browser_client_) {
+                            browser_client_->SetHintModeActive(false);
+                            browser_client_->GetStatusBar()->clear();
+                            if (browser_) {
+                                browser_->GetHost()->Invalidate(PET_VIEW);
+                            }
+                        }
+                    } else if (mouse_emu_mode_active_) {
+                        // If select options are showing, close them first, don't exit mouse emu mode
+                        if (browser_client_ && browser_client_->IsSelectOptionsActive()) {
+                            browser_client_->GetStatusBar()->clear();
+                            if (browser_) {
+                                browser_->GetHost()->Invalidate(PET_VIEW);
+                            }
+                        } else {
+                            // Cancel mouse emulation mode on ESC only if no select is active
+                            mouse_emu_mode_active_ = false;
+                            if (browser_client_) {
+                                browser_client_->SetMouseEmuModeActive(false);
+                                browser_client_->GetStatusBar()->clear();
+                                if (browser_) {
+                                    browser_->GetHost()->Invalidate(PET_VIEW);
+                                }
+                            }
                         }
                     } else {
                         sendKeyEvent(VKEY_ESCAPE, 0, false);
@@ -503,6 +635,14 @@ void InputHandler::readLoop() {
                         // Handle bookmark deletion
                         if (c == 'd' || c == 'D') {
                             browser_client_->HandleBookmarkDelete();
+                        }
+                    } else if (hint_mode_active_) {
+                        // Handle hint input (a-z only)
+                        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+                            hint_input_buffer_ += tolower(c);
+                            if (browser_client_ && browser_client_->GetStatusBar()) {
+                                browser_client_->GetStatusBar()->showHintInput(hint_input_buffer_, 0);
+                            }
                         }
                     } else if (console_input_active_) {
                         console_input_buffer_ += c;
@@ -618,15 +758,49 @@ void InputHandler::readLoop() {
                             browser_client_->SetBookmarksActive(true);
                         }
                     } else if (c == 21) { // Ctrl+U - Open user scripts
-                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_client_) {
+                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && !hint_mode_active_ && browser_client_) {
                             browser_client_->SetUserScriptsActive(true);
                         }
                     } else if (c == 25) { // Ctrl+Y - Toggle auto-inject user scripts
-                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_client_) {
+                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && !hint_mode_active_ && browser_client_) {
                             browser_client_->ToggleAutoInjectUserScripts();
                         }
+                    } else if (c == 6) { // Ctrl+F - Toggle hint mode
+                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && !mouse_emu_mode_active_ && browser_client_) {
+                            if (hint_mode_active_) {
+                                // Turn off hint mode
+                                hint_mode_active_ = false;
+                                hint_input_buffer_.clear();
+                                browser_client_->SetHintModeActive(false);
+                                browser_client_->GetStatusBar()->clear();
+                                if (browser_) {
+                                    browser_->GetHost()->Invalidate(PET_VIEW);
+                                }
+                            } else {
+                                // Turn on hint mode
+                                hint_mode_active_ = true;
+                                hint_input_buffer_.clear();
+                                browser_client_->ActivateHintMode();
+                            }
+                        }
+                    } else if (c == 5) { // Ctrl+E - Toggle mouse emulation mode
+                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && !hint_mode_active_ && browser_client_) {
+                            if (mouse_emu_mode_active_) {
+                                // Turn off mouse emu mode
+                                mouse_emu_mode_active_ = false;
+                                browser_client_->SetMouseEmuModeActive(false);
+                                browser_client_->GetStatusBar()->clear();
+                                if (browser_) {
+                                    browser_->GetHost()->Invalidate(PET_VIEW);
+                                }
+                            } else {
+                                // Turn on mouse emu mode
+                                mouse_emu_mode_active_ = true;
+                                browser_client_->ActivateMouseEmuMode();
+                            }
+                        }
                     } else {
-                        if (!url_input_active_ && !file_input_active_ && !console_input_active_) {
+                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && !hint_mode_active_) {
                             sendKeyEvent(letter, c, false);
                         }
                     }
@@ -823,14 +997,40 @@ void InputHandler::parseKeySequence(const char* seq, int len) {
                     browser_client_->HandleUserScriptNavigation(seq[2] == 'A' ? -1 : 1);
                     return;
                 }
-                // Check if status bar is showing - handle selection there
+                // Check if status bar is showing (e.g., select options) - handle selection there first
+                // This takes priority over mouse emulation so select navigation works
                 if (browser_client_ && browser_client_->HandleSelectNavigation(seq[2] == 'A' ? -1 : 1)) {
                     return; // Status bar handled it
                 }
+                // Check if mouse emulation mode is active - handle arrow keys there
+                if (mouse_emu_mode_active_ && browser_client_) {
+                    browser_client_->HandleMouseEmuKey(seq[2] == 'A' ? "ArrowUp" : "ArrowDown");
+                    return;
+                }
                 sendKeyEvent(seq[2] == 'A' ? VKEY_UP : VKEY_DOWN, 0, false);
                 return;
-            case 'C': sendKeyEvent(VKEY_RIGHT, 0, false); return;
-            case 'D': sendKeyEvent(VKEY_LEFT, 0, false); return;
+            case 'C':
+                // Check for status bar first (left/right might be used for something)
+                if (browser_client_ && browser_client_->HandleSelectNavigation(0)) {
+                    // Status bar is active, but left/right don't navigate - let it fall through
+                }
+                if (mouse_emu_mode_active_ && browser_client_) {
+                    browser_client_->HandleMouseEmuKey("ArrowRight");
+                    return;
+                }
+                sendKeyEvent(VKEY_RIGHT, 0, false);
+                return;
+            case 'D':
+                // Check for status bar first
+                if (browser_client_ && browser_client_->HandleSelectNavigation(0)) {
+                    // Status bar is active, but left/right don't navigate - let it fall through
+                }
+                if (mouse_emu_mode_active_ && browser_client_) {
+                    browser_client_->HandleMouseEmuKey("ArrowLeft");
+                    return;
+                }
+                sendKeyEvent(VKEY_LEFT, 0, false);
+                return;
             case 'H': sendKeyEvent(VKEY_HOME, 0, false); return;
             case 'F': sendKeyEvent(VKEY_END, 0, false); return;
         }

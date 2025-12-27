@@ -56,6 +56,13 @@ private:
     // JS prompt input
     std::string js_prompt_input_;
     
+    // Hint mode input
+    bool hint_mode_active_ = false;
+    std::string hint_input_buffer_;
+    
+    // Mouse emulation mode
+    bool mouse_emu_mode_active_ = false;
+    
     // Mouse drag tracking
     bool mouse_button_down_ = false;
     CefBrowserHost::MouseButtonType mouse_button_type_ = MBT_LEFT;

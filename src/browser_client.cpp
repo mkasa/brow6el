@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <unistd.h>
 
 #define LOGB(msg) do { \
     std::ofstream log("/tmp/brow6el_debug.log", std::ios::app); \
@@ -27,6 +28,7 @@ void BrowserClient::OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType type
     std::lock_guard<std::mutex> lock(render_mutex_);
     
     // Skip rendering when URL input, console, popup confirm, JS dialog, file input, download confirm, bookmarks, or user scripts is active
+    // Note: hint_mode_active and mouse_emu_mode_active are NOT in this list because they use JS overlays that need the page visible
     if (url_input_active_ || console_active_ || popup_confirm_active_ || js_dialog_active_ || file_input_active_ || download_confirm_active_ || bookmarks_active_ || user_scripts_active_) {
         return;
     }
@@ -36,7 +38,9 @@ void BrowserClient::OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType type
             renderer_->render(buffer, width, height, false);
             
             // Redraw status bar after sixel render (so it stays visible)
-            if (status_bar_) {
+            // Skip only for hint mode (which has its own yellow status bar)
+            // Allow for mouse emu mode since it doesn't use status bar after initial activation
+            if (status_bar_ && !hint_mode_active_) {
                 status_bar_->redraw();
             }
         } catch (const std::exception& e) {
@@ -90,6 +94,10 @@ void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame>
     if (frame->IsMain()) {
         std::string url = frame->GetURL().ToString();
         LOGB("OnLoadEnd: url=" << url << " status=" << httpStatusCode);
+        
+        // Clear modes on navigation
+        hint_mode_active_ = false;
+        mouse_emu_mode_active_ = false;
         
         // Clear status bar on new page load only if something is showing
         if (status_bar_) {
@@ -164,6 +172,56 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
     if (msg.find("BROW6EL_SELECT_") == 0) {
         parseSelectMessage(msg);
         return true; // Suppress console output
+    }
+    
+    // Check for hint mode messages
+    if (msg.find("[Brow6el] HINT_MODE_ACTIVE:") == 0) {
+        try {
+            std::string count_str = msg.substr(28);
+            hint_count_ = std::stoi(count_str);
+            if (status_bar_) {
+                status_bar_->showHintInput("", hint_count_);
+            }
+        } catch (const std::exception& e) {
+            LOGB("Failed to parse hint count: " << e.what());
+            hint_count_ = 0;
+        }
+        return true;
+    }
+    if (msg.find("[Brow6el] HINT_") == 0) {
+        // Suppress hint mode debug messages
+        return true;
+    }
+    
+    // Check for mouse emulation messages
+    if (msg.find("[Brow6el] MOUSE_EMU_POS:") == 0) {
+        // Parse position: [Brow6el] MOUSE_EMU_POS:x,y
+        try {
+            std::string pos_str = msg.substr(24);
+            size_t comma = pos_str.find(',');
+            if (comma != std::string::npos) {
+                int x = std::stoi(pos_str.substr(0, comma));
+                int y = std::stoi(pos_str.substr(comma + 1));
+                HandleMouseEmuPosition(x, y);
+            }
+        } catch (const std::exception& e) {
+            LOGB("Failed to parse mouse emu position: " << e.what());
+        }
+        return true;
+    }
+    if (msg.find("[Brow6el] MOUSE_EMU_CLICK") == 0) {
+        // JavaScript determined this is not a select/input, so send real click
+        HandleMouseEmuClick();
+        return true;
+    }
+    if (msg.find("[Brow6el] MOUSE_EMU_FOCUS") == 0) {
+        // JavaScript focused a select/input element, don't send click
+        LOGB("Mouse emu focused element: " << msg);
+        return true;
+    }
+    if (msg.find("[Brow6el] MOUSE_EMU_") == 0) {
+        // Suppress other mouse emu debug messages
+        return true;
     }
     
     return false; // Show other console messages
@@ -798,4 +856,147 @@ void BrowserClient::InjectUserScriptsForCurrentPage() {
             browser_->GetMainFrame()->ExecuteJavaScript(script_content, browser_->GetMainFrame()->GetURL(), 0);
         }
     }
+}
+
+// Hint Mode implementation
+void BrowserClient::ActivateHintMode() {
+    if (!browser_ || !browser_->GetMainFrame()) {
+        LOGB("ActivateHintMode: browser or frame is null");
+        return;
+    }
+    
+    // Read hint mode JavaScript
+    std::ifstream file("hint_mode.js");
+    if (!file.is_open()) {
+        LOGB("Failed to load hint_mode.js - file not found or can't open");
+        // Try with full debug info
+        char cwd[1024];
+        if (getcwd(cwd, sizeof(cwd)) != NULL) {
+            LOGB("Current working directory: " << cwd);
+        }
+        return;
+    }
+    
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string hint_js = buffer.str();
+    
+    if (hint_js.empty()) {
+        LOGB("hint_mode.js is empty!");
+        return;
+    }
+    
+    LOGB("Activating hint mode, JS size: " << hint_js.size() << " bytes");
+    
+    hint_mode_active_ = true;
+    hint_count_ = 0;
+    
+    browser_->GetMainFrame()->ExecuteJavaScript(hint_js, "", 0);
+    
+    // Show hint input in status bar
+    if (status_bar_) {
+        status_bar_->showHintInput("", hint_count_);
+    } else {
+        LOGB("Status bar is null!");
+    }
+}
+
+void BrowserClient::SetHintModeActive(bool active) {
+    hint_mode_active_ = active;
+    if (!active && browser_ && browser_->GetMainFrame()) {
+        // Cleanup hints
+        browser_->GetMainFrame()->ExecuteJavaScript(
+            "if (window.__brow6el_hints) { window.__brow6el_hints.cleanup(); }", "", 0);
+    }
+}
+
+void BrowserClient::HandleHintSelection(const std::string& hint) {
+    if (!browser_ || !browser_->GetMainFrame() || hint.empty()) return;
+    
+    std::string js = "if (window.__brow6el_hints) { window.__brow6el_hints.select('" + hint + "'); }";
+    browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
+    
+    hint_mode_active_ = false;
+}
+
+// Mouse Emulation Mode implementation
+void BrowserClient::ActivateMouseEmuMode() {
+    if (!browser_ || !browser_->GetMainFrame()) {
+        LOGB("ActivateMouseEmuMode: browser or frame is null");
+        return;
+    }
+    
+    // Read mouse emulation JavaScript
+    std::ifstream file("mouse_emu.js");
+    if (!file.is_open()) {
+        LOGB("Failed to load mouse_emu.js");
+        return;
+    }
+    
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string mouse_emu_js = buffer.str();
+    
+    if (mouse_emu_js.empty()) {
+        LOGB("mouse_emu.js is empty!");
+        return;
+    }
+    
+    LOGB("Activating mouse emulation mode, JS size: " << mouse_emu_js.size() << " bytes");
+    
+    mouse_emu_mode_active_ = true;
+    
+    browser_->GetMainFrame()->ExecuteJavaScript(mouse_emu_js, "", 0);
+    
+    // Don't show status message - let select elements and other UI use the status bar normally
+    // The yellow circle is enough visual feedback that mouse emu is active
+}
+
+void BrowserClient::SetMouseEmuModeActive(bool active) {
+    mouse_emu_mode_active_ = active;
+    if (!active && browser_ && browser_->GetMainFrame()) {
+        // Cleanup mouse cursor
+        browser_->GetMainFrame()->ExecuteJavaScript(
+            "if (window.__brow6el_mouse_emu) { window.__brow6el_mouse_emu.cleanup(); }", "", 0);
+    }
+}
+
+void BrowserClient::HandleMouseEmuKey(const std::string& key) {
+    if (!browser_ || !browser_->GetMainFrame()) return;
+    
+    std::string js = "if (window.__brow6el_mouse_emu) { window.__brow6el_mouse_emu.handleKey('" + key + "'); }";
+    browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
+}
+
+void BrowserClient::HandleMouseEmuClick() {
+    if (!browser_ || !browser_->GetHost()) return;
+    
+    // Use the stored position to send a real CEF mouse click
+    CefMouseEvent mouse_event;
+    mouse_event.x = mouse_emu_x_;
+    mouse_event.y = mouse_emu_y_;
+    mouse_event.modifiers = 0;
+    
+    LOGB("Mouse emu click at " << mouse_emu_x_ << "," << mouse_emu_y_);
+    
+    // Send mouse move first
+    browser_->GetHost()->SendMouseMoveEvent(mouse_event, false);
+    
+    // For proper interaction with UI elements like comboboxes, 
+    // just send a single click event rather than down+up sequence
+    browser_->GetHost()->SendMouseClickEvent(mouse_event, MBT_LEFT, false, 1); // Mouse down
+    
+    // Small delay before mouse up to allow element to process the click
+    usleep(50000); // 50ms delay
+    
+    browser_->GetHost()->SendMouseClickEvent(mouse_event, MBT_LEFT, true, 1);  // Mouse up
+    
+    // Still trigger JS visual feedback
+    std::string js = "if (window.__brow6el_mouse_emu) { window.__brow6el_mouse_emu.flashClick(); }";
+    browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
+}
+
+void BrowserClient::HandleMouseEmuPosition(int x, int y) {
+    mouse_emu_x_ = x;
+    mouse_emu_y_ = y;
 }

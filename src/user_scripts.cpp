@@ -37,41 +37,66 @@ std::string UserScriptsManager::getScriptsDir() const {
 }
 
 void UserScriptsManager::scanScriptsDirectory() {
-    std::string scripts_dir = getScriptsDir();
+    // Scan both user scripts and bundled scripts directories
+    std::vector<std::string> dirs_to_scan;
     
-    // Create directory if it doesn't exist
-    mkdir(scripts_dir.c_str(), 0755);
+    // User scripts directory
+    std::string user_scripts_dir = getScriptsDir();
+    mkdir(user_scripts_dir.c_str(), 0755);
+    dirs_to_scan.push_back(user_scripts_dir);
     
-    DIR* dir = opendir(scripts_dir.c_str());
-    if (!dir) return;
-    
-    struct dirent* entry;
-    while ((entry = readdir(dir)) != nullptr) {
-        std::string filename = entry->d_name;
-        
-        // Only consider .js files
-        if (filename.length() > 3 && filename.substr(filename.length() - 3) == ".js") {
-            // Check if script already exists in config
-            bool found = false;
-            for (const auto& script : scripts_) {
-                if (script.filename == filename) {
-                    found = true;
-                    break;
-                }
-            }
-            
-            // If not in config, add with empty pattern (manual only)
-            if (!found) {
-                UserScript script;
-                script.name = filename.substr(0, filename.length() - 3); // Remove .js
-                script.filename = filename;
-                script.enabled = true;
-                scripts_.push_back(script);
-            }
+    // Bundled scripts directory (relative to executable)
+    char exe_path[1024];
+    ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+    if (len != -1) {
+        exe_path[len] = '\0';
+        std::string exe_dir = std::string(exe_path);
+        size_t last_slash = exe_dir.find_last_of('/');
+        if (last_slash != std::string::npos) {
+            exe_dir = exe_dir.substr(0, last_slash);
+            std::string bundled_scripts_dir = exe_dir + "/scripts";
+            dirs_to_scan.push_back(bundled_scripts_dir);
         }
     }
     
-    closedir(dir);
+    // Scan all directories
+    for (const auto& scripts_dir : dirs_to_scan) {
+        DIR* dir = opendir(scripts_dir.c_str());
+        if (!dir) continue;
+        
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != nullptr) {
+            std::string filename = entry->d_name;
+            
+            // Only consider .js files
+            if (filename.length() > 3 && filename.substr(filename.length() - 3) == ".js") {
+                // Check if script already exists in config
+                bool found = false;
+                for (auto& script : scripts_) {
+                    if (script.filename == filename) {
+                        found = true;
+                        // Update source_dir if not set
+                        if (script.source_dir.empty()) {
+                            script.source_dir = scripts_dir;
+                        }
+                        break;
+                    }
+                }
+                
+                // If not in config, add with empty pattern (manual only)
+                if (!found) {
+                    UserScript script;
+                    script.name = filename.substr(0, filename.length() - 3); // Remove .js
+                    script.filename = filename;
+                    script.enabled = true;
+                    script.source_dir = scripts_dir; // Store which directory it came from
+                    scripts_.push_back(script);
+                }
+            }
+        }
+        
+        closedir(dir);
+    }
 }
 
 void UserScriptsManager::loadConfig() {
@@ -229,17 +254,21 @@ std::vector<std::string> UserScriptsManager::getAllScriptNames() const {
 }
 
 std::string UserScriptsManager::getScriptContent(const std::string& script_name) const {
-    std::string filename;
+    std::string filepath;
     for (const auto& script : scripts_) {
         if (script.name == script_name) {
-            filename = script.filename;
+            // Use source_dir if available, otherwise fall back to user scripts dir
+            if (!script.source_dir.empty()) {
+                filepath = script.source_dir + "/" + script.filename;
+            } else {
+                filepath = getScriptsDir() + "/" + script.filename;
+            }
             break;
         }
     }
     
-    if (filename.empty()) return "";
+    if (filepath.empty()) return "";
     
-    std::string filepath = getScriptsDir() + "/" + filename;
     std::ifstream file(filepath);
     if (!file.is_open()) return "";
     
@@ -251,6 +280,10 @@ std::string UserScriptsManager::getScriptContent(const std::string& script_name)
 std::string UserScriptsManager::getScriptPath(const std::string& script_name) const {
     for (const auto& script : scripts_) {
         if (script.name == script_name) {
+            // Use source_dir if available, otherwise fall back to user scripts dir
+            if (!script.source_dir.empty()) {
+                return script.source_dir + "/" + script.filename;
+            }
             return getScriptsDir() + "/" + script.filename;
         }
     }

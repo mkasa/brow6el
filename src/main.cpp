@@ -62,6 +62,8 @@ int main(int argc, char* argv[]) {
             std::cout << "  Ctrl+R              Reload page\n";
             std::cout << "  Ctrl+L              Navigate to URL\n";
             std::cout << "  Ctrl+Left/Right     Back/Forward\n";
+            std::cout << "  Ctrl+F              Hint mode (keyboard navigation)\n";
+            std::cout << "  Ctrl+E              Mouse emulation (arrow keys + Enter)\n";
             std::cout << "  Ctrl+K              Toggle console\n";
             std::cout << "  Ctrl+D              Add bookmark\n";
             std::cout << "  Ctrl+B              Open bookmarks\n";
