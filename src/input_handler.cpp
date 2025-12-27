@@ -952,7 +952,7 @@ void InputHandler::parseKeySequence(const char* seq, int len) {
         return;
     }
     
-    // Check for Ctrl+Arrow (ESC[1;5C for Ctrl+Right, ESC[1;5D for Ctrl+Left)
+    // Check for Ctrl+Arrow (ESC[1;5C for Ctrl+Right, ESC[1;5D for Ctrl+Left, ESC[1;5A for Ctrl+Up, ESC[1;5B for Ctrl+Down)
     if (len == 6 && seq[2] == '1' && seq[3] == ';' && seq[4] == '5') {
         if (seq[5] == 'C') { // Ctrl+Right - Forward
             if (browser_ && browser_->CanGoForward()) {
@@ -962,6 +962,24 @@ void InputHandler::parseKeySequence(const char* seq, int len) {
         } else if (seq[5] == 'D') { // Ctrl+Left - Back
             if (browser_ && browser_->CanGoBack()) {
                 browser_->GoBack();
+            }
+            return;
+        } else if (seq[5] == 'A') { // Ctrl+Up - Scroll up (emulate mouse wheel)
+            if (browser_) {
+                CefMouseEvent mouse_event;
+                mouse_event.x = 0;
+                mouse_event.y = 0;
+                mouse_event.modifiers = 0;
+                browser_->GetHost()->SendMouseWheelEvent(mouse_event, 0, 120); // Scroll up
+            }
+            return;
+        } else if (seq[5] == 'B') { // Ctrl+Down - Scroll down (emulate mouse wheel)
+            if (browser_) {
+                CefMouseEvent mouse_event;
+                mouse_event.x = 0;
+                mouse_event.y = 0;
+                mouse_event.modifiers = 0;
+                browser_->GetHost()->SendMouseWheelEvent(mouse_event, 0, -120); // Scroll down
             }
             return;
         }

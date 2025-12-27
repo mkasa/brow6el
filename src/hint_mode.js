@@ -81,7 +81,7 @@
                     position: fixed;
                     left: ${rect.left}px;
                     top: ${rect.top}px;
-                    background: rgba(255, 255, 0, 0.4);
+                    background: rgba(255, 255, 0, 0.7);
                     color: #000;
                     border: 2px solid #000;
                     padding: 2px 4px;
