@@ -125,6 +125,15 @@ private:
             file << "# Frame Scheduling\n";
             file << "enable-begin-frame-scheduling\n";
             file << "\n";
+            file << "# Ozone Platform (for better compatibility)\n";
+            file << "enable-features=UseOzonePlatform\n";
+            file << "ozone-platform=headless\n";
+            file << "\n";
+            file << "# Stability and Compatibility\n";
+            file << "no-xshm\n";
+            file << "disable-dev-shm-usage\n";
+            file << "disable-setuid-sandbox\n";
+            file << "\n";
             file << "# Process Model\n";
             file << "# Run in single process mode for stability in terminal\n";
             file << "single-process\n";
