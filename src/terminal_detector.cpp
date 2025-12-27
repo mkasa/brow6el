@@ -41,6 +41,16 @@ bool TerminalDetector::checkSixelSupport() {
         return false;
     }
     
+    // Check TERM environment variable for known sixel-capable terminals
+    const char* term = getenv("TERM");
+    if (term) {
+        std::string term_str(term);
+        // yaft supports sixel but doesn't report it via DA1
+        if (term_str.find("yaft") == 0) {
+            return true;
+        }
+    }
+    
     // Try to query Sixel support via device attributes
     struct termios old_tio, new_tio;
     if (tcgetattr(STDIN_FILENO, &old_tio) != 0) {
