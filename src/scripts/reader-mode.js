@@ -2822,18 +2822,9 @@ if (typeof module === "object") {
     
     // Check if we're already in reader mode
     if (document.body.hasAttribute('data-reader-mode')) {
-        // Restore original content
-        const original = document.body.getAttribute('data-original-content');
-        const originalHead = document.head.getAttribute('data-original-head');
-        if (original) {
-            document.body.innerHTML = original;
-            if (originalHead) {
-                document.head.innerHTML = originalHead;
-            }
-            document.body.removeAttribute('data-reader-mode');
-            document.body.removeAttribute('data-original-content');
-            document.head.removeAttribute('data-original-head');
-        }
+        // Exit reader mode by reloading the page
+        console.log('[Brow6el] Exiting reader mode - reloading page');
+        location.reload();
         return;
     }
     

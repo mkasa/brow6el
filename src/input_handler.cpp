@@ -501,8 +501,8 @@ void InputHandler::readLoop() {
                     }
                     // Check if mouse emulation mode is active and handle Enter
                     if (mouse_emu_mode_active_ && browser_client_) {
-                        // Trigger JavaScript click which will decide whether to focus or send CEF click
-                        browser_client_->HandleMouseEmuKey("Enter");
+                        // Send click directly via CEF instead of relying on JavaScript
+                        browser_client_->HandleMouseEmuClick();
                         continue;
                     }
                     sendKeyEvent(VKEY_RETURN, '\r', false);
