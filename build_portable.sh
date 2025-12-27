@@ -18,6 +18,7 @@ mkdir -p "$PORTABLE_DIR"
 cp brow6el "$PORTABLE_DIR/"
 cp run_brow6el.sh "$PORTABLE_DIR/"
 cp -r locales "$PORTABLE_DIR/"
+cp -r scripts "$PORTABLE_DIR/"
 cp *.pak "$PORTABLE_DIR/" 2>/dev/null || true
 cp *.bin "$PORTABLE_DIR/" 2>/dev/null || true
 cp *.so "$PORTABLE_DIR/" 2>/dev/null || true

@@ -109,9 +109,15 @@
                 if (this.generateLabel(i) === label) {
                     const el = this.elements[i];
                     
-                    // Just click the link
-                    el.click();
-                    console.log('[Brow6el] HINT_CLICKED:' + label);
+                    // For links with href, navigate directly for better history tracking
+                    if (el.tagName === 'A' && el.href) {
+                        window.location.href = el.href;
+                        console.log('[Brow6el] HINT_NAVIGATE:' + label + ' to ' + el.href);
+                    } else {
+                        // For other clickable elements, use click()
+                        el.click();
+                        console.log('[Brow6el] HINT_CLICKED:' + label);
+                    }
                     
                     this.cleanup();
                     return true;
