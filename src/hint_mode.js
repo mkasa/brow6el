@@ -1,5 +1,11 @@
 // Hint mode for keyboard navigation
 (function() {
+    // Skip if in a frameset without content
+    if (window.frames.length > 0 && document.body && document.body.children.length === 0) {
+        console.log('[Brow6el] HINT_MODE_FRAMESET - Hint mode not available in framesets, use Ctrl+E (mouse emulation) instead');
+        return;
+    }
+    
     // Remove existing hints if any
     if (window.__brow6el_hints) {
         window.__brow6el_hints.cleanup();
@@ -71,6 +77,12 @@
         show: function() {
             this.elements = this.findElements();
             
+            // If no elements found and we're in a frameset, try the main frame
+            if (this.elements.length === 0 && window.frames.length > 0) {
+                console.log('[Brow6el] In frameset, no elements in main document');
+                return;
+            }
+            
             this.elements.forEach((el, index) => {
                 const rect = el.getBoundingClientRect();
                 const label = this.generateLabel(index);
@@ -78,22 +90,27 @@
                 const overlay = document.createElement('div');
                 overlay.textContent = label;
                 overlay.style.cssText = `
-                    position: fixed;
-                    left: ${rect.left}px;
-                    top: ${rect.top}px;
-                    background: rgba(255, 255, 0, 0.7);
-                    color: #000;
-                    border: 2px solid #000;
-                    padding: 2px 4px;
-                    font-family: monospace;
-                    font-size: 12px;
-                    font-weight: bold;
-                    z-index: 2147483647;
-                    pointer-events: none;
-                    line-height: 1;
+                    position: fixed !important;
+                    left: ${rect.left}px !important;
+                    top: ${rect.top}px !important;
+                    background: rgba(255, 255, 0, 0.9) !important;
+                    color: #000 !important;
+                    border: 2px solid #000 !important;
+                    padding: 2px 4px !important;
+                    font-family: monospace !important;
+                    font-size: 12px !important;
+                    font-weight: bold !important;
+                    z-index: 2147483647 !important;
+                    pointer-events: none !important;
+                    line-height: 1 !important;
+                    display: block !important;
+                    visibility: visible !important;
+                    opacity: 1 !important;
                 `;
                 
-                document.body.appendChild(overlay);
+                // Try to append to body, or html if body doesn't exist
+                const target = document.body || document.documentElement;
+                target.appendChild(overlay);
                 this.overlays.push(overlay);
             });
             

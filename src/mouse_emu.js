@@ -1,5 +1,11 @@
 // Mouse emulation mode for keyboard-driven mouse control
 (function() {
+    // Skip if in a frameset without content
+    if (window.frames.length > 0 && document.body && document.body.children.length === 0) {
+        console.log('[Brow6el] MOUSE_EMU_FRAMESET - Mouse emulation not available in framesets');
+        return;
+    }
+    
     // Remove existing cursor if any
     if (window.__brow6el_mouse_emu) {
         window.__brow6el_mouse_emu.cleanup();
@@ -19,18 +25,27 @@
             
             this.cursor = document.createElement('div');
             this.cursor.style.cssText = `
-                position: fixed;
-                width: 20px;
-                height: 20px;
-                border-radius: 50%;
-                background: rgba(255, 255, 0, 0.7);
-                border: 3px solid #000;
-                z-index: 2147483647;
-                pointer-events: none;
-                box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+                position: fixed !important;
+                width: 20px !important;
+                height: 20px !important;
+                border-radius: 50% !important;
+                background: rgba(255, 255, 0, 0.9) !important;
+                border: 3px solid #000 !important;
+                z-index: 2147483647 !important;
+                pointer-events: none !important;
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.5) !important;
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
             `;
             
-            document.body.appendChild(this.cursor);
+            // Try to append to body, or documentElement if body doesn't exist
+            const target = document.body || document.documentElement;
+            if (!target) {
+                console.log('[Brow6el] MOUSE_EMU_ERROR - No document body or element available');
+                return;
+            }
+            target.appendChild(this.cursor);
             this.updatePosition();
             
             console.log('[Brow6el] MOUSE_EMU_ACTIVE');
