@@ -248,6 +248,21 @@ void ProfileConfig::cleanupProfile() {
     }
 }
 
+void ProfileConfig::overrideMode(const std::string& mode_str) {
+    if (mode_str == "persistent") {
+        mode_ = ProfileMode::Persistent;
+        std::cout << "Profile mode overridden to: persistent" << std::endl;
+    } else if (mode_str == "temporary") {
+        mode_ = ProfileMode::Temporary;
+        std::cout << "Profile mode overridden to: temporary" << std::endl;
+    } else if (mode_str == "custom") {
+        mode_ = ProfileMode::Custom;
+        std::cout << "Profile mode overridden to: custom" << std::endl;
+    } else {
+        std::cerr << "Unknown profile mode: " << mode_str << std::endl;
+    }
+}
+
 void ProfileConfig::createDefaultConfig() {
     std::string config_dir = getConfigDir();
     std::string config_path = getConfigPath();

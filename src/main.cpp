@@ -60,11 +60,16 @@ int main(int argc, char* argv[]) {
     
     // Parse command line arguments
     std::string url = "https://example.com";
+    std::string profile_mode_override;
     
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if (arg == "--help" || arg == "-h") {
             std::cout << "Usage: brow6el [OPTIONS] [URL]\n\n";
+            std::cout << "Options:\n";
+            std::cout << "  --persistent        Use persistent profile mode\n";
+            std::cout << "  --temporary         Use temporary profile mode (private)\n";
+            std::cout << "  --custom            Use custom profile mode\n\n";
             std::cout << "Keyboard Shortcuts:\n";
             std::cout << "  Ctrl+X              Exit\n";
             std::cout << "  Ctrl+R              Reload page\n";
@@ -78,9 +83,15 @@ int main(int argc, char* argv[]) {
             std::cout << "  Ctrl+B              Open bookmarks\n";
             std::cout << "  Ctrl+U              Open user scripts\n";
             std::cout << "  Ctrl+Y              Toggle auto-inject scripts\n\n";
-            std::cout << "Note: Each instance runs in private mode (cache deleted on exit)\n";
+            std::cout << "Note: Profile mode can be configured in ~/.brow6el/browser.conf\n";
             std::cout << "      Bookmarks and user scripts are persistent\n";
             return 0;
+        } else if (arg == "--persistent") {
+            profile_mode_override = "persistent";
+        } else if (arg == "--temporary") {
+            profile_mode_override = "temporary";
+        } else if (arg == "--custom") {
+            profile_mode_override = "custom";
         } else if (arg[0] != '-') {
             url = arg;
         }
@@ -130,6 +141,12 @@ int main(int argc, char* argv[]) {
     
     // Load profile configuration and create profile directory (main process only)
     ProfileConfig& profile_config = ProfileConfig::getInstance();
+    
+    // Apply command-line override if provided
+    if (!profile_mode_override.empty()) {
+        profile_config.overrideMode(profile_mode_override);
+    }
+    
     std::string profile_path = profile_config.createProfileDirectory();
     
     if (profile_path.empty()) {
