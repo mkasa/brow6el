@@ -1,13 +1,18 @@
 #include "include/cef_app.h"
 #include "include/cef_browser.h"
 #include "include/cef_command_line.h"
+#include "include/cef_cookie.h"
 #include "browser_app.h"
 #include "browser_client.h"
 #include "terminal_detector.h"
 #include "input_handler.h"
+#include "profile_config.h"
 #include <iostream>
 #include <unistd.h>
 #include <signal.h>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 static volatile bool g_running = true;
 static std::string g_original_title;
@@ -24,6 +29,9 @@ void restoreTerminalTitle() {
 }
 
 void cleanupAndExit() {
+    // Cleanup profile based on configuration
+    ProfileConfig::getInstance().cleanupProfile();
+    
     restoreTerminalTitle();
     std::cout << "\033[2J\033[H";
     std::cout << "Browser closed." << std::endl;
@@ -98,14 +106,6 @@ int main(int argc, char* argv[]) {
     settings.multi_threaded_message_loop = false;
     settings.command_line_args_disabled = false;
     
-    // Use unique cache per instance for multi-instance support
-    std::string user_data_dir = "/tmp/brow6el_" + std::to_string(getpid());
-    std::string cache_path = user_data_dir + "/cache";
-    
-    // Set both root cache path and user data dir
-    CefString(&settings.cache_path).FromASCII(cache_path.c_str());
-    CefString(&settings.root_cache_path).FromASCII(user_data_dir.c_str());
-    
     // Disable sandbox-related features
     CefString(&settings.browser_subprocess_path).FromASCII(exe_path);
     
@@ -127,6 +127,29 @@ int main(int argc, char* argv[]) {
     }
     
     // Only main process continues from here
+    
+    // Load profile configuration and create profile directory (main process only)
+    ProfileConfig& profile_config = ProfileConfig::getInstance();
+    std::string profile_path = profile_config.createProfileDirectory();
+    
+    if (profile_path.empty()) {
+        std::cerr << "Failed to create profile directory" << std::endl;
+        return 1;
+    }
+    
+    // Set profile paths for CEF
+    std::string cache_path = profile_path + "/cache";
+    CefString(&settings.cache_path).FromASCII(cache_path.c_str());
+    CefString(&settings.root_cache_path).FromASCII(profile_path.c_str());
+    
+    // Enable cookie persistence for persistent/custom mode
+    if (profile_config.getMode() != ProfileMode::Temporary) {
+        settings.persist_session_cookies = 1;
+        std::cout << "Cookie persistence enabled" << std::endl;
+    } else {
+        settings.persist_session_cookies = 0;
+    }
+    
     signal(SIGINT, signalHandler);
     signal(SIGTERM, signalHandler);
     signal(SIGSEGV, crashHandler);  // Segmentation fault
@@ -137,6 +160,51 @@ int main(int argc, char* argv[]) {
     saveTerminalTitle();
     
     std::cout << "Brow6el - Terminal Web Browser with Sixel Support" << std::endl;
+    
+    // Check if profile is locked by another instance (persistent/custom mode)
+    if (profile_config.getMode() != ProfileMode::Temporary) {
+        std::string lock_file = profile_path + "/SingletonLock";
+        
+        // Use symlink_status instead of exists (exists follows symlinks and may return false)
+        std::error_code ec_check;
+        auto lock_status = fs::symlink_status(lock_file, ec_check);
+        bool lock_exists = fs::exists(lock_status);
+        
+        if (lock_exists) {
+            // Read the symlink target (format: hostname-PID)
+            std::error_code ec;
+            fs::path target = fs::read_symlink(lock_file, ec);
+            
+            if (!ec) {
+                std::string target_str = target.string();
+                size_t dash_pos = target_str.find_last_of('-');
+                
+                if (dash_pos != std::string::npos) {
+                    std::string pid_str = target_str.substr(dash_pos + 1);
+                    
+                    try {
+                        pid_t lock_pid = std::stoi(pid_str);
+                        
+                        // Check if process is still running
+                        if (kill(lock_pid, 0) == 0) {
+                            std::cerr << "Error: Profile is already in use by another browser instance (PID: " 
+                                     << lock_pid << ")" << std::endl;
+                            std::cerr << "       Close the other instance or use temporary mode for multiple sessions" << std::endl;
+                            return 1;
+                        } else {
+                            // Stale lock file - process is dead, remove it
+                            std::cout << "Removing stale profile lock..." << std::endl;
+                            fs::remove(profile_path + "/SingletonLock", ec);
+                            fs::remove(profile_path + "/SingletonCookie", ec);
+                            fs::remove(profile_path + "/SingletonSocket", ec);
+                        }
+                    } catch (...) {
+                        // Couldn't parse PID, ignore
+                    }
+                }
+            }
+        }
+    }
     
     TerminalInfo termInfo = TerminalDetector::detect();
     
@@ -216,12 +284,22 @@ int main(int argc, char* argv[]) {
     client = nullptr;
     app = nullptr;
     
-    // Clean up cache directory
-    std::string rm_cmd = "rm -rf " + user_data_dir;
-    system(rm_cmd.c_str());
+    // Flush cookies before shutdown (important for persistent mode)
+    if (profile_config.getMode() != ProfileMode::Temporary) {
+        CefCookieManager::GetGlobalManager(nullptr)->FlushStore(nullptr);
+        std::cout << "Flushing cookies..." << std::endl;
+        // Give cookies time to flush
+        for (int i = 0; i < 20; i++) {
+            CefDoMessageLoopWork();
+            usleep(10000);
+        }
+    }
     
+    // Shutdown CEF properly
+    CefShutdown();
+    
+    // Profile cleanup is handled by cleanupAndExit()
     cleanupAndExit();
     
-    // Use _exit to bypass atexit handlers that might cause issues
-    _exit(0);
+    return 0;
 }

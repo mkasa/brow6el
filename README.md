@@ -26,7 +26,7 @@ WARNING: this is POC code quality, it is known it doesn't work with localized ke
 - **Download Manager** - Save files with progress tracking
 - **Popup Handling** - Terminal-friendly popup dialogs
 - **Multi-Instance** - Run multiple browser windows simultaneously
-- **Private Mode** - Each session is isolated, cache cleared on exit
+- **Configurable Profiles** - Choose between temporary (private) or persistent (normal) browsing
 - **Modern Web** - Full HTML5/CSS3/JavaScript support via Chromium
 
 ## Keyboard Shortcuts
@@ -120,6 +120,43 @@ google-custom.js|Google Custom|true|*google.com*,*google.co.*
 ```
 
 See [USERSCRIPTS.md](USERSCRIPTS.md) for detailed documentation.
+
+### Profile Modes
+Brow6el supports different profile modes for different use cases:
+
+**Temporary Mode (Default):**
+- Each session uses a new profile
+- All data (cookies, cache, history) deleted on exit
+- Perfect for private browsing
+- No data persists between sessions
+
+**Persistent Mode:**
+- Profile saved in `~/.brow6el/profile`
+- Cookies and login sessions maintained
+- Cache speeds up repeated visits
+- Works like a normal browser
+
+**Configuration** (`~/.brow6el/browser.conf`):
+```ini
+# Choose profile mode: temporary, persistent, or custom
+profile_mode=temporary
+
+# Custom profile location (when mode=custom)
+profile_path=~/.brow6el/profile
+
+# Cache settings
+cache_size_mb=500
+clear_cache_on_exit=false
+
+# Privacy options (for persistent/custom)
+clear_cookies_on_exit=false
+```
+
+**Examples:**
+- Private browsing: `profile_mode=temporary` (default)
+- Normal browsing: `profile_mode=persistent`
+- Multiple profiles: `profile_mode=custom` with different paths
+- Semi-private: `persistent` with `clear_cookies_on_exit=true`
 
 ### JavaScript Console
 - Press `Ctrl+K` to open/close the console

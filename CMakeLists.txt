@@ -35,6 +35,7 @@ set(SOURCES
     src/status_bar.cpp
     src/bookmarks.cpp
     src/user_scripts.cpp
+    src/profile_config.cpp
 )
 
 set(HEADERS
@@ -46,6 +47,7 @@ set(HEADERS
     src/status_bar.h
     src/bookmarks.h
     src/user_scripts.h
+    src/profile_config.h
 )
 
 # Create executable
