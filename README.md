@@ -31,13 +31,15 @@ WARNING: this is POC code quality, it is known it doesn't work with localized ke
 
 ## Keyboard Shortcuts
 
+**Note for yaft terminal users**: yaft doesn't send proper Ctrl+Arrow key sequences. Use the alternative keybindings: `Ctrl+P/N` for back/forward navigation and `Ctrl+T/G` for scrolling.
+
 ### Navigation
 - `Ctrl+L` - Navigate to URL
 - `Ctrl+R` - Reload page
-- `Ctrl+Left` - Navigate back
-- `Ctrl+Right` - Navigate forward
-- `Ctrl+Up` - Scroll up (mouse wheel emulation)
-- `Ctrl+Down` - Scroll down (mouse wheel emulation)
+- `Ctrl+Left` / `Ctrl+P` - Navigate back
+- `Ctrl+Right` / `Ctrl+N` - Navigate forward
+- `Ctrl+Up` / `Ctrl+T` - Scroll up (mouse wheel emulation)
+- `Ctrl+Down` / `Ctrl+G` - Scroll down (mouse wheel emulation)
 - `Ctrl+X` - Quit browser
 
 ### Advanced Navigation

@@ -783,6 +783,30 @@ void InputHandler::readLoop() {
                                 browser_client_->ActivateHintMode();
                             }
                         }
+                    } else if (c == 16) { // Ctrl+P - Navigate back (fallback for terminals like yaft)
+                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_ && browser_->CanGoBack()) {
+                            browser_->GoBack();
+                        }
+                    } else if (c == 14) { // Ctrl+N - Navigate forward (fallback for terminals like yaft)
+                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_ && browser_->CanGoForward()) {
+                            browser_->GoForward();
+                        }
+                    } else if (c == 20) { // Ctrl+T - Scroll up (fallback for terminals like yaft)
+                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_) {
+                            CefMouseEvent mouse_event;
+                            mouse_event.x = 0;
+                            mouse_event.y = 0;
+                            mouse_event.modifiers = 0;
+                            browser_->GetHost()->SendMouseWheelEvent(mouse_event, 0, 120); // Scroll up
+                        }
+                    } else if (c == 7) { // Ctrl+G - Scroll down (fallback for terminals like yaft)
+                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_) {
+                            CefMouseEvent mouse_event;
+                            mouse_event.x = 0;
+                            mouse_event.y = 0;
+                            mouse_event.modifiers = 0;
+                            browser_->GetHost()->SendMouseWheelEvent(mouse_event, 0, -120); // Scroll down
+                        }
                     } else if (c == 5) { // Ctrl+E - Toggle mouse emulation mode
                         if (!url_input_active_ && !file_input_active_ && !console_input_active_ && !hint_mode_active_ && browser_client_) {
                             if (mouse_emu_mode_active_) {
@@ -950,6 +974,21 @@ void InputHandler::parseMouseEvent(const char* seq, int len) {
 void InputHandler::parseKeySequence(const char* seq, int len) {
     if (len < 3 || seq[0] != '\033' || seq[1] != '[') {
         return;
+    }
+    
+    // Log the sequence for debugging
+    FILE* log = fopen("/tmp/brow6el_debug.log", "a");
+    if (log) {
+        fprintf(log, "parseKeySequence: len=%d seq=", len);
+        for (int i = 0; i < len; i++) {
+            fprintf(log, "%02x ", (unsigned char)seq[i]);
+        }
+        fprintf(log, "(");
+        for (int i = 0; i < len; i++) {
+            fprintf(log, "%c", (seq[i] >= 32 && seq[i] < 127) ? seq[i] : '?');
+        }
+        fprintf(log, ")\n");
+        fclose(log);
     }
     
     // Check for Ctrl+Arrow (ESC[1;5C for Ctrl+Right, ESC[1;5D for Ctrl+Left, ESC[1;5A for Ctrl+Up, ESC[1;5B for Ctrl+Down)
