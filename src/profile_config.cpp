@@ -70,6 +70,9 @@ void ProfileConfig::load() {
         else if (key == "clear_cookies_on_exit") {
             clear_cookies_on_exit_ = (value == "true");
         }
+        else if (key == "default_url") {
+            default_url_ = value;
+        }
     }
     file.close();
 }
@@ -114,6 +117,9 @@ void ProfileConfig::save() {
     file << "\n";
     file << "# Privacy options\n";
     file << "clear_cookies_on_exit=" << (clear_cookies_on_exit_ ? "true" : "false") << "\n";
+    file << "\n";
+    file << "# Default homepage URL\n";
+    file << "default_url=" << default_url_ << "\n";
     
     file.close();
 }
@@ -311,6 +317,9 @@ void ProfileConfig::createDefaultConfig() {
     file << "#   profile_mode=persistent\n";
     file << "#   clear_cache_on_exit=true\n";
     file << "#   clear_cookies_on_exit=true\n";
+    file << "\n";
+    file << "# Default homepage URL\n";
+    file << "default_url=https://example.com\n";
     
     file.close();
 }

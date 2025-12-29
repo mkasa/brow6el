@@ -58,8 +58,11 @@ void requestShutdown() {
 int main(int argc, char* argv[]) {
     CefMainArgs main_args(argc, argv);
     
+    // Load profile config first to get default URL
+    ProfileConfig& config = ProfileConfig::getInstance();
+    
     // Parse command line arguments
-    std::string url = "https://example.com";
+    std::string url = config.getDefaultUrl();
     std::string profile_mode_override;
     
     for (int i = 1; i < argc; i++) {
