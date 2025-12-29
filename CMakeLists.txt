@@ -3,7 +3,6 @@ project(brow6el C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_BUILD_RPATH ".")
 
 # Set CMake policy for <PackageName>_ROOT variables
 if(POLICY CMP0074)
