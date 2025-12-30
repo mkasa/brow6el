@@ -16,6 +16,15 @@
         x: 0,
         y: 0,
         step: 20, // pixels to move per keypress
+        mode: 'normal', // 'precision', 'normal', 'fast'
+        flashTimer: null, // Track flash animation timer
+        
+        // Speed and color settings for each mode
+        modes: {
+            precision: { step: 5, color: 'rgba(0, 150, 255, 0.9)', label: 'PRECISION' },
+            normal:    { step: 20, color: 'rgba(255, 255, 0, 0.9)', label: 'NORMAL' },
+            fast:      { step: 100, color: 'rgba(0, 255, 0, 0.9)', label: 'FAST' }
+        },
         
         // Create yellow circle cursor
         show: function() {
@@ -99,13 +108,34 @@
         
         // Flash cursor red to show click
         flashClick: function() {
-            if (this.cursor) {
-                this.cursor.style.background = 'rgba(255, 0, 0, 0.7)';
-                setTimeout(() => {
-                    if (this.cursor) {
-                        this.cursor.style.background = 'rgba(255, 255, 0, 0.7)';
-                    }
-                }, 100);
+            if (!this.cursor) return;
+            
+            // Clear any existing flash timer to prevent color mixing
+            if (this.flashTimer) {
+                clearTimeout(this.flashTimer);
+                this.flashTimer = null;
+            }
+            
+            const originalColor = this.modes[this.mode].color;
+            this.cursor.style.background = 'rgba(255, 0, 0, 0.9)';
+            
+            this.flashTimer = setTimeout(() => {
+                if (this.cursor) {
+                    this.cursor.style.background = originalColor;
+                }
+                this.flashTimer = null;
+            }, 100);
+        },
+        
+        // Set speed mode
+        setMode: function(newMode) {
+            if (this.modes[newMode]) {
+                this.mode = newMode;
+                this.step = this.modes[newMode].step;
+                if (this.cursor) {
+                    this.cursor.style.background = this.modes[newMode].color;
+                }
+                console.log('[Brow6el] MOUSE_EMU_MODE:' + newMode);
             }
         },
         
@@ -135,9 +165,28 @@
             return null;
         },
         
-        // Handle arrow keys
+        // Handle keys
         handleKey: function(key) {
             switch(key) {
+                // WASD controls (primary)
+                case 'w':
+                case 'W':
+                    this.move(0, -this.step);
+                    return true;
+                case 'a':
+                case 'A':
+                    this.move(-this.step, 0);
+                    return true;
+                case 's':
+                case 'S':
+                    this.move(0, this.step);
+                    return true;
+                case 'd':
+                case 'D':
+                    this.move(this.step, 0);
+                    return true;
+                    
+                // Arrow keys (fallback)
                 case 'ArrowUp':
                     this.move(0, -this.step);
                     return true;
@@ -150,7 +199,24 @@
                 case 'ArrowRight':
                     this.move(this.step, 0);
                     return true;
+                    
+                // Speed mode toggles
+                case 'q':
+                case 'Q':
+                    // Toggle precision mode
+                    this.setMode(this.mode === 'precision' ? 'normal' : 'precision');
+                    return true;
+                case 'f':
+                case 'F':
+                    // Toggle fast mode
+                    this.setMode(this.mode === 'fast' ? 'normal' : 'fast');
+                    return true;
+                    
+                // Click actions
                 case 'Enter':
+                case ' ':
+                case 'e':
+                case 'E':
                     this.click();
                     return true;
             }
@@ -159,6 +225,10 @@
         
         // Remove cursor
         cleanup: function() {
+            if (this.flashTimer) {
+                clearTimeout(this.flashTimer);
+                this.flashTimer = null;
+            }
             if (this.cursor) {
                 this.cursor.remove();
                 this.cursor = null;

@@ -64,7 +64,7 @@ WARNING: this is POC code quality, it is known it doesn't work with localized ke
 Press `Ctrl+F` to show yellow hint labels on all links. Type the hint label (e.g., "a", "ab") and press Enter to navigate. This provides keyboard-only navigation without needing a mouse. Press `ESC` or `Ctrl+F` again to exit.
 
 ### Mouse Emulation Mode (Ctrl+E)
-Press `Ctrl+E` to activate a yellow mouse cursor overlay. Use arrow keys to move it around the page and press Enter to click at that position. This works on all elements including iframes and consent dialogs. Press `ESC` or `Ctrl+E` again to exit.
+Press `Ctrl+E` to activate a yellow mouse cursor overlay. Use WASD keys to move it around the page and press Enter to click at that position. F key toggle fast move, Q key toggle precision mode, press these keys again to dissable these cursor acceleration modes. This works on all elements including iframes and consent dialogs. Press `ESC` or `Ctrl+E` again to exit.
 
 ### Mouse Wheel Emulation (Ctrl+Up/Down)
 Use `Ctrl+Up` and `Ctrl+Down` to scroll pages that block normal keyboard scrolling (like Google consent pages). This sends real mouse wheel events that work everywhere.

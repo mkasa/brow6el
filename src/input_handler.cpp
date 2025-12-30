@@ -644,6 +644,17 @@ void InputHandler::readLoop() {
                                 browser_client_->GetStatusBar()->showHintInput(hint_input_buffer_, 0);
                             }
                         }
+                    } else if (mouse_emu_mode_active_ && browser_client_) {
+                        // Handle mouse emulation keys: WASD, Q, F, E, Space
+                        if (c == 'w' || c == 'W' || c == 'a' || c == 'A' || 
+                            c == 's' || c == 'S' || c == 'd' || c == 'D' ||
+                            c == 'q' || c == 'Q' || c == 'f' || c == 'F' ||
+                            c == 'e' || c == 'E' || c == ' ') {
+                            std::string key(1, c);
+                            browser_client_->HandleMouseEmuKey(key);
+                            continue;
+                        }
+                        // For other keys in mouse emu mode, just ignore them
                     } else if (console_input_active_) {
                         console_input_buffer_ += c;
                         if (browser_client_) {
