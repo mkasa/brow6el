@@ -4,7 +4,7 @@ A full-featured web browser for the terminal using Chromium (CEF) and libsixel f
 
 > **WARNING**: Breaking change - keyboard control was switched to vim-like modal control. All in previous versions ctrl+[KEY] shortcuts are not working anymore, please follow reading this document.
 
-> **WARNING**: this is POC code quality, it is known it doesn't work with localized keyboards, it lacks support for accented characters for input. Build process tested in Ubuntu 25.10, Debian 13, Arch Linux.
+> **WARNING**: this is POC code quality, it is known it doesn't work with localized keyboards, it lacks support for accented characters for input. Build process tested in Ubuntu 25.10, Debian 13, Arch Linux. The browser itself was tested in foot terminal and yaft framebuffer terminal.
 
 ## Screenshots
 ### Demo
@@ -216,7 +216,7 @@ Changes take effect on next browser start. See the config file for available opt
 - User script config (`~/.brow6el/userscripts.conf`)
 - CEF flags config (`~/.brow6el/cef_flags.conf`)
 
-**What doesn't persist (private mode):**
+**What doesn't persist (default temporary mode, persists in persistent mode):**
 - Cookies (cleared on exit)
 - localStorage (cleared on exit)
 - Cache (cleared on exit)
@@ -239,7 +239,7 @@ You can run multiple browser instances simultaneously:
 
 ## Requirements
 
-**Sixel-capable terminal**: Any terminal emulator that supports Sixel graphics (e.g. mlterm, xterm -ti vt340, foot, wezterm, etc.)
+**Sixel-capable terminal**: Any terminal emulator that supports Sixel graphics (e.g. mlterm, xterm -ti vt340, foot, wezterm, yaft, etc.)
 
 The browser automatically detects Sixel support via terminal capability queries - no manual configuration needed.
 
