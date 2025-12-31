@@ -33,22 +33,27 @@ void StatusBar::clearStatusArea() {
     std::cout << std::flush;
 }
 
-void StatusBar::clear() {
+void StatusBar::clear(bool redraw_title) {
     clearStatusArea();
     is_showing_ = false;
     current_options_.clear();
-    // Don't clear current_title_ - it should persist
+    // Don't clear current_title_ or current_mode_prefix_ - they should persist
     
-    // Immediately redraw the title bar if we have one
-    if (!current_title_.empty()) {
-        showTitle(current_title_);
+    // Immediately redraw the title bar if we have one (unless explicitly disabled)
+    if (redraw_title && !current_title_.empty()) {
+        showTitle(current_title_, current_mode_prefix_.empty() ? nullptr : current_mode_prefix_.c_str());
     }
 }
 
-void StatusBar::showTitle(const std::string& title) {
+void StatusBar::showTitle(const std::string& title, const char* mode_prefix) {
+    if (shutdown_mode_) return; // Don't update during shutdown
+    
     std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
     
     current_title_ = title;
+    if (mode_prefix) {
+        current_mode_prefix_ = mode_prefix;
+    }
     
     saveCursorPosition();
     
@@ -57,8 +62,16 @@ void StatusBar::showTitle(const std::string& title) {
     int rows = w.ws_row;
     int cols = w.ws_col;
     
+    // Build the display string with mode prefix if provided
+    std::string display_title;
+    if (mode_prefix) {
+        display_title = "[";
+        display_title += mode_prefix;
+        display_title += "] ";
+    }
+    display_title += title;
+    
     // Truncate title if too long (max cols - 5, then add "...")
-    std::string display_title = title;
     int max_length = cols - 5;
     if (max_length < 10) max_length = 10; // Minimum reasonable length
     
@@ -306,7 +319,7 @@ void StatusBar::redraw() {
         showComboboxOptions(current_options_, current_selected_);
     } else if (!current_title_.empty()) {
         // Show title bar when nothing else is active
-        showTitle(current_title_);
+        showTitle(current_title_, current_mode_prefix_.empty() ? nullptr : current_mode_prefix_.c_str());
     }
 }
 

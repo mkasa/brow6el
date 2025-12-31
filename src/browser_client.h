@@ -161,6 +161,20 @@ public:
     void HandleMouseEmuClick();
     void HandleMouseEmuPosition(int x, int y);
     
+    // Mode switch request (from mouse click detection)
+    bool GetModeSwitchRequest() const { return mode_switch_requested_; }
+    bool GetSwitchToInsertMode() const { return switch_to_insert_mode_; }
+    void ClearModeSwitchRequest() { mode_switch_requested_ = false; switch_to_insert_mode_ = false; }
+    
+    // Input mode display
+    void SetInputMode(const char* mode) { 
+        input_mode_ = mode;
+        // Update status bar with current title and new mode
+        if (status_bar_ && !current_page_title_.empty()) {
+            status_bar_->showTitle(current_page_title_, input_mode_);
+        }
+    }
+    
 private:
     int width_;
     int height_;
@@ -221,6 +235,11 @@ private:
     bool mouse_emu_mode_active_ = false;
     int mouse_emu_x_ = 0;
     int mouse_emu_y_ = 0;
+    bool mode_switch_requested_ = false;
+    bool switch_to_insert_mode_ = false;
+    
+    // Input mode display
+    const char* input_mode_ = "S";
     
     void injectSelectDetector();
     void parseSelectMessage(const std::string& message);

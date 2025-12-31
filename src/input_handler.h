@@ -9,6 +9,12 @@ class BrowserClient;
 
 class InputHandler {
 public:
+    enum InputMode {
+        MODE_STANDARD,  // h/j/k/l for arrows, shortcuts without Ctrl
+        MODE_MOUSE,     // hjkl for mouse movement, q/f for clicks
+        MODE_INSERT     // All keys pass through to CEF
+    };
+    
     InputHandler(CefRefPtr<CefBrowser> browser, int term_width, int term_height,
                  int cell_width, int cell_height, int pixel_width, int pixel_height);
     ~InputHandler();
@@ -16,6 +22,8 @@ public:
     void start();
     void stop();
     void setBrowserClient(BrowserClient* client) { browser_client_ = client; }
+    InputMode getCurrentMode() const { return current_mode_; }
+    const char* getModeName() const;
     
 private:
     void enableMouseTracking();
@@ -66,4 +74,7 @@ private:
     // Mouse drag tracking
     bool mouse_button_down_ = false;
     CefBrowserHost::MouseButtonType mouse_button_type_ = MBT_LEFT;
+    
+    // Modal control state
+    InputMode current_mode_ = MODE_STANDARD;
 };
