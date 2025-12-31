@@ -2,7 +2,9 @@
 
 A full-featured web browser for the terminal using Chromium (CEF) and libsixel for graphics rendering.
 
-WARNING: this is POC code quality, it is known it doesn't work with localized keyboards, it lacks support for accented characters for input. Build process tested in Ubuntu and Debian.
+> **WARNING**: Breaking change - keyboard control was switched to vim-like modal control. All in previous versions ctrl+[KEY] shortcuts are not working anymore, please follow reading this document.
+
+> **WARNING**: this is POC code quality, it is known it doesn't work with localized keyboards, it lacks support for accented characters for input. Build process tested in Ubuntu 25.10, Debian 13, Arch Linux.
 
 ## Screenshots
 ### Demo
@@ -19,61 +21,83 @@ WARNING: this is POC code quality, it is known it doesn't work with localized ke
 
 - **Sixel Graphics** - Full page rendering with automatic resolution detection
 - **Mouse Support** - Click, scroll, and interact with web pages
-- **Keyboard Navigation** - Full keyboard support with shortcuts
-- **JavaScript Console** - Execute JS commands and view console logs (Ctrl+K)
-- **Bookmarks** - Save and organize your favorite pages (Ctrl+D, Ctrl+B)
-- **User Scripts** - Inject custom JavaScript into pages (Ctrl+U, Ctrl+Y)
+- **Vim-Style Modal Control** - Efficient keyboard navigation with three modes (STANDARD, INSERT, MOUSE)
+- **JavaScript Console** - Execute JS commands and view console logs
+- **Bookmarks** - Save and organize your favorite pages
+- **User Scripts** - Inject custom JavaScript into pages
 - **Download Manager** - Save files with progress tracking
 - **Popup Handling** - Terminal-friendly popup dialogs
 - **Multi-Instance** - Run multiple browser windows simultaneously
 - **Configurable Profiles** - Choose between temporary (private) or persistent (normal) browsing
 - **Modern Web** - Full HTML5/CSS3/JavaScript support via Chromium
 
-## Keyboard Shortcuts
+## Vim-Style Modal Control
 
-**Note for yaft terminal users**: yaft doesn't send proper Ctrl+Arrow key sequences. Use the alternative keybindings: `Ctrl+P/N` for back/forward navigation and `Ctrl+T/G` for scrolling.
+Brow6el uses a vim-inspired modal keyboard interface with three modes. The current mode is always shown in the status bar.
 
-### Navigation
-- `Ctrl+L` - Navigate to URL
-- `Ctrl+R` - Reload page
-- `Ctrl+Left` / `Ctrl+P` - Navigate back
-- `Ctrl+Right` / `Ctrl+N` - Navigate forward
-- `Ctrl+Up` / `Ctrl+T` - Scroll up (mouse wheel emulation)
-- `Ctrl+Down` / `Ctrl+G` - Scroll down (mouse wheel emulation)
-- `Ctrl+X` - Quit browser
+### STANDARD Mode [S] - Default
 
-### Advanced Navigation
-- `Ctrl+F` - **Hint Mode** - Show labeled hints on all links, type hint label to navigate
-- `Ctrl+E` - **Mouse Emulation Mode** - Control mouse cursor with arrow keys, Enter to click
+Vim-like navigation with single-key commands (no Ctrl required):
 
-### Features
-- `Ctrl+K` - Toggle JavaScript console
-- `Ctrl+D` - Add current page to bookmarks
-- `Ctrl+B` - Open bookmarks dialog
-- `Ctrl+U` - Open user scripts menu
-- `Ctrl+Y` - Toggle auto-inject for user scripts
+**Navigation:**
+- `h/j/k/l` or arrow keys - Navigate (left/down/up/right)
+- `t/g` - Scroll up/down
+- `p/n` - Back/forward in history
 
-### Dialogs
-- `ESC` - Cancel current dialog / Exit hint mode / Exit mouse emulation
-- `↑/↓` - Navigate in menus
-- `Enter` - Confirm selection
+**Actions:**
+- `r` - Reload page
+- `u` - Navigate to URL
+- `c` - Toggle JavaScript console
+- `d` - Add bookmark
+- `b` - Open bookmarks
+- `f` - Hint mode (keyboard link navigation)
+- `s` - User scripts menu
+- `y` - Toggle auto-inject user scripts
+- `x` - Exit browser
+
+**Mode Switch:**
+- `i` - Enter INSERT mode
+- `e` - Enter MOUSE mode
+
+### INSERT Mode [I]
+
+All keypresses pass through to the webpage. Use for typing in forms, text areas, etc.
+
+**Exit:** `ESC` - Return to STANDARD mode
+
+### MOUSE Mode [M]
+
+Keyboard-driven mouse emulation with visual cursor:
+
+**Movement:**
+- `h/j/k/l` or arrow keys - Move mouse (left/down/up/right)
+- `q/f` - Toggle precision/fast speed
+
+**Actions:**
+- `SPACE` or `ENTER` - Click at cursor position
+
+**Exit:** `e` or `ESC` - Return to STANDARD mode
+
+### Smart Mode Switching
+
+The browser automatically switches modes based on context:
+- Clicking an input field in MOUSE mode → Auto-switch to INSERT mode
+- Clicking a select box in MOUSE mode → Auto-switch to STANDARD mode
+- Page navigation → Auto-reset to STANDARD mode
 
 ## Advanced Navigation Modes
 
-### Hint Mode (Ctrl+F)
-Press `Ctrl+F` to show yellow hint labels on all links. Type the hint label (e.g., "a", "ab") and press Enter to navigate. This provides keyboard-only navigation without needing a mouse. Press `ESC` or `Ctrl+F` again to exit.
+### Hint Mode (f key)
+Press `f` to show yellow hint labels on all links. Type the hint label (e.g., "a", "ab") and press Enter to navigate. This provides keyboard-only navigation without needing a mouse. Press `ESC` or `f` again to exit.
 
-### Mouse Emulation Mode (Ctrl+E)
-Press `Ctrl+E` to activate a yellow mouse cursor overlay. Use WASD keys to move it around the page and press Enter to click at that position. F key toggle fast move, Q key toggle precision mode, press these keys again to dissable these cursor acceleration modes. This works on all elements including iframes and consent dialogs. Press `ESC` or `Ctrl+E` again to exit.
-
-### Mouse Wheel Emulation (Ctrl+Up/Down)
-Use `Ctrl+Up` and `Ctrl+Down` to scroll pages that block normal keyboard scrolling (like Google consent pages). This sends real mouse wheel events that work everywhere.
+### Mouse Emulation Mode (e key)
+Press `e` to activate a yellow mouse cursor overlay. Use hjkl or arrow keys to move it around the page and press SPACE/Enter to click at that position. `q` toggles precision mode, `f` toggles fast mode. This works on all elements including iframes and consent dialogs. Press `ESC` or `e` again to exit.
 
 ## Quick Start
 
 ```bash
 # 1. Download CEF binary (~670MB, one-time)
-./download_cef.sh #(or ./download_def_arm64.sh)
+./download_cef.sh #(or ./download_cef_arm64.sh)
 
 # 2. Build
 ./build.sh
@@ -99,9 +123,9 @@ See [examples/README.md](examples/README.md) for details.
 ## Advanced Features
 
 ### Bookmarks
-- Press `Ctrl+D` to bookmark the current page
-- Press `Ctrl+B` to view and manage bookmarks
-- Navigate with ↑/↓, press Enter to open, 'd' to delete
+- Press `d` (in STANDARD mode) to bookmark the current page
+- Press `b` (in STANDARD mode) to view and manage bookmarks
+- Navigate with ↑/↓ or j/k, press Enter to open, 'd' to delete
 - Bookmarks stored in `~/.brow6el/bookmarks`
 
 ### User Scripts
@@ -111,7 +135,7 @@ Custom JavaScript injection system similar to Greasemonkey/Tampermonkey.
 1. Create script directory: `mkdir -p ~/.brow6el/userscripts`
 2. Add `.js` files to the directory
 3. Configure URL patterns in `~/.brow6el/userscripts.conf`
-4. Press `Ctrl+U` to manually inject or `Ctrl+Y` to toggle auto-inject
+4. Press `s` to manually inject or `y` to toggle auto-inject
 
 **Example config** (`~/.brow6el/userscripts.conf`):
 ```
@@ -161,7 +185,7 @@ clear_cookies_on_exit=false
 - Semi-private: `persistent` with `clear_cookies_on_exit=true`
 
 ### JavaScript Console
-- Press `Ctrl+K` to open/close the console
+- Press `c` (in STANDARD mode) to open/close the console
 - Type JavaScript and press Enter to execute
 - Scroll through output with ↑/↓
 - All console.log/warn/error messages are captured

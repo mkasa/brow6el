@@ -35,6 +35,15 @@ InputHandler::~InputHandler() {
     stop();
 }
 
+const char* InputHandler::getModeName() const {
+    switch (current_mode_) {
+        case MODE_STANDARD: return "S";
+        case MODE_MOUSE: return "M";
+        case MODE_INSERT: return "I";
+        default: return "?";
+    }
+}
+
 void InputHandler::start() {
     if (running_) return;
     
@@ -127,6 +136,26 @@ void InputHandler::readLoop() {
             } else if (!browser_client_->IsMouseEmuModeActive() && mouse_emu_mode_active_) {
                 mouse_emu_mode_active_ = false;
             }
+            
+            // Check for mode switch request from mouse click detection
+            if (browser_client_->GetModeSwitchRequest()) {
+                if (browser_client_->GetSwitchToInsertMode()) {
+                    // Switch to INSERT mode
+                    current_mode_ = MODE_INSERT;
+                    browser_client_->SetInputMode(getModeName());
+                    if (browser_) {
+                        browser_->GetHost()->Invalidate(PET_VIEW);
+                    }
+                } else {
+                    // Switch to STANDARD mode
+                    current_mode_ = MODE_STANDARD;
+                    browser_client_->SetInputMode(getModeName());
+                    if (browser_) {
+                        browser_->GetHost()->Invalidate(PET_VIEW);
+                    }
+                }
+                browser_client_->ClearModeSwitchRequest();
+            }
         }
         
         char c;
@@ -214,7 +243,17 @@ void InputHandler::readLoop() {
                                 browser_->GetHost()->Invalidate(PET_VIEW);
                             }
                         }
-                    } else if (mouse_emu_mode_active_) {
+                    } else if (current_mode_ == MODE_INSERT) {
+                        // ESC in INSERT mode goes to STANDARD mode
+                        current_mode_ = MODE_STANDARD;
+                        if (browser_client_) {
+                            browser_client_->SetInputMode(getModeName());
+                            if (browser_) {
+                                browser_->GetHost()->Invalidate(PET_VIEW);
+                            }
+                        }
+                    } else if (current_mode_ == MODE_MOUSE || mouse_emu_mode_active_) {
+                        // ESC in MOUSE mode goes to STANDARD mode
                         // If select options are showing, close them first, don't exit mouse emu mode
                         if (browser_client_ && browser_client_->IsSelectOptionsActive()) {
                             browser_client_->GetStatusBar()->clear();
@@ -222,10 +261,12 @@ void InputHandler::readLoop() {
                                 browser_->GetHost()->Invalidate(PET_VIEW);
                             }
                         } else {
-                            // Cancel mouse emulation mode on ESC only if no select is active
+                            // Exit mouse emulation mode on ESC
+                            current_mode_ = MODE_STANDARD;
                             mouse_emu_mode_active_ = false;
                             if (browser_client_) {
                                 browser_client_->SetMouseEmuModeActive(false);
+                                browser_client_->SetInputMode(getModeName());
                                 browser_client_->GetStatusBar()->clear();
                                 if (browser_) {
                                     browser_->GetHost()->Invalidate(PET_VIEW);
@@ -644,17 +685,6 @@ void InputHandler::readLoop() {
                                 browser_client_->GetStatusBar()->showHintInput(hint_input_buffer_, 0);
                             }
                         }
-                    } else if (mouse_emu_mode_active_ && browser_client_) {
-                        // Handle mouse emulation keys: WASD, Q, F, E, Space
-                        if (c == 'w' || c == 'W' || c == 'a' || c == 'A' || 
-                            c == 's' || c == 'S' || c == 'd' || c == 'D' ||
-                            c == 'q' || c == 'Q' || c == 'f' || c == 'F' ||
-                            c == 'e' || c == 'E' || c == ' ') {
-                            std::string key(1, c);
-                            browser_client_->HandleMouseEmuKey(key);
-                            continue;
-                        }
-                        // For other keys in mouse emu mode, just ignore them
                     } else if (console_input_active_) {
                         console_input_buffer_ += c;
                         if (browser_client_) {
@@ -674,171 +704,204 @@ void InputHandler::readLoop() {
                             browser_client_->GetStatusBar()->showFileInput(file_input_buffer_);
                         }
                     } else {
-                        // Map special shifted characters to their base keys + shift modifier
-                        int keycode = c;
-                        bool needs_shift = false;
-                        
-                        // Map shifted number row characters
-                        if (c == '!') { keycode = '1'; needs_shift = true; }
-                        else if (c == '@') { keycode = '2'; needs_shift = true; }
-                        else if (c == '#') { keycode = '3'; needs_shift = true; }
-                        else if (c == '$') { keycode = '4'; needs_shift = true; }
-                        else if (c == '%') { keycode = '5'; needs_shift = true; }
-                        else if (c == '^') { keycode = '6'; needs_shift = true; }
-                        else if (c == '&') { keycode = '7'; needs_shift = true; }
-                        else if (c == '_') { keycode = '-'; needs_shift = true; }
-                        else if (c == '.') { keycode = '.'; needs_shift = false; }
-                        else if (c == '*') { keycode = '8'; needs_shift = true; }
-                        else if (c == '(') { keycode = '9'; needs_shift = true; }
-                        else if (c == ')') { keycode = '0'; needs_shift = true; }
-                        else if (c == '_') { keycode = '-'; needs_shift = true; }
-                        else if (c == '+') { keycode = '='; needs_shift = true; }
-                        // Period and underscore need special handling - send as char events
-                        else if (c == '.' || c == '_') {
-                            // Send as CHAR event only for these problematic characters
-                            sendKeyEvent(c, c, true, false);
-                            continue;
-                        }
-                        // Uppercase letters
-                        else if (c >= 'A' && c <= 'Z') { needs_shift = true; }
-                        
-                        sendKeyEvent(keycode, c, true, needs_shift);
-                    }
-                } else if (c >= 1 && c <= 26) {
-                    // Ctrl+letter combinations
-                    int letter = c + 'A' - 1;
-                    
-                    // Handle keyboard shortcuts
-                    FILE* keylog = fopen("/tmp/brow6el_debug.log", "a");
-                    if (keylog) {
-                        fprintf(keylog, "Checking char: %d (0x%02x)\n", (int)c, (unsigned char)c);
-                        fclose(keylog);
-                    }
-                    
-                    if (c == 24) { // Ctrl+X
-                        FILE* keylog2 = fopen("/tmp/brow6el_debug.log", "a");
-                        if (keylog2) {
-                            fprintf(keylog2, "Ctrl+X detected - requesting shutdown\n");
-                            fclose(keylog2);
-                        }
-                        requestShutdown();
-                    } else if (c == 18) { // Ctrl+R - Reload
-                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_) {
-                            browser_->Reload();
-                        }
-                    } else if (c == 12) { // Ctrl+L - Navigate to URL
-                        if (!url_input_active_ && !file_input_active_ && !console_input_active_) {
-                            url_input_active_ = true;
-                            url_input_buffer_.clear();
-                            if (browser_client_) {
-                                browser_client_->SetUrlInputActive(true);
-                                // Small delay to ensure rendering stops
-                                usleep(50000); // 50ms
-                                browser_client_->GetStatusBar()->showURLInput("");
+                        // Mode-specific handling
+                        if (current_mode_ == MODE_INSERT) {
+                            // INSERT mode: pass everything to CEF
+                            int keycode = c;
+                            bool needs_shift = false;
+                            
+                            // Map shifted number row characters
+                            if (c == '!') { keycode = '1'; needs_shift = true; }
+                            else if (c == '@') { keycode = '2'; needs_shift = true; }
+                            else if (c == '#') { keycode = '3'; needs_shift = true; }
+                            else if (c == '$') { keycode = '4'; needs_shift = true; }
+                            else if (c == '%') { keycode = '5'; needs_shift = true; }
+                            else if (c == '^') { keycode = '6'; needs_shift = true; }
+                            else if (c == '&') { keycode = '7'; needs_shift = true; }
+                            else if (c == '_') { keycode = '-'; needs_shift = true; }
+                            else if (c == '.') { keycode = '.'; needs_shift = false; }
+                            else if (c == '*') { keycode = '8'; needs_shift = true; }
+                            else if (c == '(') { keycode = '9'; needs_shift = true; }
+                            else if (c == ')') { keycode = '0'; needs_shift = true; }
+                            else if (c == '+') { keycode = '='; needs_shift = true; }
+                            else if (c == '.' || c == '_') {
+                                sendKeyEvent(c, c, true, false);
+                                continue;
                             }
-                        }
-                    } else if (c == 11) { // Ctrl+K - Toggle console
-                        if (!url_input_active_ && !file_input_active_) {
-                            console_input_active_ = !console_input_active_;
-                            if (console_input_active_) {
-                                console_input_buffer_.clear();
-                                console_scroll_offset_ = 0;
+                            else if (c >= 'A' && c <= 'Z') { needs_shift = true; }
+                            
+                            sendKeyEvent(keycode, c, true, needs_shift);
+                        } else if (current_mode_ == MODE_MOUSE) {
+                            // MOUSE mode: hjkl for movement, q/f for speed, space/enter for click, e to exit
+                            if (c == 'h' || c == 'H' || c == 'j' || c == 'J' || 
+                                c == 'k' || c == 'K' || c == 'l' || c == 'L' ||
+                                c == 'q' || c == 'Q' || c == 'f' || c == 'F') {
+                                // Map hjkl to wasd for existing mouse emu handler
+                                char mapped_key = c;
+                                if (c == 'h' || c == 'H') mapped_key = 'a';
+                                else if (c == 'j' || c == 'J') mapped_key = 's';
+                                else if (c == 'k' || c == 'K') mapped_key = 'w';
+                                else if (c == 'l' || c == 'L') mapped_key = 'd';
+                                
+                                std::string key(1, mapped_key);
+                                browser_client_->HandleMouseEmuKey(key);
+                                continue;
+                            } else if (c == ' ') {
+                                // Space in mouse mode triggers click (same as Enter)
                                 if (browser_client_) {
-                                    browser_client_->SetConsoleActive(true);
-                                    usleep(50000); // 50ms
-                                    browser_client_->GetStatusBar()->showConsole(
-                                        browser_client_->GetConsoleLogs(), "", 0);
+                                    browser_client_->HandleMouseEmuClick();
                                 }
-                            } else {
+                                continue;
+                            } else if (c == 'e' || c == 'E') {
+                                // Exit mouse mode
+                                current_mode_ = MODE_STANDARD;
+                                mouse_emu_mode_active_ = false;
                                 if (browser_client_) {
-                                    browser_client_->SetConsoleActive(false);
+                                    browser_client_->SetMouseEmuModeActive(false);
+                                    browser_client_->SetInputMode(getModeName());
                                     browser_client_->GetStatusBar()->clear();
-                                    // Force a paint to refresh screen
                                     if (browser_) {
                                         browser_->GetHost()->Invalidate(PET_VIEW);
                                     }
                                 }
                             }
-                        }
-                    } else if (c == 4) { // Ctrl+D - Add bookmark
-                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_client_) {
-                            browser_client_->AddCurrentPageToBookmarks();
-                        }
-                    } else if (c == 2) { // Ctrl+B - Open bookmarks
-                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_client_) {
-                            browser_client_->SetBookmarksActive(true);
-                        }
-                    } else if (c == 21) { // Ctrl+U - Open user scripts
-                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && !hint_mode_active_ && browser_client_) {
-                            browser_client_->SetUserScriptsActive(true);
-                        }
-                    } else if (c == 25) { // Ctrl+Y - Toggle auto-inject user scripts
-                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && !hint_mode_active_ && browser_client_) {
-                            browser_client_->ToggleAutoInjectUserScripts();
-                        }
-                    } else if (c == 6) { // Ctrl+F - Toggle hint mode
-                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && !mouse_emu_mode_active_ && browser_client_) {
-                            if (hint_mode_active_) {
-                                // Turn off hint mode
-                                hint_mode_active_ = false;
-                                hint_input_buffer_.clear();
-                                browser_client_->SetHintModeActive(false);
-                                browser_client_->GetStatusBar()->clear();
-                                if (browser_) {
-                                    browser_->GetHost()->Invalidate(PET_VIEW);
+                            // Ignore other keys in mouse mode
+                        } else {
+                            // STANDARD mode: vim-like shortcuts
+                            if (c == 'h' || c == 'H') {
+                                sendKeyEvent(VKEY_LEFT, 0, false);
+                            } else if (c == 'j' || c == 'J') {
+                                sendKeyEvent(VKEY_DOWN, 0, false);
+                            } else if (c == 'k' || c == 'K') {
+                                sendKeyEvent(VKEY_UP, 0, false);
+                            } else if (c == 'l' || c == 'L') {
+                                sendKeyEvent(VKEY_RIGHT, 0, false);
+                            } else if (c == 'r' || c == 'R') {
+                                // Reload
+                                if (browser_) browser_->Reload();
+                            } else if (c == 'u' || c == 'U') {
+                                // Navigate to URL (was Ctrl+L)
+                                url_input_active_ = true;
+                                url_input_buffer_.clear();
+                                if (browser_client_) {
+                                    browser_client_->SetUrlInputActive(true);
+                                    usleep(50000);
+                                    browser_client_->GetStatusBar()->showURLInput("");
                                 }
-                            } else {
-                                // Turn on hint mode
-                                hint_mode_active_ = true;
-                                hint_input_buffer_.clear();
-                                browser_client_->ActivateHintMode();
-                            }
-                        }
-                    } else if (c == 16) { // Ctrl+P - Navigate back (fallback for terminals like yaft)
-                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_ && browser_->CanGoBack()) {
-                            browser_->GoBack();
-                        }
-                    } else if (c == 14) { // Ctrl+N - Navigate forward (fallback for terminals like yaft)
-                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_ && browser_->CanGoForward()) {
-                            browser_->GoForward();
-                        }
-                    } else if (c == 20) { // Ctrl+T - Scroll up (fallback for terminals like yaft)
-                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_) {
-                            CefMouseEvent mouse_event;
-                            mouse_event.x = 0;
-                            mouse_event.y = 0;
-                            mouse_event.modifiers = 0;
-                            browser_->GetHost()->SendMouseWheelEvent(mouse_event, 0, 120); // Scroll up
-                        }
-                    } else if (c == 7) { // Ctrl+G - Scroll down (fallback for terminals like yaft)
-                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && browser_) {
-                            CefMouseEvent mouse_event;
-                            mouse_event.x = 0;
-                            mouse_event.y = 0;
-                            mouse_event.modifiers = 0;
-                            browser_->GetHost()->SendMouseWheelEvent(mouse_event, 0, -120); // Scroll down
-                        }
-                    } else if (c == 5) { // Ctrl+E - Toggle mouse emulation mode
-                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && !hint_mode_active_ && browser_client_) {
-                            if (mouse_emu_mode_active_) {
-                                // Turn off mouse emu mode
-                                mouse_emu_mode_active_ = false;
-                                browser_client_->SetMouseEmuModeActive(false);
-                                browser_client_->GetStatusBar()->clear();
-                                if (browser_) {
-                                    browser_->GetHost()->Invalidate(PET_VIEW);
+                            } else if (c == 'c' || c == 'C') {
+                                // Toggle console (was Ctrl+K)
+                                console_input_active_ = !console_input_active_;
+                                if (console_input_active_) {
+                                    console_input_buffer_.clear();
+                                    console_scroll_offset_ = 0;
+                                    if (browser_client_) {
+                                        browser_client_->SetConsoleActive(true);
+                                        usleep(50000);
+                                        browser_client_->GetStatusBar()->showConsole(
+                                            browser_client_->GetConsoleLogs(), "", 0);
+                                    }
+                                } else {
+                                    if (browser_client_) {
+                                        browser_client_->SetConsoleActive(false);
+                                        browser_client_->GetStatusBar()->clear();
+                                        if (browser_) {
+                                            browser_->GetHost()->Invalidate(PET_VIEW);
+                                        }
+                                    }
                                 }
-                            } else {
-                                // Turn on mouse emu mode
+                            } else if (c == 'd' || c == 'D') {
+                                // Add bookmark (was Ctrl+D)
+                                if (browser_client_) {
+                                    browser_client_->AddCurrentPageToBookmarks();
+                                }
+                            } else if (c == 'b' || c == 'B') {
+                                // Open bookmarks (was Ctrl+B)
+                                if (browser_client_) {
+                                    browser_client_->SetBookmarksActive(true);
+                                }
+                            } else if (c == 'f' || c == 'F') {
+                                // Toggle hint mode (was Ctrl+F)
+                                if (browser_client_) {
+                                    if (hint_mode_active_) {
+                                        hint_mode_active_ = false;
+                                        hint_input_buffer_.clear();
+                                        browser_client_->SetHintModeActive(false);
+                                        browser_client_->GetStatusBar()->clear();
+                                        if (browser_) {
+                                            browser_->GetHost()->Invalidate(PET_VIEW);
+                                        }
+                                    } else {
+                                        hint_mode_active_ = true;
+                                        hint_input_buffer_.clear();
+                                        browser_client_->ActivateHintMode();
+                                    }
+                                }
+                            } else if (c == 'p' || c == 'P') {
+                                // Navigate back (was Ctrl+P)
+                                if (browser_ && browser_->CanGoBack()) {
+                                    browser_->GoBack();
+                                }
+                            } else if (c == 'n' || c == 'N') {
+                                // Navigate forward (was Ctrl+N)
+                                if (browser_ && browser_->CanGoForward()) {
+                                    browser_->GoForward();
+                                }
+                            } else if (c == 't' || c == 'T') {
+                                // Scroll up (was Ctrl+T)
+                                if (browser_) {
+                                    CefMouseEvent mouse_event;
+                                    mouse_event.x = 0;
+                                    mouse_event.y = 0;
+                                    mouse_event.modifiers = 0;
+                                    browser_->GetHost()->SendMouseWheelEvent(mouse_event, 0, 120);
+                                }
+                            } else if (c == 'g' || c == 'G') {
+                                // Scroll down (was Ctrl+G)
+                                if (browser_) {
+                                    CefMouseEvent mouse_event;
+                                    mouse_event.x = 0;
+                                    mouse_event.y = 0;
+                                    mouse_event.modifiers = 0;
+                                    browser_->GetHost()->SendMouseWheelEvent(mouse_event, 0, -120);
+                                }
+                            } else if (c == 'e' || c == 'E') {
+                                // Enter mouse emulation mode
+                                current_mode_ = MODE_MOUSE;
                                 mouse_emu_mode_active_ = true;
-                                browser_client_->ActivateMouseEmuMode();
+                                if (browser_client_) {
+                                    browser_client_->SetInputMode(getModeName());
+                                    browser_client_->ActivateMouseEmuMode();
+                                }
+                            } else if (c == 'i' || c == 'I') {
+                                // Enter insert mode
+                                current_mode_ = MODE_INSERT;
+                                if (browser_client_) {
+                                    browser_client_->SetInputMode(getModeName());
+                                    // Update title display
+                                    if (browser_) {
+                                        browser_->GetHost()->Invalidate(PET_VIEW);
+                                    }
+                                }
+                            } else if (c == 's' || c == 'S') {
+                                // User scripts (was Ctrl+U)
+                                if (browser_client_) {
+                                    browser_client_->SetUserScriptsActive(true);
+                                }
+                            } else if (c == 'y' || c == 'Y') {
+                                // Toggle auto-inject user scripts (was Ctrl+Y)
+                                if (browser_client_) {
+                                    browser_client_->ToggleAutoInjectUserScripts();
+                                }
+                            } else if (c == 'x' || c == 'X') {
+                                // Exit/quit (was Ctrl+X)
+                                requestShutdown();
                             }
-                        }
-                    } else {
-                        if (!url_input_active_ && !file_input_active_ && !console_input_active_ && !hint_mode_active_) {
-                            sendKeyEvent(letter, c, false);
+                            // Other keys in standard mode are ignored
                         }
                     }
+                } else if (c >= 1 && c <= 26) {
+                    // Ctrl+letter combinations - removed, use vim-style single keys in STANDARD mode instead
+                    // In INSERT mode, these pass through to CEF
                 }
             }
             

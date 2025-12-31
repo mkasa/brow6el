@@ -20,10 +20,11 @@ public:
     void showBookmarks(const std::vector<std::string>& bookmarks, int selected_index);
     void showUserScripts(const std::vector<std::string>& scripts, int selected_index);
     void showMessage(const std::string& message);
-    void showTitle(const std::string& title);
+    void showTitle(const std::string& title, const char* mode_prefix = nullptr);
     void showHintInput(const std::string& input, int hint_count);
-    void clear();
+    void clear(bool redraw_title = true);
     void redraw(); // Redraw last shown content
+    void setShutdownMode() { shutdown_mode_ = true; } // Prevent any further updates
     void RequestRedraw() { redraw_requested_ = true; }
     bool IsRedrawRequested() { return redraw_requested_; }
     void ClearRedrawRequest() { redraw_requested_ = false; }
@@ -37,8 +38,10 @@ private:
     // State for redrawing
     bool is_showing_;
     bool redraw_requested_ = false;
+    bool shutdown_mode_ = false;  // Prevent updates during shutdown
     std::vector<std::string> current_options_;
     int current_selected_;
     std::string current_title_;
+    std::string current_mode_prefix_;
 };
 

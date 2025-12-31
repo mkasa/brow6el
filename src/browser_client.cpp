@@ -61,7 +61,7 @@ void BrowserClient::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
     is_closing_ = true;
     if (status_bar_) {
         std::lock_guard<std::mutex> lock(render_mutex_);
-        status_bar_->clear();
+        status_bar_->clear(false); // Don't redraw title on exit
     }
     LOGB("Browser closing");
 }
@@ -95,9 +95,11 @@ void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame>
         std::string url = frame->GetURL().ToString();
         LOGB("OnLoadEnd: url=" << url << " status=" << httpStatusCode);
         
-        // Clear modes on navigation
+        // Clear modes on navigation and request switch to STANDARD mode
         hint_mode_active_ = false;
         mouse_emu_mode_active_ = false;
+        mode_switch_requested_ = true;
+        switch_to_insert_mode_ = false; // Switch to STANDARD mode
         
         // Clear status bar on new page load only if something is showing
         if (status_bar_) {
@@ -209,6 +211,56 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
         }
         return true;
     }
+    if (msg.find("[Brow6el] MOUSE_EMU_CLICK:") == 0) {
+        // Parse element info: [Brow6el] MOUSE_EMU_CLICK:tagName:type:isSelect:isInput
+        try {
+            std::string info = msg.substr(26);
+            std::vector<std::string> parts;
+            size_t pos = 0;
+            while ((pos = info.find(':')) != std::string::npos) {
+                parts.push_back(info.substr(0, pos));
+                info.erase(0, pos + 1);
+            }
+            parts.push_back(info); // Add last part
+            
+            if (parts.size() >= 4) {
+                std::string tagName = parts[0];
+                std::string type = parts[1];
+                bool isSelect = (parts[2] == "true");
+                bool isInput = (parts[3] == "true");
+                
+                LOGB("Mouse emu clicked: " << tagName << " type=" << type << " select=" << isSelect << " input=" << isInput);
+                
+                // Determine mode to switch to after click
+                // SELECT elements (combobox) → STANDARD mode (handled by status bar)
+                // INPUT/TEXTAREA → INSERT mode (for typing)
+                // Other elements → stay in MOUSE mode
+                
+                if (isSelect) {
+                    // Combobox - switch to STANDARD mode
+                    mouse_emu_mode_active_ = false;
+                    SetMouseEmuModeActive(false);
+                    mode_switch_requested_ = true;
+                    switch_to_insert_mode_ = false; // Switch to STANDARD
+                    if (browser_) {
+                        browser_->GetHost()->Invalidate(PET_VIEW);
+                    }
+                } else if (isInput) {
+                    // Input field - switch to INSERT mode
+                    mouse_emu_mode_active_ = false;
+                    SetMouseEmuModeActive(false);
+                    mode_switch_requested_ = true;
+                    switch_to_insert_mode_ = true; // Switch to INSERT
+                    if (browser_) {
+                        browser_->GetHost()->Invalidate(PET_VIEW);
+                    }
+                }
+            }
+        } catch (const std::exception& e) {
+            LOGB("Failed to parse mouse emu click info: " << e.what());
+        }
+        return true;
+    }
     if (msg.find("[Brow6el] MOUSE_EMU_CLICK") == 0) {
         // JavaScript determined this is not a select/input, so send real click
         HandleMouseEmuClick();
@@ -239,7 +291,7 @@ void BrowserClient::OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString
     
     // Show title in status bar
     if (status_bar_) {
-        status_bar_->showTitle(page_title);
+        status_bar_->showTitle(page_title, input_mode_);
     }
 }
 
@@ -971,6 +1023,19 @@ void BrowserClient::HandleMouseEmuKey(const std::string& key) {
 void BrowserClient::HandleMouseEmuClick() {
     if (!browser_ || !browser_->GetHost()) return;
     
+    // First, check what element we're clicking on via JavaScript
+    std::string js = R"(
+        (function() {
+            if (window.__brow6el_mouse_emu) {
+                var elInfo = window.__brow6el_mouse_emu.getElementType();
+                if (elInfo) {
+                    console.log('[Brow6el] MOUSE_EMU_CLICK:' + elInfo.tagName + ':' + elInfo.type + ':' + elInfo.isSelect + ':' + elInfo.isInput);
+                }
+            }
+        })();
+    )";
+    browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
+    
     // Use the stored position to send a real CEF mouse click
     CefMouseEvent mouse_event;
     mouse_event.x = mouse_emu_x_;
@@ -992,8 +1057,8 @@ void BrowserClient::HandleMouseEmuClick() {
     browser_->GetHost()->SendMouseClickEvent(mouse_event, MBT_LEFT, true, 1);  // Mouse up
     
     // Still trigger JS visual feedback
-    std::string js = "if (window.__brow6el_mouse_emu) { window.__brow6el_mouse_emu.flashClick(); }";
-    browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
+    std::string js_flash = "if (window.__brow6el_mouse_emu) { window.__brow6el_mouse_emu.flashClick(); }";
+    browser_->GetMainFrame()->ExecuteJavaScript(js_flash, "", 0);
 }
 
 void BrowserClient::HandleMouseEmuPosition(int x, int y) {

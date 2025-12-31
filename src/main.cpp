@@ -73,21 +73,33 @@ int main(int argc, char* argv[]) {
             std::cout << "  --persistent        Use persistent profile mode\n";
             std::cout << "  --temporary         Use temporary profile mode (private)\n";
             std::cout << "  --custom            Use custom profile mode\n\n";
-            std::cout << "Keyboard Shortcuts:\n";
-            std::cout << "  Ctrl+X              Exit\n";
-            std::cout << "  Ctrl+R              Reload page\n";
-            std::cout << "  Ctrl+L              Navigate to URL\n";
-            std::cout << "  Ctrl+Left/Right     Back/Forward (or Ctrl+P/N)\n";
-            std::cout << "  Ctrl+Up/Down        Scroll (or Ctrl+T/G)\n";
-            std::cout << "  Ctrl+F              Hint mode (keyboard navigation)\n";
-            std::cout << "  Ctrl+E              Mouse emulation (arrow keys + Enter)\n";
-            std::cout << "  Ctrl+K              Toggle console\n";
-            std::cout << "  Ctrl+D              Add bookmark\n";
-            std::cout << "  Ctrl+B              Open bookmarks\n";
-            std::cout << "  Ctrl+U              Open user scripts\n";
-            std::cout << "  Ctrl+Y              Toggle auto-inject scripts\n\n";
+            std::cout << "Vim-Style Modal Control:\n";
+            std::cout << "  STANDARD mode (default) - Single-key commands:\n";
+            std::cout << "    hjkl              Navigate (left/down/up/right)\n";
+            std::cout << "    t/g               Scroll up/down\n";
+            std::cout << "    p/n               Back/forward in history\n";
+            std::cout << "    r                 Reload page\n";
+            std::cout << "    u                 Navigate to URL\n";
+            std::cout << "    c                 Toggle console\n";
+            std::cout << "    d                 Add bookmark\n";
+            std::cout << "    b                 Open bookmarks\n";
+            std::cout << "    f                 Hint mode (keyboard navigation)\n";
+            std::cout << "    s                 User scripts menu\n";
+            std::cout << "    y                 Toggle auto-inject scripts\n";
+            std::cout << "    x                 Exit\n";
+            std::cout << "    i                 Enter INSERT mode\n";
+            std::cout << "    e                 Enter MOUSE mode\n\n";
+            std::cout << "  INSERT mode - All keys pass to webpage:\n";
+            std::cout << "    ESC               Return to STANDARD mode\n\n";
+            std::cout << "  MOUSE mode - Keyboard mouse emulation:\n";
+            std::cout << "    hjkl              Move mouse (left/down/up/right)\n";
+            std::cout << "    q/f               Precision/fast speed\n";
+            std::cout << "    SPACE/ENTER       Click\n";
+            std::cout << "    e or ESC          Return to STANDARD mode\n\n";
+            std::cout << "Mode indicator shown in status bar: [S], [I], or [M]\n\n";
             std::cout << "Note: Profile mode can be configured in ~/.brow6el/browser.conf\n";
             std::cout << "      Bookmarks and user scripts are persistent\n";
+            std::cout << "      See VIM_CONTROL.md for detailed documentation\n";
             return 0;
         } else if (arg == "--persistent") {
             profile_mode_override = "persistent";
@@ -269,6 +281,7 @@ int main(int argc, char* argv[]) {
                                termInfo.cell_width, termInfo.cell_height,
                                termInfo.width, termInfo.height);
     input_handler.setBrowserClient(client.get()); // Link for select navigation
+    client->SetInputMode(input_handler.getModeName()); // Set initial mode in status bar
     input_handler.start();
     
     while (g_running && !client->IsClosing()) {
@@ -278,6 +291,11 @@ int main(int argc, char* argv[]) {
     
     // Stop input handler before closing
     input_handler.stop();
+    
+    // Prevent any further status bar updates
+    if (client && client->GetStatusBar()) {
+        client->GetStatusBar()->setShutdownMode();
+    }
     
     // Reset terminal title to empty (let terminal use default)
     std::cout << "\033]0;\007" << std::flush;
@@ -303,6 +321,12 @@ int main(int argc, char* argv[]) {
     // Release browser reference before shutdown
     client = nullptr;
     app = nullptr;
+    
+    // NOW clear the screen after all CEF processing is done
+    std::cout << "\033[0m";        // Reset all attributes (colors, etc)
+    std::cout << "\033[2J";        // Clear entire screen
+    std::cout << "\033[H";         // Move cursor to home
+    std::cout << std::flush;
     
     // Flush cookies before shutdown (important for persistent mode)
     if (profile_config.getMode() != ProfileMode::Temporary) {
