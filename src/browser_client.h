@@ -23,6 +23,20 @@ class BrowserClient : public CefClient,
                       public CefDownloadHandler,
                       public CefDialogHandler {
 public:
+    struct DownloadEntry {
+        int32_t id;
+        std::string filename;
+        std::string url;
+        std::string full_path;
+        int64_t total_bytes;
+        int64_t received_bytes;
+        int percent_complete;
+        int64_t speed;
+        bool is_complete;
+        bool is_canceled;
+        bool is_in_progress;
+    };
+    
     BrowserClient(int width, int height);
     
     virtual CefRefPtr<CefRenderHandler> GetRenderHandler() override { return this; }
@@ -129,6 +143,12 @@ public:
     const std::string& GetDownloadUrl() const { return download_url_; }
     void HandleDownloadResponse(bool accept, const std::string& path = "");
     
+    // Download Manager
+    void ToggleDownloadManager();
+    bool IsDownloadManagerActive() const { return download_manager_active_; }
+    void HandleDownloadManagerNavigation(int direction);
+    void HandleDownloadManagerAction(char action);
+    
     // Bookmarks
     void AddCurrentPageToBookmarks();
     void SetBookmarksActive(bool active);
@@ -216,6 +236,11 @@ private:
     std::string download_url_;
     CefRefPtr<CefBeforeDownloadCallback> download_callback_;
     std::mutex download_mutex_;
+    
+    // Download manager
+    std::vector<DownloadEntry> downloads_list_;
+    bool download_manager_active_ = false;
+    int download_manager_selected_index_ = 0;
     
     // Bookmarks handling
     bool bookmarks_active_ = false;
