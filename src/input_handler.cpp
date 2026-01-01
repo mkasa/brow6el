@@ -732,7 +732,7 @@ void InputHandler::readLoop() {
                             
                             sendKeyEvent(keycode, c, true, needs_shift);
                         } else if (current_mode_ == MODE_MOUSE) {
-                            // MOUSE mode: hjkl for movement, q/f for speed, space/enter for click, e to exit
+                            // MOUSE mode: hjkl for movement, q/f for speed, space/enter for click, i for inspect, e to exit
                             if (c == 'h' || c == 'H' || c == 'j' || c == 'J' || 
                                 c == 'k' || c == 'K' || c == 'l' || c == 'L' ||
                                 c == 'q' || c == 'Q' || c == 'f' || c == 'F') {
@@ -750,6 +750,12 @@ void InputHandler::readLoop() {
                                 // Space in mouse mode triggers click (same as Enter)
                                 if (browser_client_) {
                                     browser_client_->HandleMouseEmuClick();
+                                }
+                                continue;
+                            } else if (c == 'i' || c == 'I') {
+                                // Toggle inspect mode
+                                if (browser_client_) {
+                                    browser_client_->ToggleInspectMode();
                                 }
                                 continue;
                             } else if (c == 'e' || c == 'E') {

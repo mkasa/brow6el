@@ -160,6 +160,7 @@ public:
     void HandleMouseEmuKey(const std::string& key);
     void HandleMouseEmuClick();
     void HandleMouseEmuPosition(int x, int y);
+    void ToggleInspectMode();
     
     // Mode switch request (from mouse click detection)
     bool GetModeSwitchRequest() const { return mode_switch_requested_; }

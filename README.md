@@ -22,6 +22,7 @@ A full-featured web browser for the terminal using Chromium (CEF) and libsixel f
 - **Sixel Graphics** - Full page rendering with automatic resolution detection
 - **Mouse Support** - Click, scroll, and interact with web pages
 - **Vim-Style Modal Control** - Efficient keyboard navigation with three modes (STANDARD, INSERT, MOUSE)
+- **Element Inspector** - Browser DevTools-like element inspection in MOUSE mode
 - **JavaScript Console** - Execute JS commands and view console logs
 - **Bookmarks** - Save and organize your favorite pages
 - **User Scripts** - Inject custom JavaScript into pages
@@ -75,8 +76,24 @@ Keyboard-driven mouse emulation with visual cursor:
 
 **Actions:**
 - `SPACE` or `ENTER` - Click at cursor position
+- `i` - Toggle inspect mode (show element info on hover)
 
 **Exit:** `e` or `ESC` - Return to STANDARD mode
+
+#### Inspect Mode
+
+While in MOUSE mode, press `i` to toggle inspect mode. This feature works similar to browser DevTools inspector:
+
+- **Element Highlighting** - Cyan border around the element under cursor
+- **Info Panel** - Shows element details including:
+  - Tag name, ID, and classes
+  - Key attributes (href, src, type, name, etc.)
+  - Dimensions and position
+  - Text content preview
+- **Real-time Updates** - Info updates as you move the cursor
+- **Toggle Off** - Press `i` again to exit inspect mode
+
+This is useful for debugging web pages, understanding page structure, or finding specific elements.
 
 ### Smart Mode Switching
 
@@ -91,7 +108,7 @@ The browser automatically switches modes based on context:
 Press `f` to show yellow hint labels on all links. Type the hint label (e.g., "a", "ab") and press Enter to navigate. This provides keyboard-only navigation without needing a mouse. Press `ESC` or `f` again to exit.
 
 ### Mouse Emulation Mode (e key)
-Press `e` to activate a yellow mouse cursor overlay. Use hjkl or arrow keys to move it around the page and press SPACE/Enter to click at that position. `q` toggles precision mode, `f` toggles fast mode. This works on all elements including iframes and consent dialogs. Press `ESC` or `e` again to exit.
+Press `e` to activate a yellow mouse cursor overlay. Use hjkl or arrow keys to move it around the page and press SPACE/Enter to click at that position. `q` toggles precision mode, `f` toggles fast mode. Press `i` to toggle inspect mode which shows detailed element information as you hover. This works on all elements including iframes and consent dialogs. Press `ESC` or `e` again to exit.
 
 ## Quick Start
 
@@ -146,6 +163,20 @@ google-custom.js|Google Custom|true|*google.com*,*google.co.*
 ```
 
 See [USERSCRIPTS.md](USERSCRIPTS.md) for detailed documentation.
+
+**Bundled Scripts:**
+The browser comes with several pre-installed scripts in the `scripts/` directory:
+- **view-source.js** - View HTML source code with syntax highlighting, formatting, and line numbers (keyboard navigable)
+- **reader-mode.js** - Simplifies pages to just article content (like Firefox Reader View)
+- **adblock.js** - Basic ad blocking functionality
+- **force-light-mode.js** - Forces light color scheme on all pages
+- **frameset-redirect.js** - Redirects from frameset pages to actual content
+
+To use bundled scripts, add them to your `~/.brow6el/userscripts.conf`:
+```
+view-source.js|View Page Source|true|*
+```
+Then press `s` to open the user scripts menu and select "View Page Source", or enable auto-inject and press the script's trigger key.
 
 ### Profile Modes
 Brow6el supports different profile modes for different use cases:

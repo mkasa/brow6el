@@ -233,6 +233,17 @@
                 this.cursor.remove();
                 this.cursor = null;
             }
+            // Cleanup inspect mode elements if active
+            if (this.inspectInfoBox) {
+                this.inspectInfoBox.remove();
+                this.inspectInfoBox = null;
+            }
+            if (this.inspectHighlight) {
+                this.inspectHighlight.remove();
+                this.inspectHighlight = null;
+            }
+            this.inspectMode = false;
+            this.lastInspectedElement = null;
             console.log('[Brow6el] MOUSE_EMU_CLOSED');
         }
     };
