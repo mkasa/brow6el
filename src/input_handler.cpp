@@ -679,9 +679,11 @@ void InputHandler::readLoop() {
                             }
                         }
                     } else if (browser_client_ && browser_client_->IsBookmarksActive()) {
-                        // Handle bookmark deletion
+                        // Handle bookmark actions
                         if (c == 'd' || c == 'D') {
                             browser_client_->HandleBookmarkDelete();
+                        } else if (c == 'b' || c == 'B') {
+                            browser_client_->SetBookmarksActive(false);
                         }
                     } else if (browser_client_ && browser_client_->IsDownloadManagerActive()) {
                         // Handle download manager actions (x=cancel, c=clear, m=close)
@@ -830,9 +832,13 @@ void InputHandler::readLoop() {
                                     browser_client_->AddCurrentPageToBookmarks();
                                 }
                             } else if (c == 'b' || c == 'B') {
-                                // Open bookmarks (was Ctrl+B)
+                                // Toggle bookmarks (was Ctrl+B)
                                 if (browser_client_) {
-                                    browser_client_->SetBookmarksActive(true);
+                                    if (browser_client_->IsBookmarksActive()) {
+                                        browser_client_->SetBookmarksActive(false);
+                                    } else {
+                                        browser_client_->SetBookmarksActive(true);
+                                    }
                                 }
                             } else if (c == 'm' || c == 'M') {
                                 // Toggle download manager

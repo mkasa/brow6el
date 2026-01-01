@@ -642,7 +642,7 @@ void StatusBar::showBookmarks(const std::vector<std::string>& bookmarks, int sel
     // Draw header
     std::cout << "\033[" << start_line << ";1H";
     std::cout << "\033[44m\033[97m\033[1m"; // Blue background, white bold text
-    std::cout << " 📚 Bookmarks (↑↓ navigate, Enter open, d delete, Esc close) ";
+    std::cout << " 📚 Bookmarks (↑↓ navigate, Enter open, d delete, b/Esc close) ";
     std::cout << "\033[K\033[0m\n";
     
     // Determine which bookmarks to show (with scrolling)

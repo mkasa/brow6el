@@ -54,6 +54,7 @@ Vim-like navigation with single-key commands (no Ctrl required):
 - `f` - Hint mode (keyboard link navigation)
 - `s` - User scripts menu
 - `y` - Toggle auto-inject user scripts
+- `m` - Open downloads manager
 - `x` - Exit browser
 
 **Mode Switch:**
