@@ -276,6 +276,18 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
         return true;
     }
     
+    // Check for inspect mode messages
+    if (msg.find("[Brow6el] INSPECT_MODE:") == 0) {
+        // Parse inspect mode status: [Brow6el] INSPECT_MODE:ON or OFF
+        std::string status = msg.substr(23);
+        LOGB("Inspect mode: " << status);
+        return true;
+    }
+    if (msg.find("[Brow6el] INSPECT_MODE_") == 0) {
+        // Suppress inspect mode debug messages
+        return true;
+    }
+    
     return false; // Show other console messages
 }
 
@@ -1064,4 +1076,30 @@ void BrowserClient::HandleMouseEmuClick() {
 void BrowserClient::HandleMouseEmuPosition(int x, int y) {
     mouse_emu_x_ = x;
     mouse_emu_y_ = y;
+}
+
+void BrowserClient::ToggleInspectMode() {
+    if (!browser_ || !browser_->GetMainFrame()) {
+        LOGB("ToggleInspectMode: browser or frame is null");
+        return;
+    }
+    
+    // Read inspect mode JavaScript
+    std::ifstream file("inspect_mode.js");
+    if (!file.is_open()) {
+        LOGB("Failed to load inspect_mode.js");
+        return;
+    }
+    
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string inspect_js = buffer.str();
+    
+    if (inspect_js.empty()) {
+        LOGB("inspect_mode.js is empty!");
+        return;
+    }
+    
+    LOGB("Toggling inspect mode, JS size: " << inspect_js.size() << " bytes");
+    browser_->GetMainFrame()->ExecuteJavaScript(inspect_js, "", 0);
 }
