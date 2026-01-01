@@ -229,6 +229,9 @@ void InputHandler::readLoop() {
                     } else if (browser_client_ && browser_client_->IsBookmarksActive()) {
                         // Close bookmarks on ESC
                         browser_client_->SetBookmarksActive(false);
+                    } else if (browser_client_ && browser_client_->IsDownloadManagerActive()) {
+                        // Close download manager on ESC
+                        browser_client_->ToggleDownloadManager();
                     } else if (browser_client_ && browser_client_->IsUserScriptsActive()) {
                         // Close user scripts on ESC
                         browser_client_->SetUserScriptsActive(false);
@@ -334,6 +337,9 @@ void InputHandler::readLoop() {
                     } else if (browser_client_ && browser_client_->IsUserScriptsActive()) {
                         // Close user scripts on ESC
                         browser_client_->SetUserScriptsActive(false);
+                    } else if (browser_client_ && browser_client_->IsDownloadManagerActive()) {
+                        // Close download manager on ESC
+                        browser_client_->ToggleDownloadManager();
                     } else if (hint_mode_active_) {
                         // Cancel hint mode on ESC
                         hint_mode_active_ = false;
@@ -677,6 +683,9 @@ void InputHandler::readLoop() {
                         if (c == 'd' || c == 'D') {
                             browser_client_->HandleBookmarkDelete();
                         }
+                    } else if (browser_client_ && browser_client_->IsDownloadManagerActive()) {
+                        // Handle download manager actions (x=cancel, c=clear, m=close)
+                        browser_client_->HandleDownloadManagerAction(c);
                     } else if (hint_mode_active_) {
                         // Handle hint input (a-z only)
                         if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
@@ -824,6 +833,11 @@ void InputHandler::readLoop() {
                                 // Open bookmarks (was Ctrl+B)
                                 if (browser_client_) {
                                     browser_client_->SetBookmarksActive(true);
+                                }
+                            } else if (c == 'm' || c == 'M') {
+                                // Toggle download manager
+                                if (browser_client_) {
+                                    browser_client_->ToggleDownloadManager();
                                 }
                             } else if (c == 'f' || c == 'F') {
                                 // Toggle hint mode (was Ctrl+F)
@@ -1127,6 +1141,11 @@ void InputHandler::parseKeySequence(const char* seq, int len) {
                 // Check if bookmarks is showing - handle navigation there
                 if (browser_client_ && browser_client_->IsBookmarksActive()) {
                     browser_client_->HandleBookmarkNavigation(seq[2] == 'A' ? -1 : 1);
+                    return;
+                }
+                // Check if download manager is showing - handle navigation there
+                if (browser_client_ && browser_client_->IsDownloadManagerActive()) {
+                    browser_client_->HandleDownloadManagerNavigation(seq[2] == 'A' ? -1 : 1);
                     return;
                 }
                 // Check if user scripts is showing - handle navigation there

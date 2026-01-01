@@ -813,3 +813,52 @@ void StatusBar::showHintInput(const std::string& input, int hint_count) {
     
     restoreCursorPosition();
 }
+
+void StatusBar::showDownloadManager(const std::vector<std::string>& downloads, int selected_index) {
+    if (downloads.empty()) {
+        std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
+        saveCursorPosition();
+        struct winsize w;
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+        int rows = w.ws_row;
+        clearStatusArea();
+        std::cout << "\033[" << (rows - 2) << ";1H\033[44m\033[97m\033[1m 📥 Download Manager \033[K\033[0m\n";
+        std::cout << "\033[40m\033[97m No downloads yet.\033[K\033[0m" << std::flush;
+        restoreCursorPosition();
+        is_showing_ = true;
+        return;
+    }
+    
+    std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
+    is_showing_ = true;
+    current_options_ = downloads;
+    current_selected_ = selected_index;
+    saveCursorPosition();
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    int rows = w.ws_row;
+    int cols = w.ws_col;
+    int max_display = std::min(10, (int)downloads.size());
+    int start_line = rows - max_display - 2;
+    clearStatusArea();
+    std::cout << "\033[" << start_line << ";1H\033[44m\033[97m\033[1m 📥 Download Manager (↑↓ navigate, x cancel, c clear, m/Esc close) \033[K\033[0m\n";
+    int start_idx = 0;
+    if (selected_index >= max_display - 1) {
+        start_idx = std::min(selected_index - max_display + 2, (int)downloads.size() - max_display);
+    }
+    for (int i = 0; i < max_display && (start_idx + i) < downloads.size(); i++) {
+        int opt_idx = start_idx + i;
+        std::string download = downloads[opt_idx];
+        int max_width = cols - 6;
+        if (download.length() > max_width) {
+            download = download.substr(0, max_width - 3) + "...";
+        }
+        if (opt_idx == selected_index) {
+            std::cout << "\033[42m\033[30m ► " << download << "\033[K\033[0m\n";
+        } else {
+            std::cout << "\033[40m\033[97m   " << download << "\033[K\033[0m\n";
+        }
+    }
+    std::cout << std::flush;
+    restoreCursorPosition();
+}

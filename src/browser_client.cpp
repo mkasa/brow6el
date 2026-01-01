@@ -27,9 +27,9 @@ void BrowserClient::OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType type
                            int width, int height) {
     std::lock_guard<std::mutex> lock(render_mutex_);
     
-    // Skip rendering when URL input, console, popup confirm, JS dialog, file input, download confirm, bookmarks, or user scripts is active
+    // Skip rendering when URL input, console, popup confirm, JS dialog, file input, download confirm, bookmarks, user scripts, or download manager is active
     // Note: hint_mode_active and mouse_emu_mode_active are NOT in this list because they use JS overlays that need the page visible
-    if (url_input_active_ || console_active_ || popup_confirm_active_ || js_dialog_active_ || file_input_active_ || download_confirm_active_ || bookmarks_active_ || user_scripts_active_) {
+    if (url_input_active_ || console_active_ || popup_confirm_active_ || js_dialog_active_ || file_input_active_ || download_confirm_active_ || bookmarks_active_ || user_scripts_active_ || download_manager_active_) {
         return;
     }
     
@@ -662,6 +662,21 @@ bool BrowserClient::OnBeforeDownload(CefRefPtr<CefBrowser> browser,
     download_callback_ = callback;
     download_confirm_active_ = true;
     
+    // Add to downloads list
+    DownloadEntry entry;
+    entry.id = download_item->GetId();
+    entry.filename = suggested_name.ToString();
+    entry.url = download_item->GetURL().ToString();
+    entry.full_path = "";
+    entry.total_bytes = 0;
+    entry.received_bytes = 0;
+    entry.percent_complete = 0;
+    entry.speed = 0;
+    entry.is_complete = false;
+    entry.is_canceled = false;
+    entry.is_in_progress = false;
+    downloads_list_.push_back(entry);
+    
     LOGB("Download request: " << download_filename_ << " from " << download_url_);
     
     // Show download confirmation dialog
@@ -674,12 +689,46 @@ bool BrowserClient::OnBeforeDownload(CefRefPtr<CefBrowser> browser,
 void BrowserClient::OnDownloadUpdated(CefRefPtr<CefBrowser> browser,
                                       CefRefPtr<CefDownloadItem> download_item,
                                       CefRefPtr<CefDownloadItemCallback> callback) {
+    std::lock_guard<std::mutex> lock(download_mutex_);
+    
+    // Find and update the download entry
+    int32_t id = download_item->GetId();
+    for (auto& entry : downloads_list_) {
+        if (entry.id == id) {
+            // Update filename - use suggested name if available, otherwise extract from path
+            std::string suggested = download_item->GetSuggestedFileName().ToString();
+            if (!suggested.empty()) {
+                entry.filename = suggested;
+            } else {
+                std::string path = download_item->GetFullPath().ToString();
+                if (!path.empty()) {
+                    size_t pos = path.find_last_of("/\\");
+                    entry.filename = (pos != std::string::npos) ? path.substr(pos + 1) : path;
+                }
+            }
+            entry.full_path = download_item->GetFullPath().ToString();
+            entry.total_bytes = download_item->GetTotalBytes();
+            entry.received_bytes = download_item->GetReceivedBytes();
+            entry.percent_complete = download_item->GetPercentComplete();
+            entry.speed = download_item->GetCurrentSpeed();
+            entry.is_complete = download_item->IsComplete();
+            entry.is_canceled = download_item->IsCanceled();
+            entry.is_in_progress = download_item->IsInProgress();
+            break;
+        }
+    }
+    
     if (download_item->IsComplete()) {
         LOGB("Download complete: " << download_item->GetFullPath().ToString());
-        std::lock_guard<std::mutex> lock(render_mutex_);
+        std::lock_guard<std::mutex> render_lock(render_mutex_);
         status_bar_->showMessage("Download complete: " + download_item->GetFullPath().ToString());
     } else if (download_item->IsCanceled()) {
         LOGB("Download canceled");
+    }
+    
+    // Refresh download manager if active
+    if (download_manager_active_ && browser_ && browser_->GetHost()) {
+        browser_->GetHost()->Invalidate(PET_VIEW);
     }
 }
 
@@ -1102,4 +1151,97 @@ void BrowserClient::ToggleInspectMode() {
     
     LOGB("Toggling inspect mode, JS size: " << inspect_js.size() << " bytes");
     browser_->GetMainFrame()->ExecuteJavaScript(inspect_js, "", 0);
+}
+
+void BrowserClient::ToggleDownloadManager() {
+    download_manager_active_ = !download_manager_active_;
+    
+    if (download_manager_active_) {
+        download_manager_selected_index_ = 0;
+        
+        std::vector<std::string> display_list;
+        {
+            std::lock_guard<std::mutex> lock(download_mutex_);
+            for (const auto& entry : downloads_list_) {
+                std::string status = entry.is_complete ? "✓" : (entry.is_canceled ? "✗" : (entry.is_in_progress ? "⬇" : "…"));
+                std::string display = status + " " + entry.filename;
+                if (entry.is_in_progress && entry.total_bytes > 0) {
+                    display += " (" + std::to_string(entry.percent_complete) + "%)";
+                }
+                display_list.push_back(display);
+            }
+        }
+        
+        std::lock_guard<std::mutex> lock(render_mutex_);
+        status_bar_->showDownloadManager(display_list, download_manager_selected_index_);
+    } else {
+        std::lock_guard<std::mutex> lock(render_mutex_);
+        status_bar_->clear();
+    }
+    
+    if (browser_ && browser_->GetHost()) {
+        browser_->GetHost()->Invalidate(PET_VIEW);
+    }
+}
+
+void BrowserClient::HandleDownloadManagerNavigation(int direction) {
+    if (!download_manager_active_) return;
+    
+    int total = downloads_list_.size();
+    if (total == 0) return;
+    
+    download_manager_selected_index_ += direction;
+    if (download_manager_selected_index_ < 0) download_manager_selected_index_ = 0;
+    if (download_manager_selected_index_ >= total) download_manager_selected_index_ = total - 1;
+    
+    std::vector<std::string> display_list;
+    {
+        std::lock_guard<std::mutex> lock(download_mutex_);
+        for (const auto& entry : downloads_list_) {
+            std::string status = entry.is_complete ? "✓" : (entry.is_canceled ? "✗" : (entry.is_in_progress ? "⬇" : "…"));
+            std::string display = status + " " + entry.filename;
+            if (entry.is_in_progress && entry.total_bytes > 0) {
+                display += " (" + std::to_string(entry.percent_complete) + "%)";
+            }
+            display_list.push_back(display);
+        }
+    }
+    
+    std::lock_guard<std::mutex> lock(render_mutex_);
+    status_bar_->showDownloadManager(display_list, download_manager_selected_index_);
+}
+
+void BrowserClient::HandleDownloadManagerAction(char action) {
+    if (!download_manager_active_) return;
+    
+    if (action == 'm' || action == 'M') {
+        ToggleDownloadManager();
+        return;
+    }
+    
+    if (action == 'c' || action == 'C') {
+        std::lock_guard<std::mutex> lock(download_mutex_);
+        auto it = downloads_list_.begin();
+        while (it != downloads_list_.end()) {
+            if (it->is_complete || it->is_canceled) {
+                it = downloads_list_.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        download_manager_selected_index_ = 0;
+        
+        std::vector<std::string> display_list;
+        for (const auto& entry : downloads_list_) {
+            std::string status = entry.is_complete ? "✓" : (entry.is_canceled ? "✗" : (entry.is_in_progress ? "⬇" : "…"));
+            std::string display = status + " " + entry.filename;
+            if (entry.is_in_progress && entry.total_bytes > 0) {
+                display += " (" + std::to_string(entry.percent_complete) + "%)";
+            }
+            display_list.push_back(display);
+        }
+        
+        std::lock_guard<std::mutex> render_lock(render_mutex_);
+        status_bar_->showDownloadManager(display_list, download_manager_selected_index_);
+    }
 }
