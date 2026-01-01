@@ -821,8 +821,13 @@ void StatusBar::showDownloadManager(const std::vector<std::string>& downloads, i
         struct winsize w;
         ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
         int rows = w.ws_row;
+        
+        // Position at top of status area (rows - 9 for 10-line status area)
+        int header_line = rows - 9;
+        
         clearStatusArea();
-        std::cout << "\033[" << (rows - 2) << ";1H\033[44m\033[97m\033[1m 📥 Download Manager \033[K\033[0m\n";
+        
+        std::cout << "\033[" << header_line << ";1H\033[44m\033[97m\033[1m 📥 Download Manager \033[K\033[0m\n";
         std::cout << "\033[40m\033[97m No downloads yet.\033[K\033[0m" << std::flush;
         restoreCursorPosition();
         is_showing_ = true;
@@ -838,10 +843,15 @@ void StatusBar::showDownloadManager(const std::vector<std::string>& downloads, i
     ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
     int rows = w.ws_row;
     int cols = w.ws_col;
-    int max_display = std::min(10, (int)downloads.size());
-    int start_line = rows - max_display - 2;
+    
+    // Always position at top of status area (rows - 9)
+    int start_line = rows - 9;
+    int max_display = std::min(9, (int)downloads.size());  // Max 9 items (1 line for header)
+    
     clearStatusArea();
+    
     std::cout << "\033[" << start_line << ";1H\033[44m\033[97m\033[1m 📥 Download Manager (↑↓ navigate, x cancel, c clear, m/Esc close) \033[K\033[0m\n";
+    
     int start_idx = 0;
     if (selected_index >= max_display - 1) {
         start_idx = std::min(selected_index - max_display + 2, (int)downloads.size() - max_display);
