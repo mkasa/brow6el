@@ -608,7 +608,7 @@ void StatusBar::showBookmarks(const std::vector<std::string>& bookmarks, int sel
         std::cout << "\033[K\033[0m\n";
         
         std::cout << "\033[40m\033[97m"; // Black background, white text
-        std::cout << " No bookmarks yet. Press Ctrl+D to bookmark current page.";
+        std::cout << " No bookmarks yet. Press 'd' to bookmark current page.";
         std::cout << "\033[K\033[0m";
         
         std::cout << std::flush;

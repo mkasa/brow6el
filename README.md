@@ -303,6 +303,12 @@ CEF renders web pages offscreen → libsixel converts to sixel graphics → Outp
 
 The browser continuously renders frames as pages update, with synchronized input handling for mouse and keyboard events.
 
+## Distributions packages (community)
+
+* Artix Linux, in the Omniverse repository : https://wiki.artixlinux.org/Main/Repositories#Omniverse
+* Arch Linux, in the Arch User Repository (AUR) : https://aur.archlinux.org/packages/brow6el-git
+
+
 ## License
 MIT
 
