@@ -15,8 +15,8 @@ rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR"/usr/share/applications "$APP_DIR"/usr/share/icons/hicolor/scalable/apps
 
 # Download linuxdeploy
-wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-chmod +x ./linuxdeploy-x86_64.AppImage
+wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-aarch64.AppImage
+chmod +x ./linuxdeploy-aarch64.AppImage
 
 # Copy all necessary files
 cp brow6el "$APP_DIR/usr"
@@ -32,8 +32,8 @@ cp *.json "$APP_DIR/usr" 2>/dev/null || true
 cp *.js "$APP_DIR/usr" 2>/dev/null || true
 
 # Copy libsixel library
-cp /lib/x86_64-linux-gnu/libsixel.so.1 "$APP_DIR/usr" 2>/dev/null || \
-  cp /usr/lib/x86_64-linux-gnu/libsixel.so.1 "$APP_DIR/usr" 2>/dev/null || \
+cp /lib/aarch64-linux-gnu/libsixel.so.1 "$APP_DIR/usr" 2>/dev/null || \
+  cp /usr/lib/aarch64-linux-gnu/libsixel.so.1 "$APP_DIR/usr" 2>/dev/null || \
   echo "Warning: libsixel.so.1 not found"
 
 # Copy CEF system dependencies
@@ -43,8 +43,8 @@ for lib in libasound.so.2 libX11.so.6 libXcomposite.so.1 libXdamage.so.1 \
            libxcb.so.1 libxkbcommon.so.0 libnss3.so libnssutil3.so \
            libnspr4.so libsmime3.so libdbus-1.so.3 libcups.so.2 \
            libdrm.so.2 libexpat.so.1 libatk-1.0.so.0 libatk-bridge-2.0.so.0; do
-  cp /lib/x86_64-linux-gnu/$lib "$APP_DIR/usr/lib/" 2>/dev/null || \
-    cp /usr/lib/x86_64-linux-gnu/$lib "$APP_DIR/usr/lib/" 2>/dev/null || true
+  cp /lib/aarch64-linux-gnu/$lib "$APP_DIR/usr/lib/" 2>/dev/null || \
+    cp /usr/lib/aarch64-linux-gnu/$lib "$APP_DIR/usr/lib/" 2>/dev/null || true
 done
 
 # Minimal placeholder icon
@@ -76,7 +76,7 @@ exec ./brow6el "$@"
 EOF
 chmod +x "$APP_DIR/AppRun"
 
-./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage \
+./linuxdeploy-aarch64.AppImage --appdir AppDir --output appimage \
 --desktop-file AppDir/usr/share/applications/brow6el.desktop \
 --icon-file AppDir/usr/share/icons/hicolor/scalable/apps/brow6el.svg
 
