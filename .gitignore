@@ -1,5 +1,6 @@
 # Build directory
 build/
+AppDir/
 
 # CEF binary distribution
 cef_binary
@@ -25,3 +26,6 @@ cef_binary_*.tar.bz2
 # Core dumps
 core
 core.*
+
+# AppImage
+*.AppImage
