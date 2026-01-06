@@ -115,7 +115,7 @@ Press `e` to activate a yellow mouse cursor overlay. Use hjkl or arrow keys to m
 
 ```bash
 # 1. Download CEF binary (~670MB, one-time)
-./download_cef.sh #(or ./download_cef_arm64.sh)
+./download_cef.sh 
 
 # 2. Build
 ./build.sh
