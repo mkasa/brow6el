@@ -2,9 +2,13 @@
 
 A full-featured web browser for the terminal using Chromium (CEF) and libsixel for graphics rendering.
 
+> **INFO**: UTF-8 input is now supported, tested with Czech and Estonian accented characters.
+
 > **WARNING**: Breaking change - keyboard control was switched to vim-like modal control. All in previous versions ctrl+[KEY] shortcuts are not working anymore, please follow reading this document.
 
 > **WARNING**: this is POC code quality. Build process tested in Ubuntu 25.10, Debian 13, Arch Linux. The browser itself was tested in foot terminal, yaft framebuffer terminal and Windows 11 Terminal with sixel support using WSL2.
+
+
 
 ## Screenshots
 ### Demo
@@ -74,10 +78,12 @@ Keyboard-driven mouse emulation with visual cursor:
 **Movement:**
 - `h/j/k/l` or arrow keys - Move mouse (left/down/up/right)
 - `q/f` - Toggle precision/fast speed
+- `r` - Toggle drag-and-drop
 
 **Actions:**
-- `SPACE` or `ENTER` - Click at cursor position
+- `SPACE` or `ENTER` - Click at cursor position or drop
 - `i` - Toggle inspect mode (show element info on hover)
+- `r` - Drop when drag-and-drop is active
 
 **Exit:** `e` or `ESC` - Return to STANDARD mode
 
