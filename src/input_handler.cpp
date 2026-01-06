@@ -99,6 +99,120 @@ void InputHandler::disableMouseTracking() {
     tcsetattr(STDIN_FILENO, TCSANOW, &old_tio_);
 }
 
+int InputHandler::readUTF8Char(unsigned char first_byte, std::string& utf8_char) {
+    utf8_char.clear();
+    utf8_char += (char)first_byte;
+    
+    int bytes_needed = 0;
+    
+    // Determine UTF-8 sequence length from first byte
+    if ((first_byte & 0x80) == 0) {
+        // Single byte ASCII (0xxxxxxx)
+        return 1;
+    } else if ((first_byte & 0xE0) == 0xC0) {
+        // 2-byte sequence (110xxxxx)
+        bytes_needed = 1;
+    } else if ((first_byte & 0xF0) == 0xE0) {
+        // 3-byte sequence (1110xxxx)
+        bytes_needed = 2;
+    } else if ((first_byte & 0xF8) == 0xF0) {
+        // 4-byte sequence (11110xxx)
+        bytes_needed = 3;
+    } else {
+        // Invalid UTF-8 start byte
+        return -1;
+    }
+    
+    // Read continuation bytes
+    for (int i = 0; i < bytes_needed; i++) {
+        unsigned char continuation_byte;
+        ssize_t n = read(STDIN_FILENO, &continuation_byte, 1);
+        
+        if (n <= 0) {
+            // Failed to read continuation byte
+            return -1;
+        }
+        
+        // Validate continuation byte (must be 10xxxxxx)
+        if ((continuation_byte & 0xC0) != 0x80) {
+            return -1;
+        }
+        
+        utf8_char += (char)continuation_byte;
+    }
+    
+    return 1 + bytes_needed;
+}
+
+void InputHandler::sendUTF8CharEvent(const std::string& utf8_char) {
+    if (!browser_ || !browser_->GetHost() || utf8_char.empty()) {
+        return;
+    }
+    
+    // Convert UTF-8 to UTF-16 for CEF
+    // Simple conversion for common cases (up to 3 bytes)
+    unsigned char first = (unsigned char)utf8_char[0];
+    char16_t utf16_char = 0;
+    
+    if (utf8_char.size() == 1) {
+        // ASCII
+        utf16_char = first;
+    } else if (utf8_char.size() == 2) {
+        // 2-byte UTF-8
+        unsigned char second = (unsigned char)utf8_char[1];
+        utf16_char = ((first & 0x1F) << 6) | (second & 0x3F);
+    } else if (utf8_char.size() == 3) {
+        // 3-byte UTF-8
+        unsigned char second = (unsigned char)utf8_char[1];
+        unsigned char third = (unsigned char)utf8_char[2];
+        utf16_char = ((first & 0x0F) << 12) | ((second & 0x3F) << 6) | (third & 0x3F);
+    } else if (utf8_char.size() == 4) {
+        // 4-byte UTF-8 (surrogates needed for characters beyond U+FFFF)
+        // For now, just log and skip - rare case
+        FILE* log = fopen("/tmp/brow6el_debug.log", "a");
+        if (log) {
+            fprintf(log, "4-byte UTF-8 character not yet supported\n");
+            fclose(log);
+        }
+        return;
+    }
+    
+    CefKeyEvent key_event;
+    key_event.modifiers = 0;
+    key_event.is_system_key = 0;
+    key_event.focus_on_editable_field = 1;
+    key_event.windows_key_code = utf16_char;
+    key_event.native_key_code = utf16_char;
+    key_event.character = utf16_char;
+    key_event.unmodified_character = utf16_char;
+    key_event.type = KEYEVENT_CHAR;
+    
+    browser_->GetHost()->SendKeyEvent(key_event);
+}
+
+void InputHandler::removeLastUTF8Char(std::string& str) {
+    if (str.empty()) return;
+    
+    // Start from the end and work backwards
+    size_t pos = str.length() - 1;
+    
+    // If the last byte is ASCII (< 0x80), just remove it
+    if ((unsigned char)str[pos] < 0x80) {
+        str.pop_back();
+        return;
+    }
+    
+    // Otherwise, we need to find the start of the UTF-8 sequence
+    // Walk backwards while we see continuation bytes (10xxxxxx)
+    while (pos > 0 && ((unsigned char)str[pos] & 0xC0) == 0x80) {
+        pos--;
+    }
+    
+    // Now pos points to the start byte of the UTF-8 character
+    // Remove from this position to the end
+    str.erase(pos);
+}
+
 void InputHandler::readLoop() {
     char buf[64];
     int pos = 0;
@@ -404,6 +518,35 @@ void InputHandler::readLoop() {
                         } else {
                             sendKeyEvent(c, c, true);
                         }
+                    } else if ((unsigned char)c >= 0x80) {
+                        // UTF-8 multi-byte character after ESC
+                        std::string utf8_char;
+                        int bytes_read = readUTF8Char((unsigned char)c, utf8_char);
+                        
+                        if (bytes_read > 0) {
+                            key_event_count++;
+                            if (url_input_active_) {
+                                url_input_buffer_ += utf8_char;
+                                if (browser_client_) {
+                                    browser_client_->GetStatusBar()->showURLInput(url_input_buffer_);
+                                }
+                            } else if (file_input_active_) {
+                                file_input_buffer_ += utf8_char;
+                                if (browser_client_) {
+                                    browser_client_->GetStatusBar()->showFileInput(file_input_buffer_);
+                                }
+                            } else if (console_input_active_) {
+                                console_input_buffer_ += utf8_char;
+                                if (browser_client_) {
+                                    browser_client_->GetStatusBar()->showConsole(
+                                        browser_client_->GetConsoleLogs(), 
+                                        console_input_buffer_, 
+                                        console_scroll_offset_);
+                                }
+                            } else if (current_mode_ == MODE_INSERT) {
+                                sendUTF8CharEvent(utf8_char);
+                            }
+                        }
                     }
                     continue;
                 }
@@ -548,8 +691,9 @@ void InputHandler::readLoop() {
                     }
                     // Check if mouse emulation mode is active and handle Enter
                     if (mouse_emu_mode_active_ && browser_client_) {
-                        // Send click directly via CEF instead of relying on JavaScript
-                        browser_client_->HandleMouseEmuClick();
+                        // Pass to JS to handle (click or drop)
+                        std::string key("Enter");
+                        browser_client_->HandleMouseEmuKey(key);
                         continue;
                     }
                     sendKeyEvent(VKEY_RETURN, '\r', false);
@@ -561,7 +705,7 @@ void InputHandler::readLoop() {
                     if (browser_client_ && browser_client_->IsJSDialogActive() && 
                         browser_client_->GetJSDialogType() == JSDIALOGTYPE_PROMPT) {
                         if (!js_prompt_input_.empty()) {
-                            js_prompt_input_.pop_back();
+                            removeLastUTF8Char(js_prompt_input_);
                             if (browser_client_) {
                                 browser_client_->GetStatusBar()->showJSPrompt(
                                     browser_client_->GetJSDialogMessage(), 
@@ -570,7 +714,7 @@ void InputHandler::readLoop() {
                         }
                     } else if (console_input_active_) {
                         if (!console_input_buffer_.empty()) {
-                            console_input_buffer_.pop_back();
+                            removeLastUTF8Char(console_input_buffer_);
                             if (browser_client_) {
                                 browser_client_->GetStatusBar()->showConsole(
                                     browser_client_->GetConsoleLogs(), 
@@ -580,14 +724,14 @@ void InputHandler::readLoop() {
                         }
                     } else if (url_input_active_) {
                         if (!url_input_buffer_.empty()) {
-                            url_input_buffer_.pop_back();
+                            removeLastUTF8Char(url_input_buffer_);
                             if (browser_client_) {
                                 browser_client_->GetStatusBar()->showURLInput(url_input_buffer_);
                             }
                         }
                     } else if (file_input_active_) {
                         if (!file_input_buffer_.empty()) {
-                            file_input_buffer_.pop_back();
+                            removeLastUTF8Char(file_input_buffer_);
                             if (browser_client_) {
                                 browser_client_->GetStatusBar()->showFileInput(file_input_buffer_);
                             }
@@ -743,25 +887,26 @@ void InputHandler::readLoop() {
                             
                             sendKeyEvent(keycode, c, true, needs_shift);
                         } else if (current_mode_ == MODE_MOUSE) {
-                            // MOUSE mode: hjkl for movement, q/f for speed, space/enter for click, i for inspect, e to exit
+                            // MOUSE mode: hjkl for movement, q/f for speed, r for drag, space/enter for click, i for inspect, e to exit
                             if (c == 'h' || c == 'H' || c == 'j' || c == 'J' || 
                                 c == 'k' || c == 'K' || c == 'l' || c == 'L' ||
-                                c == 'q' || c == 'Q' || c == 'f' || c == 'F') {
+                                c == 'q' || c == 'Q' || c == 'f' || c == 'F' ||
+                                c == 'r' || c == 'R') {
                                 // Map hjkl to wasd for existing mouse emu handler
                                 char mapped_key = c;
                                 if (c == 'h' || c == 'H') mapped_key = 'a';
                                 else if (c == 'j' || c == 'J') mapped_key = 's';
                                 else if (c == 'k' || c == 'K') mapped_key = 'w';
                                 else if (c == 'l' || c == 'L') mapped_key = 'd';
+                                // r stays as r for drag/drop
                                 
                                 std::string key(1, mapped_key);
                                 browser_client_->HandleMouseEmuKey(key);
                                 continue;
                             } else if (c == ' ') {
-                                // Space in mouse mode triggers click (same as Enter)
-                                if (browser_client_) {
-                                    browser_client_->HandleMouseEmuClick();
-                                }
+                                // Space in mouse mode - pass to JS to handle (click or drop)
+                                std::string key(1, ' ');
+                                browser_client_->HandleMouseEmuKey(key);
                                 continue;
                             } else if (c == 'i' || c == 'I') {
                                 // Toggle inspect mode
@@ -903,8 +1048,9 @@ void InputHandler::readLoop() {
                                 current_mode_ = MODE_INSERT;
                                 if (browser_client_) {
                                     browser_client_->SetInputMode(getModeName());
-                                    // Update title display
+                                    // Update title display and ensure focus for caret visibility
                                     if (browser_) {
+                                        browser_->GetHost()->SetFocus(true);
                                         browser_->GetHost()->Invalidate(PET_VIEW);
                                     }
                                 }
@@ -928,6 +1074,48 @@ void InputHandler::readLoop() {
                 } else if (c >= 1 && c <= 26) {
                     // Ctrl+letter combinations - removed, use vim-style single keys in STANDARD mode instead
                     // In INSERT mode, these pass through to CEF
+                } else if ((unsigned char)c >= 0x80) {
+                    // UTF-8 multi-byte character
+                    std::string utf8_char;
+                    int bytes_read = readUTF8Char((unsigned char)c, utf8_char);
+                    
+                    if (bytes_read > 0) {
+                        // Successfully read UTF-8 character
+                        key_event_count++;
+                        
+                        // Add to appropriate input buffer or send to CEF
+                        if (browser_client_ && browser_client_->IsJSDialogActive() && 
+                            browser_client_->GetJSDialogType() == JSDIALOGTYPE_PROMPT) {
+                            js_prompt_input_ += utf8_char;
+                            if (browser_client_) {
+                                browser_client_->GetStatusBar()->showJSPrompt(
+                                    browser_client_->GetJSDialogMessage(), 
+                                    js_prompt_input_);
+                            }
+                        } else if (console_input_active_) {
+                            console_input_buffer_ += utf8_char;
+                            if (browser_client_) {
+                                browser_client_->GetStatusBar()->showConsole(
+                                    browser_client_->GetConsoleLogs(), 
+                                    console_input_buffer_, 
+                                    console_scroll_offset_);
+                            }
+                        } else if (url_input_active_) {
+                            url_input_buffer_ += utf8_char;
+                            if (browser_client_) {
+                                browser_client_->GetStatusBar()->showURLInput(url_input_buffer_);
+                            }
+                        } else if (file_input_active_) {
+                            file_input_buffer_ += utf8_char;
+                            if (browser_client_) {
+                                browser_client_->GetStatusBar()->showFileInput(file_input_buffer_);
+                            }
+                        } else if (current_mode_ == MODE_INSERT) {
+                            // In INSERT mode, send UTF-8 character to CEF
+                            sendUTF8CharEvent(utf8_char);
+                        }
+                        // In STANDARD and MOUSE modes, UTF-8 chars are ignored (vim-like behavior)
+                    }
                 }
             }
             
@@ -1022,11 +1210,104 @@ void InputHandler::parseMouseEvent(const char* seq, int len) {
     
     // Mouse motion (button & 32 means drag)
     if (button & 32) {
-        // During drag, send move event and keep the button state if button is down
+        // Physical mouse drag detected
+        if (!physical_mouse_dragging_ && mouse_button_down_) {
+            // Start drag via JavaScript
+            physical_mouse_dragging_ = true;
+            drag_start_x_ = pixel_x;
+            drag_start_y_ = pixel_y;
+            
+            if (browser_client_ && browser_) {
+                std::string js = 
+                    "(function() {"
+                    "  if (window.__brow6el_physical_drag) {"
+                    "    window.__brow6el_physical_drag.startDrag(" + std::to_string(pixel_x) + "," + std::to_string(pixel_y) + ");"
+                    "  } else {"
+                    "    window.__brow6el_physical_drag = {"
+                    "      dragging: false,"
+                    "      draggedElement: null,"
+                    "      dragGhost: null,"
+                    "      startDrag: function(x, y) {"
+                    "        const el = document.elementFromPoint(x, y);"
+                    "        if (el && el.draggable) {"
+                    "          this.dragging = true;"
+                    "          this.draggedElement = el;"
+                    "          this.dragGhost = el.cloneNode(true);"
+                    "          this.dragGhost.style.cssText = 'position:fixed!important;pointer-events:none!important;z-index:2147483646!important;opacity:0.7!important;transform:scale(0.8)!important;';"
+                    "          document.body.appendChild(this.dragGhost);"
+                    "          this.updateGhost(x, y);"
+                    "          const evt = new DragEvent('dragstart', {"
+                    "            bubbles: true, cancelable: true,"
+                    "            dataTransfer: new DataTransfer()"
+                    "          });"
+                    "          el.dispatchEvent(evt);"
+                    "        }"
+                    "      },"
+                    "      updateGhost: function(x, y) {"
+                    "        if (this.dragGhost) {"
+                    "          this.dragGhost.style.left = (x + 15) + 'px';"
+                    "          this.dragGhost.style.top = (y + 15) + 'px';"
+                    "        }"
+                    "      },"
+                    "      moveDrag: function(x, y) {"
+                    "        if (!this.dragging || !this.draggedElement) return;"
+                    "        this.updateGhost(x, y);"
+                    "        const dragEvt = new DragEvent('drag', {"
+                    "          bubbles: true, cancelable: true,"
+                    "          clientX: x, clientY: y"
+                    "        });"
+                    "        this.draggedElement.dispatchEvent(dragEvt);"
+                    "        const target = document.elementFromPoint(x, y);"
+                    "        if (target) {"
+                    "          const overEvt = new DragEvent('dragover', {"
+                    "            bubbles: true, cancelable: true,"
+                    "            clientX: x, clientY: y,"
+                    "            dataTransfer: new DataTransfer()"
+                    "          });"
+                    "          target.dispatchEvent(overEvt);"
+                    "        }"
+                    "      },"
+                    "      endDrag: function(x, y) {"
+                    "        if (!this.dragging || !this.draggedElement) return;"
+                    "        if (this.dragGhost) {"
+                    "          this.dragGhost.remove();"
+                    "          this.dragGhost = null;"
+                    "        }"
+                    "        const target = document.elementFromPoint(x, y);"
+                    "        if (target) {"
+                    "          const dropEvt = new DragEvent('drop', {"
+                    "            bubbles: true, cancelable: true,"
+                    "            dataTransfer: new DataTransfer()"
+                    "          });"
+                    "          target.dispatchEvent(dropEvt);"
+                    "        }"
+                    "        const endEvt = new DragEvent('dragend', {"
+                    "          bubbles: true, cancelable: true"
+                    "        });"
+                    "        this.draggedElement.dispatchEvent(endEvt);"
+                    "        this.dragging = false;"
+                    "        this.draggedElement = null;"
+                    "      }"
+                    "    };"
+                    "    window.__brow6el_physical_drag.startDrag(" + std::to_string(pixel_x) + "," + std::to_string(pixel_y) + ");"
+                    "  }"
+                    "})();";
+                browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
+            }
+        } else if (physical_mouse_dragging_) {
+            // Continue drag via JavaScript
+            if (browser_client_ && browser_) {
+                std::string js = 
+                    "if (window.__brow6el_physical_drag) {"
+                    "  window.__brow6el_physical_drag.moveDrag(" + std::to_string(pixel_x) + "," + std::to_string(pixel_y) + ");"
+                    "}";
+                browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
+            }
+        }
+        
+        // Still send regular mouse events
         browser_->GetHost()->SendMouseMoveEvent(mouse_event, false);
-        // If we're dragging and a button was pressed, send click event to maintain selection
         if (mouse_button_down_) {
-            // Keep sending mouse down events during drag for text selection
             browser_->GetHost()->SendMouseClickEvent(mouse_event, mouse_button_type_, false, 1);
         }
     }
@@ -1066,6 +1347,19 @@ void InputHandler::parseMouseEvent(const char* seq, int len) {
         } else {
             // Mouse UP
             mouse_button_down_ = false;
+            
+            // End physical drag if active
+            if (physical_mouse_dragging_) {
+                physical_mouse_dragging_ = false;
+                if (browser_client_ && browser_) {
+                    std::string js = 
+                        "if (window.__brow6el_physical_drag) {"
+                        "  window.__brow6el_physical_drag.endDrag(" + std::to_string(pixel_x) + "," + std::to_string(pixel_y) + ");"
+                        "}";
+                    browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
+                }
+            }
+            
             browser_->GetHost()->SendMouseClickEvent(mouse_event, cef_button, true, click_count_at_pos);
         }
     }

@@ -32,6 +32,9 @@ private:
     void parseMouseEvent(const char* seq, int len);
     void parseKeySequence(const char* seq, int len);
     void sendKeyEvent(int key_code, char character, bool is_char_event, bool shift_pressed = false);
+    int readUTF8Char(unsigned char first_byte, std::string& utf8_char);
+    void sendUTF8CharEvent(const std::string& utf8_char);
+    void removeLastUTF8Char(std::string& str);
     
     CefRefPtr<CefBrowser> browser_;
     int term_width_;
@@ -74,6 +77,9 @@ private:
     // Mouse drag tracking
     bool mouse_button_down_ = false;
     CefBrowserHost::MouseButtonType mouse_button_type_ = MBT_LEFT;
+    bool physical_mouse_dragging_ = false;
+    int drag_start_x_ = 0;
+    int drag_start_y_ = 0;
     
     // Modal control state
     InputMode current_mode_ = MODE_STANDARD;

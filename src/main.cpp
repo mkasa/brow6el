@@ -2,11 +2,13 @@
 #include "include/cef_browser.h"
 #include "include/cef_command_line.h"
 #include "include/cef_cookie.h"
+#include "include/cef_request_context.h"
 #include "browser_app.h"
 #include "browser_client.h"
 #include "terminal_detector.h"
 #include "input_handler.h"
 #include "profile_config.h"
+#include "version.h"
 #include <iostream>
 #include <unistd.h>
 #include <signal.h>
@@ -68,11 +70,13 @@ int main(int argc, char* argv[]) {
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if (arg == "--help" || arg == "-h") {
+            std::cout << "Brow6el " << BROW6EL_VERSION << " - Terminal Web Browser\n\n";
             std::cout << "Usage: brow6el [OPTIONS] [URL]\n\n";
             std::cout << "Options:\n";
             std::cout << "  --persistent        Use persistent profile mode\n";
             std::cout << "  --temporary         Use temporary profile mode (private)\n";
-            std::cout << "  --custom            Use custom profile mode\n\n";
+            std::cout << "  --custom            Use custom profile mode\n";
+            std::cout << "  --version           Show version information\n\n";
             std::cout << "Vim-Style Modal Control:\n";
             std::cout << "  STANDARD mode (default) - Single-key commands:\n";
             std::cout << "    hjkl              Navigate (left/down/up/right)\n";
@@ -94,12 +98,17 @@ int main(int argc, char* argv[]) {
             std::cout << "  MOUSE mode - Keyboard mouse emulation:\n";
             std::cout << "    hjkl              Move mouse (left/down/up/right)\n";
             std::cout << "    q/f               Precision/fast speed\n";
+            std::cout << "    r                 Toggle drag and drop\n";
             std::cout << "    SPACE/ENTER       Click\n";
             std::cout << "    e or ESC          Return to STANDARD mode\n\n";
             std::cout << "Mode indicator shown in status bar: [S], [I], or [M]\n\n";
             std::cout << "Note: Profile mode can be configured in ~/.brow6el/browser.conf\n";
             std::cout << "      Bookmarks and user scripts are persistent\n";
             std::cout << "      See VIM_CONTROL.md for detailed documentation\n";
+            return 0;
+        } else if (arg == "--version" || arg == "-v") {
+            std::cout << "Brow6el " << BROW6EL_VERSION << "\n";
+            std::cout << "User-Agent: " << BROW6EL_USER_AGENT << "\n";
             return 0;
         } else if (arg == "--persistent") {
             profile_mode_override = "persistent";
@@ -138,6 +147,9 @@ int main(int argc, char* argv[]) {
     // Suppress CEF logging - only show fatal errors
     settings.log_severity = LOGSEVERITY_FATAL;
     CefString(&settings.log_file).FromASCII("/tmp/brow6el_debug.log");
+    
+    // Set custom user agent
+    CefString(&settings.user_agent).FromASCII(BROW6EL_USER_AGENT);
     
     if (!exe_dir.empty()) {
         CefString(&settings.resources_dir_path).FromASCII(exe_dir.c_str());
@@ -259,8 +271,15 @@ int main(int argc, char* argv[]) {
     CefBrowserSettings browser_settings;
     browser_settings.windowless_frame_rate = 30;
     
+    // Create request context with light color scheme
+    CefRequestContextSettings context_settings;
+    CefRefPtr<CefRequestContext> request_context = CefRequestContext::CreateContext(context_settings, nullptr);
+    
+    // Set light color scheme to avoid forced dark mode
+    request_context->SetChromeColorScheme(CEF_COLOR_VARIANT_LIGHT, 0);
+    
     CefBrowserHost::CreateBrowser(window_info, client.get(), url, 
-                                  browser_settings, nullptr, nullptr);
+                                  browser_settings, nullptr, request_context);
     
     // Give browser time to initialize
     for (int i = 0; i < 10 && !client->GetBrowser(); i++) {
@@ -282,6 +301,10 @@ int main(int argc, char* argv[]) {
                                termInfo.width, termInfo.height);
     input_handler.setBrowserClient(client.get()); // Link for select navigation
     client->SetInputMode(input_handler.getModeName()); // Set initial mode in status bar
+    
+    // Set focus so the browser shows cursor/caret in input fields
+    client->GetBrowser()->GetHost()->SetFocus(true);
+    
     input_handler.start();
     
     while (g_running && !client->IsClosing()) {
