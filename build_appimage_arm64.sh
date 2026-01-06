@@ -1,41 +1,13 @@
 #!/bin/bash
 set -e
 
-echo "Building ARM64 AppImage using podman with Ubuntu (with QEMU emulation)..."
+echo "Building portable Brow6el archve..."
 
-# Note: QEMU ARM64 emulation required. If build fails with "Exec format error", run:
-#   sudo podman run --rm --privileged multiarch/qemu-user-static --reset -p yes
-
-# Create temporary build script
-cat > /tmp/build_in_container_arm64_$$.sh << 'INNER_EOF'
-set -e
-
-# Clean workspace to avoid architecture conflicts
-rm -rf build cef_binary
-mkdir -p build
-
-# Install dependencies
-apt-get update && apt-get install -y \
-  wget curl cmake g++ libgtk-3-dev libx11-dev libxrandr-dev \
-  libsixel-dev libxss-dev libasound2-dev libxcomposite-dev \
-  libxdamage-dev libxext-dev libxfixes-dev libgbm-dev \
-  libxcb1-dev libxkbcommon-dev libnss3-dev libnspr4-dev \
-  libdbus-1-dev libcups2-dev libdrm-dev libexpat1-dev \
-  libatk1.0-dev libatk-bridge2.0-dev file
-
-# Clean CEF build cache if exists
-rm -rf cef_binary/build/CMakeCache.txt cef_binary/build/CMakeFiles
-
-# Download and build CEF (auto-detects architecture)
-./download_cef.sh
-
-# Clean build directory to avoid CMake cache conflicts
-rm -rf build/CMakeCache.txt build/CMakeFiles
-
-# Build the project
+# Build the project first
 ./build.sh
 
 cd build
+
 
 # Create portable package directory
 APP_DIR="AppDir"
@@ -84,7 +56,7 @@ cat > "$APP_DIR/usr/share/icons/hicolor/scalable/apps/brow6el.svg" << 'EOF'
 EOF
 
 # Minimal .desktop file
-cat > "$APP_DIR/usr/share/applications/brow6el.desktop" << 'EOF'
+cat > "$APP_DIR/usr/share/applications/brow6el.desktop" << EOF
 [Desktop Entry]
 Name=brow6el
 Comment=sixel-based web browser (terminal only)
@@ -107,15 +79,5 @@ chmod +x "$APP_DIR/AppRun"
 ./linuxdeploy-aarch64.AppImage --appdir AppDir --output appimage \
 --desktop-file AppDir/usr/share/applications/brow6el.desktop \
 --icon-file AppDir/usr/share/icons/hicolor/scalable/apps/brow6el.svg
-INNER_EOF
 
-# Run the build inside a Ubuntu ARM64 container using podman with emulation and FUSE enabled
-# Note: Using sudo because QEMU binfmt registration requires root access
-sudo podman run --rm --platform linux/arm64 --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor=unconfined \
-  -v "$(pwd)":/workspace -v /tmp/build_in_container_arm64_$$.sh:/build_script.sh \
-  -w /workspace ubuntu:22.04 bash /build_script.sh
-
-# Cleanup
-rm -f /tmp/build_in_container_arm64_$$.sh
-
-echo "✓ AppImage created: build/brow6el-aarch64.AppImage"
+echo "✓ AppImage created: build/brow6el-x86_64.AppImage"
