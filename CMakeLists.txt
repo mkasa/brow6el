@@ -16,7 +16,7 @@ execute_process(
 
 # Fallback version if git is not available
 if(NOT GIT_VERSION)
-    set(GIT_VERSION "0.2.0-dev")
+    set(GIT_VERSION "0.0.999-dev")
 endif()
 
 # Clean up version string (remove 'v' prefix if present)
