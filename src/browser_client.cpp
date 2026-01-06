@@ -266,6 +266,14 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
         HandleMouseEmuClick();
         return true;
     }
+    if (msg.find("[Brow6el] MOUSE_EMU_DRAG_START") == 0) {
+        HandleMouseEmuDragStart();
+        return true;
+    }
+    if (msg.find("[Brow6el] MOUSE_EMU_DRAG_END") == 0) {
+        HandleMouseEmuDragEnd();
+        return true;
+    }
     if (msg.find("[Brow6el] MOUSE_EMU_FOCUS") == 0) {
         // JavaScript focused a select/input element, don't send click
         LOGB("Mouse emu focused element: " << msg);
@@ -1122,9 +1130,64 @@ void BrowserClient::HandleMouseEmuClick() {
     browser_->GetMainFrame()->ExecuteJavaScript(js_flash, "", 0);
 }
 
+void BrowserClient::HandleMouseEmuDragStart() {
+    if (!browser_ || !browser_->GetHost()) return;
+    
+    mouse_emu_dragging_ = true;
+    
+    CefMouseEvent mouse_event;
+    mouse_event.x = mouse_emu_x_;
+    mouse_event.y = mouse_emu_y_;
+    mouse_event.modifiers = 0;
+    
+    LOGB("Mouse emu drag start at " << mouse_emu_x_ << "," << mouse_emu_y_);
+    
+    // Send mouse move first to ensure position is correct
+    browser_->GetHost()->SendMouseMoveEvent(mouse_event, false);
+    
+    // Small delay to let the browser process the move
+    usleep(10000); // 10ms
+    
+    // Send mouse down (start drag) - important: this click event starts the drag
+    browser_->GetHost()->SendMouseClickEvent(mouse_event, MBT_LEFT, false, 1);
+    
+    LOGB("Drag started, dragging_ = " << mouse_emu_dragging_);
+}
+
+void BrowserClient::HandleMouseEmuDragEnd() {
+    if (!browser_ || !browser_->GetHost()) return;
+    
+    if (!mouse_emu_dragging_) return;
+    
+    mouse_emu_dragging_ = false;
+    
+    CefMouseEvent mouse_event;
+    mouse_event.x = mouse_emu_x_;
+    mouse_event.y = mouse_emu_y_;
+    mouse_event.modifiers = 0;
+    
+    LOGB("Mouse emu drag end at " << mouse_emu_x_ << "," << mouse_emu_y_);
+    
+    // Send mouse up (end drag/drop)
+    browser_->GetHost()->SendMouseClickEvent(mouse_event, MBT_LEFT, true, 1);
+}
+
 void BrowserClient::HandleMouseEmuPosition(int x, int y) {
     mouse_emu_x_ = x;
     mouse_emu_y_ = y;
+    
+    // If dragging, send mouse move with button down
+    if (mouse_emu_dragging_ && browser_ && browser_->GetHost()) {
+        CefMouseEvent mouse_event;
+        mouse_event.x = mouse_emu_x_;
+        mouse_event.y = mouse_emu_y_;
+        mouse_event.modifiers = EVENTFLAG_LEFT_MOUSE_BUTTON;  // Indicate left button is pressed
+        
+        LOGB("Drag move to " << x << "," << y);
+        
+        // Send mouse move while dragging
+        browser_->GetHost()->SendMouseMoveEvent(mouse_event, false);
+    }
 }
 
 void BrowserClient::ToggleInspectMode() {

@@ -179,6 +179,8 @@ public:
     bool IsMouseEmuModeActive() const { return mouse_emu_mode_active_; }
     void HandleMouseEmuKey(const std::string& key);
     void HandleMouseEmuClick();
+    void HandleMouseEmuDragStart();
+    void HandleMouseEmuDragEnd();
     void HandleMouseEmuPosition(int x, int y);
     void ToggleInspectMode();
     
@@ -261,6 +263,7 @@ private:
     bool mouse_emu_mode_active_ = false;
     int mouse_emu_x_ = 0;
     int mouse_emu_y_ = 0;
+    bool mouse_emu_dragging_ = false;
     bool mode_switch_requested_ = false;
     bool switch_to_insert_mode_ = false;
     

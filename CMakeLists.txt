@@ -5,6 +5,57 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_BUILD_RPATH ".")
 
+# Get version from git
+execute_process(
+    COMMAND git describe --tags --always --dirty
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_VERSION
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+# Fallback version if git is not available
+if(NOT GIT_VERSION)
+    set(GIT_VERSION "0.2.0-dev")
+endif()
+
+# Clean up version string (remove 'v' prefix if present)
+string(REGEX REPLACE "^v" "" BROW6EL_VERSION "${GIT_VERSION}")
+
+# Extract Chromium version from CEF directory name
+file(GLOB CEF_DIRS "${CMAKE_SOURCE_DIR}/cef_binary*chromium*")
+if(CEF_DIRS)
+    list(GET CEF_DIRS 0 CEF_DIR)
+    string(REGEX MATCH "chromium-([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)" CHROMIUM_MATCH "${CEF_DIR}")
+    if(CMAKE_MATCH_1)
+        set(CHROMIUM_VERSION "${CMAKE_MATCH_1}")
+    else()
+        set(CHROMIUM_VERSION "143.0.0.0")
+    endif()
+else()
+    set(CHROMIUM_VERSION "143.0.0.0")
+endif()
+
+# Detect system architecture
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|AMD64")
+    set(SYSTEM_ARCH "x86_64")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
+    set(SYSTEM_ARCH "aarch64")
+else()
+    set(SYSTEM_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
+endif()
+
+message(STATUS "Brow6el version: ${BROW6EL_VERSION}")
+message(STATUS "Chromium version: ${CHROMIUM_VERSION}")
+message(STATUS "System architecture: ${SYSTEM_ARCH}")
+
+# Generate version header
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/version.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/version.h
+    @ONLY
+)
+
 # Set CMake policy for <PackageName>_ROOT variables
 if(POLICY CMP0074)
     cmake_policy(SET CMP0074 NEW)
@@ -24,6 +75,7 @@ include_directories(
     ${CEF_INCLUDE_PATH}
     ${SIXEL_INCLUDE_DIRS}
     ${TERMKEY_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 # Source files

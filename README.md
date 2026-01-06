@@ -4,7 +4,7 @@ A full-featured web browser for the terminal using Chromium (CEF) and libsixel f
 
 > **WARNING**: Breaking change - keyboard control was switched to vim-like modal control. All in previous versions ctrl+[KEY] shortcuts are not working anymore, please follow reading this document.
 
-> **WARNING**: this is POC code quality, it is known it doesn't work with localized keyboards, it lacks support for accented characters for input. Build process tested in Ubuntu 25.10, Debian 13, Arch Linux. The browser itself was tested in foot terminal and yaft framebuffer terminal.
+> **WARNING**: this is POC code quality. Build process tested in Ubuntu 25.10, Debian 13, Arch Linux. The browser itself was tested in foot terminal, yaft framebuffer terminal and Windows 11 Terminal with sixel support using WSL2.
 
 ## Screenshots
 ### Demo
