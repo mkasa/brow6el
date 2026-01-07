@@ -2,6 +2,8 @@
 
 A full-featured web browser for the terminal using Chromium (CEF) and libsixel for graphics rendering.
 
+> **WARNING**: Because of downgrade of CEF, it is needed to delete ~/.brow6el/profile folder when using permament profile and upgrading from versions prior 0.3.2. Otherwise CEF fails with SIGTRAP.
+
 > **INFO**: UTF-8 input is now supported, tested with Czech and Estonian accented characters.
 
 > **WARNING**: Breaking change - keyboard control was switched to vim-like modal control. All in previous versions ctrl+[KEY] shortcuts are not working anymore, please follow reading this document.
