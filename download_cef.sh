@@ -2,7 +2,8 @@
 
 set -e
 
-CEF_VERSION="143.0.11+g1e6e84d+chromium-143.0.7499.147"
+CEF_VERSION="138.0.55+g7acdb77+chromium-138.0.7204.300"
+#CEF_VERSION="143.0.13+g30cb3bd+chromium-143.0.7499.170"
 
 # Determine architecture
 ARCH=$(uname -m)
