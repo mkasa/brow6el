@@ -13,7 +13,7 @@ static int sixel_write_callback(char* data, int size, void* priv) {
 }
 
 SixelRenderer::SixelRenderer(int width, int height) 
-    : width_(width), height_(height), output_(nullptr), dither_(nullptr) {
+    : width_(width), height_(height), output_(nullptr) {
     
     SIXELSTATUS status;
     
@@ -26,9 +26,6 @@ SixelRenderer::SixelRenderer(int width, int height)
 }
 
 SixelRenderer::~SixelRenderer() {
-    if (dither_) {
-        sixel_dither_unref(dither_);
-    }
     if (output_) {
         sixel_output_unref(output_);
     }

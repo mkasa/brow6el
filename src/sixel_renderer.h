@@ -19,5 +19,4 @@ private:
     int width_;
     int height_;
     sixel_output_t* output_;
-    sixel_dither_t* dither_;
 };

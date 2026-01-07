@@ -59,6 +59,33 @@ void BrowserClient::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
 void BrowserClient::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
     browser_ = nullptr;
     is_closing_ = true;
+    
+    // Cancel any pending callbacks to prevent crashes
+    {
+        std::lock_guard<std::mutex> lock(js_dialog_mutex_);
+        if (js_dialog_callback_) {
+            js_dialog_callback_->Continue(false, "");
+            js_dialog_callback_ = nullptr;
+        }
+        js_dialog_active_ = false;
+    }
+    
+    {
+        std::lock_guard<std::mutex> lock(file_dialog_mutex_);
+        if (file_dialog_callback_) {
+            file_dialog_callback_->Cancel();
+            file_dialog_callback_ = nullptr;
+        }
+        file_input_active_ = false;
+    }
+    
+    {
+        std::lock_guard<std::mutex> lock(download_mutex_);
+        // download_callback_ doesn't need to be called if rejected
+        download_callback_ = nullptr;
+        download_confirm_active_ = false;
+    }
+    
     if (status_bar_) {
         std::lock_guard<std::mutex> lock(render_mutex_);
         status_bar_->clear(false); // Don't redraw title on exit
@@ -591,20 +618,32 @@ bool BrowserClient::OnJSDialog(CefRefPtr<CefBrowser> browser,
 }
 
 void BrowserClient::HandleJSDialogResponse(bool success, const std::string& input) {
-    std::lock_guard<std::mutex> lock(js_dialog_mutex_);
-    
-    if (!js_dialog_active_ || !js_dialog_callback_) {
+    // Don't handle if browser is closing
+    if (is_closing_) {
         return;
     }
     
-    LOGB("JS Dialog response: success=" << success << " input=" << input);
+    CefRefPtr<CefJSDialogCallback> callback;
     
-    // Call the callback
-    js_dialog_callback_->Continue(success, input);
+    {
+        std::lock_guard<std::mutex> lock(js_dialog_mutex_);
+        
+        if (!js_dialog_active_ || !js_dialog_callback_) {
+            return;
+        }
+        
+        LOGB("JS Dialog response: success=" << success << " input=" << input);
+        
+        // Take ownership of callback before unlocking
+        callback = js_dialog_callback_;
+        js_dialog_callback_ = nullptr;
+        js_dialog_active_ = false;
+    }
     
-    // Clean up
-    js_dialog_active_ = false;
-    js_dialog_callback_ = nullptr;
+    // Call the callback outside the mutex to avoid potential deadlocks
+    if (callback) {
+        callback->Continue(success, input);
+    }
     
     // Force repaint to clear the dialog
     if (browser_ && browser_->GetHost()) {
@@ -635,24 +674,38 @@ bool BrowserClient::OnFileDialog(CefRefPtr<CefBrowser> browser,
 }
 
 void BrowserClient::HandleFileDialogResponse(const std::string& file_path) {
-    std::lock_guard<std::mutex> lock(file_dialog_mutex_);
-    
-    if (!file_input_active_ || !file_dialog_callback_) {
+    // Don't handle if browser is closing
+    if (is_closing_) {
         return;
     }
     
-    LOGB("File Dialog response: file_path=" << file_path);
+    CefRefPtr<CefFileDialogCallback> callback;
     
-    if (!file_path.empty()) {
-        std::vector<CefString> file_paths;
-        file_paths.push_back(file_path);
-        file_dialog_callback_->Continue(file_paths);
-    } else {
-        file_dialog_callback_->Cancel();
+    {
+        std::lock_guard<std::mutex> lock(file_dialog_mutex_);
+        
+        if (!file_input_active_ || !file_dialog_callback_) {
+            return;
+        }
+        
+        LOGB("File Dialog response: file_path=" << file_path);
+        
+        // Take ownership of callback before unlocking
+        callback = file_dialog_callback_;
+        file_dialog_callback_ = nullptr;
+        file_input_active_ = false;
     }
     
-    file_input_active_ = false;
-    file_dialog_callback_ = nullptr;
+    // Call the callback outside the mutex to avoid potential deadlocks
+    if (callback) {
+        if (!file_path.empty()) {
+            std::vector<CefString> file_paths;
+            file_paths.push_back(file_path);
+            callback->Continue(file_paths);
+        } else {
+            callback->Cancel();
+        }
+    }
     
     if (browser_ && browser_->GetHost()) {
         browser_->GetHost()->Invalidate(PET_VIEW);
@@ -741,26 +794,42 @@ void BrowserClient::OnDownloadUpdated(CefRefPtr<CefBrowser> browser,
 }
 
 void BrowserClient::HandleDownloadResponse(bool accept, const std::string& path) {
-    std::lock_guard<std::mutex> lock(download_mutex_);
-    
-    if (!download_confirm_active_ || !download_callback_) {
+    // Don't handle if browser is closing
+    if (is_closing_) {
         return;
     }
     
-    if (accept) {
-        std::string download_path = path.empty() ? 
-            (std::string(getenv("HOME") ? getenv("HOME") : "/tmp") + "/Downloads/" + download_filename_) : 
-            path;
+    CefRefPtr<CefBeforeDownloadCallback> callback;
+    std::string filename;
+    
+    {
+        std::lock_guard<std::mutex> lock(download_mutex_);
         
-        LOGB("Download accepted: " << download_path);
-        download_callback_->Continue(download_path, false);
-    } else {
-        LOGB("Download rejected");
+        if (!download_confirm_active_ || !download_callback_) {
+            return;
+        }
+        
+        // Take ownership of callback and data before unlocking
+        callback = download_callback_;
+        filename = download_filename_;
+        download_callback_ = nullptr;
+        download_confirm_active_ = false;
     }
     
-    // Clean up
-    download_confirm_active_ = false;
-    download_callback_ = nullptr;
+    // Call the callback outside the mutex to avoid potential deadlocks
+    if (callback) {
+        if (accept) {
+            std::string download_path = path.empty() ? 
+                (std::string(getenv("HOME") ? getenv("HOME") : "/tmp") + "/Downloads/" + filename) : 
+                path;
+            
+            LOGB("Download accepted: " << download_path);
+            callback->Continue(download_path, false);
+        } else {
+            LOGB("Download rejected");
+            // Not calling Continue() means the download is rejected
+        }
+    }
     
     // Force repaint to clear the dialog
     if (browser_ && browser_->GetHost()) {
@@ -771,7 +840,10 @@ void BrowserClient::HandleDownloadResponse(bool accept, const std::string& path)
 void BrowserClient::AddCurrentPageToBookmarks() {
     if (!browser_) return;
     
-    std::string url = browser_->GetMainFrame()->GetURL().ToString();
+    CefRefPtr<CefFrame> frame = browser_->GetMainFrame();
+    if (!frame) return;
+    
+    std::string url = frame->GetURL().ToString();
     if (url.empty() || url == "about:blank") return;
     
     bookmarks_manager_.addBookmark(current_page_title_, url);
@@ -939,12 +1011,15 @@ bool BrowserClient::HandleUserScriptConfirm() {
     SetUserScriptsActive(false);
     
     // Execute script
-    if (!script_content.empty() && browser_ && browser_->GetMainFrame()) {
-        browser_->GetMainFrame()->ExecuteJavaScript(script_content, browser_->GetMainFrame()->GetURL(), 0);
-        
-        // Show confirmation
-        std::lock_guard<std::mutex> lock(render_mutex_);
-        status_bar_->showMessage("📜 Script injected: " + script_name);
+    if (!script_content.empty() && browser_) {
+        CefRefPtr<CefFrame> frame = browser_->GetMainFrame();
+        if (frame) {
+            frame->ExecuteJavaScript(script_content, frame->GetURL(), 0);
+            
+            // Show confirmation
+            std::lock_guard<std::mutex> lock(render_mutex_);
+            status_bar_->showMessage("📜 Script injected: " + script_name);
+        }
     }
     
     return true;
@@ -965,16 +1040,19 @@ void BrowserClient::ToggleAutoInjectUserScripts() {
 }
 
 void BrowserClient::InjectUserScriptsForCurrentPage() {
-    if (!browser_ || !browser_->GetMainFrame()) return;
+    if (!browser_) return;
     
-    std::string url = browser_->GetMainFrame()->GetURL().ToString();
+    CefRefPtr<CefFrame> frame = browser_->GetMainFrame();
+    if (!frame) return;
+    
+    std::string url = frame->GetURL().ToString();
     std::vector<std::string> matching_scripts = user_scripts_manager_.getMatchingScripts(url);
     
     for (const auto& script_name : matching_scripts) {
         std::string script_content = user_scripts_manager_.getScriptContent(script_name);
         if (!script_content.empty()) {
             LOGB("Auto-injecting user script: " << script_name << " for URL: " << url);
-            browser_->GetMainFrame()->ExecuteJavaScript(script_content, browser_->GetMainFrame()->GetURL(), 0);
+            frame->ExecuteJavaScript(script_content, frame->GetURL(), 0);
         }
     }
 }
@@ -1012,7 +1090,10 @@ void BrowserClient::ActivateHintMode() {
     hint_mode_active_ = true;
     hint_count_ = 0;
     
-    browser_->GetMainFrame()->ExecuteJavaScript(hint_js, "", 0);
+    CefRefPtr<CefFrame> frame = browser_->GetMainFrame();
+    if (frame) {
+        frame->ExecuteJavaScript(hint_js, "", 0);
+    }
     
     // Show hint input in status bar
     if (status_bar_) {
@@ -1032,10 +1113,13 @@ void BrowserClient::SetHintModeActive(bool active) {
 }
 
 void BrowserClient::HandleHintSelection(const std::string& hint) {
-    if (!browser_ || !browser_->GetMainFrame() || hint.empty()) return;
+    if (!browser_ || hint.empty()) return;
+    
+    CefRefPtr<CefFrame> frame = browser_->GetMainFrame();
+    if (!frame) return;
     
     std::string js = "if (window.__brow6el_hints) { window.__brow6el_hints.select('" + hint + "'); }";
-    browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
+    frame->ExecuteJavaScript(js, "", 0);
     
     hint_mode_active_ = false;
 }
@@ -1067,7 +1151,10 @@ void BrowserClient::ActivateMouseEmuMode() {
     
     mouse_emu_mode_active_ = true;
     
-    browser_->GetMainFrame()->ExecuteJavaScript(mouse_emu_js, "", 0);
+    CefRefPtr<CefFrame> frame = browser_->GetMainFrame();
+    if (frame) {
+        frame->ExecuteJavaScript(mouse_emu_js, "", 0);
+    }
     
     // Don't show status message - let select elements and other UI use the status bar normally
     // The yellow circle is enough visual feedback that mouse emu is active
@@ -1083,14 +1170,20 @@ void BrowserClient::SetMouseEmuModeActive(bool active) {
 }
 
 void BrowserClient::HandleMouseEmuKey(const std::string& key) {
-    if (!browser_ || !browser_->GetMainFrame()) return;
+    if (!browser_) return;
+    
+    CefRefPtr<CefFrame> frame = browser_->GetMainFrame();
+    if (!frame) return;
     
     std::string js = "if (window.__brow6el_mouse_emu) { window.__brow6el_mouse_emu.handleKey('" + key + "'); }";
-    browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
+    frame->ExecuteJavaScript(js, "", 0);
 }
 
 void BrowserClient::HandleMouseEmuClick() {
     if (!browser_ || !browser_->GetHost()) return;
+    
+    CefRefPtr<CefFrame> frame = browser_->GetMainFrame();
+    if (!frame) return;
     
     // First, check what element we're clicking on via JavaScript
     std::string js = R"(
@@ -1103,7 +1196,7 @@ void BrowserClient::HandleMouseEmuClick() {
             }
         })();
     )";
-    browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
+    frame->ExecuteJavaScript(js, "", 0);
     
     // Use the stored position to send a real CEF mouse click
     CefMouseEvent mouse_event;
@@ -1127,7 +1220,7 @@ void BrowserClient::HandleMouseEmuClick() {
     
     // Still trigger JS visual feedback
     std::string js_flash = "if (window.__brow6el_mouse_emu) { window.__brow6el_mouse_emu.flashClick(); }";
-    browser_->GetMainFrame()->ExecuteJavaScript(js_flash, "", 0);
+    frame->ExecuteJavaScript(js_flash, "", 0);
 }
 
 void BrowserClient::HandleMouseEmuDragStart() {
@@ -1213,7 +1306,11 @@ void BrowserClient::ToggleInspectMode() {
     }
     
     LOGB("Toggling inspect mode, JS size: " << inspect_js.size() << " bytes");
-    browser_->GetMainFrame()->ExecuteJavaScript(inspect_js, "", 0);
+    
+    CefRefPtr<CefFrame> frame = browser_->GetMainFrame();
+    if (frame) {
+        frame->ExecuteJavaScript(inspect_js, "", 0);
+    }
 }
 
 void BrowserClient::ToggleDownloadManager() {
