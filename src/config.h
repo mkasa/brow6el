@@ -175,8 +175,9 @@ private:
             file << "# Force dark mode\n";
             file << "# force-dark-mode\n";
             file << "\n";
-            file << "# Custom user agent\n";
-            file << "# user-agent=Mozilla/5.0 (X11; Linux x86_64) Brow6el/1.0\n";
+            file << "no-zygote\n";
+            file << "js-flags=--no-decommit-pooled-pages\n";
+            file << "\n";
             file.close();
         }
     }
