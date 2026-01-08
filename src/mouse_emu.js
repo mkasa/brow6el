@@ -60,9 +60,10 @@
             const cellWidth = width / cols;
             const cellHeight = height / rows;
             
-            // Check if we're at maximum zoom (cells would be too small to subdivide)
-            const minCellSize = 40;
-            const atMaxZoom = (cellWidth / 3 < minCellSize || cellHeight / 3 < minCellSize);
+            // Check if we're at maximum zoom (cells would be too small for label to fit)
+            // Label is 30px diameter, so we need at least 30px in both dimensions
+            const labelSize = 30;
+            const atMaxZoom = (cellWidth / 3 < labelSize || cellHeight / 3 < labelSize);
             const gridColor = atMaxZoom ? 'rgba(255, 50, 50, 0.7)' : 'rgba(0, 255, 150, 0.7)';
             const labelColor = atMaxZoom ? 'rgba(255, 50, 50, 0.9)' : 'rgba(0, 255, 150, 0.9)';
             
@@ -143,10 +144,10 @@
             const cell = this.gridCells.find(c => c.label === label);
             if (!cell) return false;
             
-            // Check if zooming in would make cells too small
-            // Each cell will be divided by 3, so check if result would be < 40px
-            const minCellSize = 40; // Minimum pixels for cell width/height
-            if (cell.width / 3 < minCellSize || cell.height / 3 < minCellSize) {
+            // Check if zooming in would make cells too small for label to fit
+            // Label is 30px diameter, so we need at least 30px in both dimensions
+            const labelSize = 30;
+            if (cell.width / 3 < labelSize || cell.height / 3 < labelSize) {
                 // Can't zoom in further - move cursor to cell center AND click
                 this.x = cell.centerX;
                 this.y = cell.centerY;
