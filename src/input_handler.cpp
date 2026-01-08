@@ -1,6 +1,7 @@
 #include "input_handler.h"
 #include "browser_client.h"
 #include "status_bar.h"
+#include "profile_config.h"
 #include "include/internal/cef_types.h"
 #include <iostream>
 #include <unistd.h>
@@ -370,13 +371,17 @@ void InputHandler::readLoop() {
                             }
                         }
                     } else if (current_mode_ == MODE_MOUSE || mouse_emu_mode_active_) {
-                        // ESC in MOUSE mode goes to STANDARD mode
+                        // ESC in MOUSE mode - if grid mode is active, it will close grid
+                        // Otherwise exit mouse mode
                         // If select options are showing, close them first, don't exit mouse emu mode
                         if (browser_client_ && browser_client_->IsSelectOptionsActive()) {
                             browser_client_->GetStatusBar()->clear();
                             if (browser_) {
                                 browser_->GetHost()->Invalidate(PET_VIEW);
                             }
+                        } else if (browser_client_ && browser_client_->IsGridModeActive()) {
+                            // Send ESC to JS to close grid mode
+                            browser_client_->HandleMouseEmuKey("Escape");
                         } else {
                             // Exit mouse emulation mode on ESC
                             current_mode_ = MODE_STANDARD;
@@ -712,6 +717,9 @@ void InputHandler::readLoop() {
                                     js_prompt_input_);
                             }
                         }
+                    } else if (mouse_emu_mode_active_ && browser_client_ && browser_client_->IsGridModeActive()) {
+                        // Backspace in grid mode - send to JS for grid navigation
+                        browser_client_->HandleMouseEmuKey("Backspace");
                     } else if (console_input_active_) {
                         if (!console_input_buffer_.empty()) {
                             removeLastUTF8Char(console_input_buffer_);
@@ -887,18 +895,34 @@ void InputHandler::readLoop() {
                             
                             sendKeyEvent(keycode, c, true, needs_shift);
                         } else if (current_mode_ == MODE_MOUSE) {
-                            // MOUSE mode: hjkl for movement, q/f for speed, r for drag, space/enter for click, i for inspect, e to exit
-                            if (c == 'h' || c == 'H' || c == 'j' || c == 'J' || 
+                            // MOUSE mode: hjkl for movement, q/f for speed, r for drag, g for grid, space/enter for click, i for inspect, e to exit
+                            if (browser_client_ && browser_client_->IsGridModeActive()) {
+                                // Grid mode: pass configured grid keys and g directly without mapping
+                                std::string grid_keys = ProfileConfig::getInstance().getGridKeys();
+                                bool is_grid_key = false;
+                                for (char gk : grid_keys) {
+                                    if (tolower(c) == tolower(gk)) {
+                                        is_grid_key = true;
+                                        break;
+                                    }
+                                }
+                                
+                                if (is_grid_key || c == 'g' || c == 'G') {
+                                    std::string key(1, tolower(c));
+                                    browser_client_->HandleMouseEmuKey(key);
+                                    continue;
+                                }
+                            } else if (c == 'h' || c == 'H' || c == 'j' || c == 'J' || 
                                 c == 'k' || c == 'K' || c == 'l' || c == 'L' ||
                                 c == 'q' || c == 'Q' || c == 'f' || c == 'F' ||
-                                c == 'r' || c == 'R') {
-                                // Map hjkl to wasd for existing mouse emu handler
+                                c == 'r' || c == 'R' || c == 'g' || c == 'G') {
+                                // Not in grid mode: map hjkl to wasd for movement
                                 char mapped_key = c;
                                 if (c == 'h' || c == 'H') mapped_key = 'a';
                                 else if (c == 'j' || c == 'J') mapped_key = 's';
                                 else if (c == 'k' || c == 'K') mapped_key = 'w';
                                 else if (c == 'l' || c == 'L') mapped_key = 'd';
-                                // r stays as r for drag/drop
+                                // r, q, f, g stay as is
                                 
                                 std::string key(1, mapped_key);
                                 browser_client_->HandleMouseEmuKey(key);

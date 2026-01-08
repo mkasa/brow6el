@@ -25,6 +25,7 @@ public:
     bool shouldClearCookiesOnExit() const { return clear_cookies_on_exit_; }
     size_t getCacheSizeMB() const { return cache_size_mb_; }
     std::string getDefaultUrl() const { return default_url_; }
+    std::string getGridKeys() const { return grid_keys_; }
     
     // Profile management
     std::string createProfileDirectory();
@@ -45,6 +46,7 @@ private:
     bool clear_cookies_on_exit_ = false;
     size_t cache_size_mb_ = 500;
     std::string default_url_ = "https://example.com";
+    std::string grid_keys_ = "qweasdzxc";
     
     std::string expandPath(const std::string& path) const;
     std::string trim(const std::string& str);

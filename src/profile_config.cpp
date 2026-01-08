@@ -73,6 +73,11 @@ void ProfileConfig::load() {
         else if (key == "default_url") {
             default_url_ = value;
         }
+        else if (key == "grid_keys") {
+            if (value.length() == 9) {
+                grid_keys_ = value;
+            }
+        }
     }
     file.close();
 }
@@ -120,6 +125,11 @@ void ProfileConfig::save() {
     file << "\n";
     file << "# Default homepage URL\n";
     file << "default_url=" << default_url_ << "\n";
+    file << "\n";
+    file << "# Grid keys for mouse emulation grid jump mode (must be exactly 9 characters)\n";
+    file << "# Default: qweasdzxc (3x3 grid matching keyboard layout)\n";
+    file << "# Alternative: abcdefghi (alphabetical)\n";
+    file << "grid_keys=" << grid_keys_ << "\n";
     
     file.close();
 }
@@ -320,6 +330,11 @@ void ProfileConfig::createDefaultConfig() {
     file << "\n";
     file << "# Default homepage URL\n";
     file << "default_url=https://example.com\n";
+    file << "\n";
+    file << "# Grid keys for mouse emulation grid jump mode (must be exactly 9 characters)\n";
+    file << "# Default: qweasdzxc (3x3 grid matching keyboard layout)\n";
+    file << "# Alternative: abcdefghi (alphabetical)\n";
+    file << "grid_keys=qweasdzxc\n";
     
     file.close();
 }

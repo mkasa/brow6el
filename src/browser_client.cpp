@@ -1,4 +1,5 @@
 #include "browser_client.h"
+#include "profile_config.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -304,6 +305,21 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
     if (msg.find("[Brow6el] MOUSE_EMU_FOCUS") == 0) {
         // JavaScript focused a select/input element, don't send click
         LOGB("Mouse emu focused element: " << msg);
+        return true;
+    }
+    if (msg.find("[Brow6el] MOUSE_EMU_GRID_ACTIVE:") == 0) {
+        // Grid mode activated
+        grid_mode_active_ = true;
+        return true;
+    }
+    if (msg.find("[Brow6el] MOUSE_EMU_GRID_CLOSED") == 0) {
+        // Grid mode closed
+        grid_mode_active_ = false;
+        return true;
+    }
+    if (msg.find("[Brow6el] MOUSE_EMU_GRID_HANDLED") == 0) {
+        // Grid mode handled a key (ESC or Backspace)
+        grid_mode_handled_key_ = true;
         return true;
     }
     if (msg.find("[Brow6el] MOUSE_EMU_") == 0) {
@@ -1153,6 +1169,10 @@ void BrowserClient::ActivateMouseEmuMode() {
     
     CefRefPtr<CefFrame> frame = browser_->GetMainFrame();
     if (frame) {
+        // Inject grid_keys config before executing mouse_emu.js
+        std::string grid_keys = ProfileConfig::getInstance().getGridKeys();
+        std::string config_js = "window.__brow6el_grid_keys = '" + grid_keys + "';";
+        frame->ExecuteJavaScript(config_js, "", 0);
         frame->ExecuteJavaScript(mouse_emu_js, "", 0);
     }
     

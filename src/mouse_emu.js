@@ -23,6 +23,202 @@
         lastDragOverElement: null, // track last element for dragleave
         flashTimer: null, // Track flash animation timer
         
+        // Grid jump mode
+        gridMode: false, // whether grid overlay is active
+        gridOverlays: [], // grid cell overlays
+        gridCells: [], // grid cell coordinates
+        gridBaseX: 0, // base coordinates for current grid
+        gridBaseY: 0,
+        gridBaseWidth: 0,
+        gridBaseHeight: 0,
+        gridZoomHistory: [], // stack of previous grid states for backspace navigation
+        
+        // Calculate grid size - fixed 3x3 for simplicity
+        calculateGridSize: function(width, height) {
+            return { cols: 3, rows: 3 };
+        },
+        
+        // Generate hint labels for grid: use configured keys or default to qweasdzxc
+        generateGridLabel: function(index) {
+            const gridKeys = window.__brow6el_grid_keys || 'qweasdzxc';
+            return gridKeys[index] || '';
+        },
+        
+        // Show grid overlay
+        showGrid: function() {
+            if (this.gridMode) return; // Already showing
+            
+            this.gridMode = true;
+            
+            // Use current viewport or sub-region
+            const baseX = this.gridBaseWidth > 0 ? this.gridBaseX : 0;
+            const baseY = this.gridBaseHeight > 0 ? this.gridBaseY : 0;
+            const width = this.gridBaseWidth > 0 ? this.gridBaseWidth : window.innerWidth;
+            const height = this.gridBaseHeight > 0 ? this.gridBaseHeight : window.innerHeight;
+            
+            const { cols, rows } = this.calculateGridSize(width, height);
+            const cellWidth = width / cols;
+            const cellHeight = height / rows;
+            
+            // Check if we're at maximum zoom (cells would be too small to subdivide)
+            const minCellSize = 40;
+            const atMaxZoom = (cellWidth / 3 < minCellSize || cellHeight / 3 < minCellSize);
+            const gridColor = atMaxZoom ? 'rgba(255, 50, 50, 0.7)' : 'rgba(0, 255, 150, 0.7)';
+            const labelColor = atMaxZoom ? 'rgba(255, 50, 50, 0.9)' : 'rgba(0, 255, 150, 0.9)';
+            
+            this.gridCells = [];
+            let index = 0;
+            
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    const x = baseX + col * cellWidth;
+                    const y = baseY + row * cellHeight;
+                    const centerX = x + cellWidth / 2;
+                    const centerY = y + cellHeight / 2;
+                    const label = this.generateGridLabel(index);
+                    
+                    // Store cell info
+                    this.gridCells.push({
+                        label: label,
+                        x: x,
+                        y: y,
+                        width: cellWidth,
+                        height: cellHeight,
+                        centerX: centerX,
+                        centerY: centerY
+                    });
+                    
+                    // Create cell border overlay
+                    const cellOverlay = document.createElement('div');
+                    cellOverlay.style.cssText = `
+                        position: fixed !important;
+                        left: ${x}px !important;
+                        top: ${y}px !important;
+                        width: ${cellWidth}px !important;
+                        height: ${cellHeight}px !important;
+                        border: 2px solid ${gridColor} !important;
+                        box-sizing: border-box !important;
+                        z-index: 2147483646 !important;
+                        pointer-events: none !important;
+                    `;
+                    document.body.appendChild(cellOverlay);
+                    this.gridOverlays.push(cellOverlay);
+                    
+                    // Create label overlay
+                    const labelOverlay = document.createElement('div');
+                    labelOverlay.textContent = label;
+                    labelOverlay.style.cssText = `
+                        position: fixed !important;
+                        left: ${centerX - 15}px !important;
+                        top: ${centerY - 15}px !important;
+                        width: 30px !important;
+                        height: 30px !important;
+                        background: ${labelColor} !important;
+                        color: #000 !important;
+                        border: 2px solid #000 !important;
+                        border-radius: 50% !important;
+                        display: flex !important;
+                        align-items: center !important;
+                        justify-content: center !important;
+                        font-family: monospace !important;
+                        font-size: 16px !important;
+                        font-weight: bold !important;
+                        z-index: 2147483647 !important;
+                        pointer-events: none !important;
+                    `;
+                    document.body.appendChild(labelOverlay);
+                    this.gridOverlays.push(labelOverlay);
+                    
+                    index++;
+                    if (index >= 26) break; // Max 26 labels
+                }
+                if (index >= 26) break;
+            }
+            
+            console.log('[Brow6el] MOUSE_EMU_GRID_ACTIVE:' + this.gridCells.length);
+        },
+        
+        // Jump to grid cell
+        jumpToGrid: function(label) {
+            const cell = this.gridCells.find(c => c.label === label);
+            if (!cell) return false;
+            
+            // Check if zooming in would make cells too small
+            // Each cell will be divided by 3, so check if result would be < 40px
+            const minCellSize = 40; // Minimum pixels for cell width/height
+            if (cell.width / 3 < minCellSize || cell.height / 3 < minCellSize) {
+                // Can't zoom in further - move cursor to cell center AND click
+                this.x = cell.centerX;
+                this.y = cell.centerY;
+                this.updatePosition();
+                
+                // Automatically click at this position
+                this.click();
+                
+                // Hide grid and reset zoom after clicking
+                this.hideGrid();
+                this.gridBaseX = 0;
+                this.gridBaseY = 0;
+                this.gridBaseWidth = 0;
+                this.gridBaseHeight = 0;
+                this.gridZoomHistory = [];
+                
+                console.log('[Brow6el] MOUSE_EMU_GRID_MAX_ZOOM_CLICK');
+                return true;
+            }
+            
+            // Save current grid state to history before zooming in
+            this.gridZoomHistory.push({
+                x: this.gridBaseX,
+                y: this.gridBaseY,
+                width: this.gridBaseWidth,
+                height: this.gridBaseHeight
+            });
+            
+            // Move cursor to center of cell
+            this.x = cell.centerX;
+            this.y = cell.centerY;
+            this.updatePosition();
+            
+            // Clear current grid
+            this.hideGrid();
+            
+            // Set up sub-grid for this cell
+            this.gridBaseX = cell.x;
+            this.gridBaseY = cell.y;
+            this.gridBaseWidth = cell.width;
+            this.gridBaseHeight = cell.height;
+            
+            // Show sub-grid automatically
+            this.showGrid();
+            
+            console.log('[Brow6el] MOUSE_EMU_GRID_JUMP:' + label);
+            return true;
+        },
+        
+        // Hide grid overlay
+        hideGrid: function() {
+            if (!this.gridMode) return;
+            
+            this.gridMode = false;
+            this.gridOverlays.forEach(overlay => overlay.remove());
+            this.gridOverlays = [];
+            this.gridCells = [];
+            
+            console.log('[Brow6el] MOUSE_EMU_GRID_CLOSED');
+        },
+        
+        // Reset grid to full viewport
+        resetGrid: function() {
+            this.hideGrid();
+            this.gridBaseX = 0;
+            this.gridBaseY = 0;
+            this.gridBaseWidth = 0;
+            this.gridBaseHeight = 0;
+            this.gridZoomHistory = []; // Clear history
+            this.showGrid();
+        },
+        
         // Speed and color settings for each mode
         modes: {
             precision: { step: 5, color: 'rgba(0, 150, 255, 0.9)', label: 'PRECISION' },
@@ -331,7 +527,68 @@
         
         // Handle keys
         handleKey: function(key) {
+            // If in grid mode, handle grid selection keys first
+            if (this.gridMode) {
+                // Check if key is a grid label (from config)
+                const gridKeys = (window.__brow6el_grid_keys || 'qweasdzxc').toLowerCase();
+                if (gridKeys.includes(key.toLowerCase())) {
+                    if (this.jumpToGrid(key.toLowerCase())) {
+                        return true;
+                    }
+                }
+                // ESC to exit grid mode only (don't exit mouse emu)
+                if (key === 'Escape') {
+                    this.hideGrid();
+                    // Reset zoom level and history when exiting grid mode
+                    this.gridBaseX = 0;
+                    this.gridBaseY = 0;
+                    this.gridBaseWidth = 0;
+                    this.gridBaseHeight = 0;
+                    this.gridZoomHistory = [];
+                    console.log('[Brow6el] MOUSE_EMU_GRID_HANDLED');
+                    return true;
+                }
+                // Backspace to go back to parent grid
+                if (key === 'Backspace') {
+                    if (this.gridZoomHistory.length > 0) {
+                        // Pop previous grid state from history
+                        const prevState = this.gridZoomHistory.pop();
+                        
+                        this.hideGrid();
+                        
+                        this.gridBaseX = prevState.x;
+                        this.gridBaseY = prevState.y;
+                        this.gridBaseWidth = prevState.width;
+                        this.gridBaseHeight = prevState.height;
+                        
+                        this.showGrid();
+                    } else {
+                        // Already at top level, just reset
+                        this.resetGrid();
+                    }
+                    console.log('[Brow6el] MOUSE_EMU_GRID_HANDLED');
+                    return true;
+                }
+                
+                // In grid mode, hjkl/wasd should NOT work (only grid selection keys)
+                if (key === 'w' || key === 'a' || key === 's' || key === 'd' ||
+                    key === 'W' || key === 'A' || key === 'S' || key === 'D') {
+                    // Ignore movement keys in grid mode
+                    return true;
+                }
+            }
+            
             switch(key) {
+                // Grid mode toggle
+                case 'g':
+                case 'G':
+                    if (this.gridMode) {
+                        this.hideGrid();
+                    } else {
+                        this.showGrid();
+                    }
+                    return true;
+                    
                 // WASD controls (primary)
                 case 'w':
                 case 'W':
@@ -411,6 +668,8 @@
                 this.cursor.remove();
                 this.cursor = null;
             }
+            // Cleanup grid mode
+            this.hideGrid();
             // Cleanup inspect mode elements if active
             if (this.inspectInfoBox) {
                 this.inspectInfoBox.remove();
@@ -428,4 +687,6 @@
     
     window.__brow6el_mouse_emu = mouseEmu;
     mouseEmu.show();
+    // Show grid by default when entering mouse emulation mode
+    mouseEmu.showGrid();
 })();

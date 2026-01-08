@@ -28,6 +28,7 @@ A full-featured web browser for the terminal using Chromium (CEF) and libsixel f
 - **Sixel Graphics** - Full page rendering with automatic resolution detection
 - **Mouse Support** - Click, scroll, and interact with web pages
 - **Vim-Style Modal Control** - Efficient keyboard navigation with three modes (STANDARD, INSERT, MOUSE)
+- **Grid Jump Mode** - Fast mouse positioning with recursive grid navigation (2-3 keystrokes to any element)
 - **Element Inspector** - Browser DevTools-like element inspection in MOUSE mode
 - **JavaScript Console** - Execute JS commands and view console logs
 - **Bookmarks** - Save and organize your favorite pages
@@ -81,6 +82,7 @@ Keyboard-driven mouse emulation with visual cursor:
 - `h/j/k/l` or arrow keys - Move mouse (left/down/up/right)
 - `q/f` - Toggle precision/fast speed
 - `r` - Toggle drag-and-drop
+- `g` - Toggle grid jump mode (fast navigation)
 
 **Actions:**
 - `SPACE` or `ENTER` - Click at cursor position or drop
@@ -88,6 +90,20 @@ Keyboard-driven mouse emulation with visual cursor:
 - `r` - Drop when drag-and-drop is active
 
 **Exit:** `e` or `ESC` - Return to STANDARD mode
+
+#### Grid Jump Mode
+
+Fast mouse positioning using keyboard-driven grid navigation. Press `g` in MOUSE mode to activate:
+
+- **Adaptive Grid Overlay** - A 3x3 grid with labeled cells appears (default keys: `qweasdzxc`)
+- **Quick Jump** - Press a key (q/w/e/a/s/d/z/x/c) to jump to that grid cell
+- **Recursive Zoom** - Automatically shows sub-grid in selected cell for precision
+- **Visual Feedback** - Green grid indicates more zoom levels available, red indicates maximum zoom
+- **Auto-Click** - At maximum zoom, selecting a cell moves cursor and clicks automatically
+- **Navigation** - `Backspace` to zoom out, `ESC` to exit grid mode
+- **Configurable Keys** - Customize grid keys in `~/.brow6el/browser.conf` (grid_keys setting)
+
+Grid mode enables precise element selection with just 2-3 keystrokes, combining speed with accuracy.
 
 #### Inspect Mode
 
@@ -216,6 +232,14 @@ clear_cache_on_exit=false
 
 # Privacy options (for persistent/custom)
 clear_cookies_on_exit=false
+
+# Default homepage URL
+default_url=https://example.com
+
+# Grid keys for mouse emulation grid jump (must be exactly 9 characters)
+# Default: qweasdzxc (3x3 grid matching keyboard layout)
+# Alternative: abcdefghi (alphabetical)
+grid_keys=qweasdzxc
 ```
 
 **Examples:**
