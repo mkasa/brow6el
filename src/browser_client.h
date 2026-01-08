@@ -177,6 +177,12 @@ public:
     void ActivateMouseEmuMode();
     void SetMouseEmuModeActive(bool active);
     bool IsMouseEmuModeActive() const { return mouse_emu_mode_active_; }
+    bool IsGridModeActive() const { return grid_mode_active_; }
+    bool GetAndClearGridModeHandledKey() { 
+        bool result = grid_mode_handled_key_; 
+        grid_mode_handled_key_ = false; 
+        return result; 
+    }
     void HandleMouseEmuKey(const std::string& key);
     void HandleMouseEmuClick();
     void HandleMouseEmuDragStart();
@@ -266,6 +272,8 @@ private:
     bool mouse_emu_dragging_ = false;
     bool mode_switch_requested_ = false;
     bool switch_to_insert_mode_ = false;
+    bool grid_mode_active_ = false;
+    bool grid_mode_handled_key_ = false;
     
     // Input mode display
     const char* input_mode_ = "S";
