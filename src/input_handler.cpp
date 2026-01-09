@@ -277,6 +277,7 @@ void InputHandler::readLoop() {
                     current_mode_ = MODE_INSERT;
                     browser_client_->SetInputMode(getModeName());
                     if (browser_) {
+                        browser_->GetHost()->SetFocus(true); // Ensure caret visibility
                         browser_->GetHost()->Invalidate(PET_VIEW);
                     }
                 } else {
@@ -385,6 +386,11 @@ void InputHandler::readLoop() {
                         if (browser_client_) {
                             browser_client_->SetInputMode(getModeName());
                             if (browser_) {
+                                // Blur the active element to remove focus from input
+                                std::string js = "if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }";
+                                browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
+                                // Remove CEF focus to prevent key events from going to input
+                                browser_->GetHost()->SetFocus(false);
                                 browser_->GetHost()->Invalidate(PET_VIEW);
                             }
                         }
@@ -1403,6 +1409,37 @@ void InputHandler::parseMouseEvent(const char* seq, int len) {
             }
             
             browser_->GetHost()->SendMouseClickEvent(mouse_event, cef_button, true, click_count_at_pos);
+            
+            // Set focus after any physical mouse click to ensure caret visibility
+            browser_->GetHost()->SetFocus(true);
+            
+            // Detect if we clicked on a text input and switch to INSERT mode
+            if (browser_client_ && browser_ && current_mode_ != MODE_MOUSE) {
+                std::string js = R"(
+                    (function() {
+                        var el = document.elementFromPoint()" + std::to_string(pixel_x) + "," + std::to_string(pixel_y) + R"();
+                        if (el) {
+                            var tagName = el.tagName;
+                            var isTextArea = (tagName === 'TEXTAREA');
+                            
+                            // For INPUT elements, check the type
+                            var isTextInput = false;
+                            if (tagName === 'INPUT') {
+                                var type = (el.type || 'text').toLowerCase();
+                                // Text input types that should trigger INSERT mode
+                                var textTypes = ['text', 'password', 'email', 'search', 'tel', 'url', 'number', 
+                                               'date', 'time', 'datetime-local', 'month', 'week'];
+                                isTextInput = textTypes.indexOf(type) !== -1;
+                            }
+                            
+                            if (isTextInput || isTextArea) {
+                                console.log('[Brow6el] PHYSICAL_MOUSE_TEXT_INPUT');
+                            }
+                        }
+                    })();
+                )";
+                browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
+            }
         }
     }
 }

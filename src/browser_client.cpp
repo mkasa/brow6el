@@ -250,7 +250,77 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
         return true;
     }
     if (msg.find("[Brow6el] MOUSE_EMU_CLICK:") == 0) {
-        // Parse element info: [Brow6el] MOUSE_EMU_CLICK:tagName:type:isSelect:isInput
+        // Parse element info: [Brow6el] MOUSE_EMU_CLICK:tagName:type:isSelect:isInput:isCheckboxOrRadio
+        try {
+            std::string info = msg.substr(26);
+            std::vector<std::string> parts;
+            size_t pos = 0;
+            while ((pos = info.find(':')) != std::string::npos) {
+                parts.push_back(info.substr(0, pos));
+                info.erase(0, pos + 1);
+            }
+            parts.push_back(info); // Add last part
+            
+            if (parts.size() >= 4) {
+                std::string tagName = parts[0];
+                std::string type = parts[1];
+                bool isSelect = (parts[2] == "true");
+                bool isInput = (parts[3] == "true");
+                bool isCheckboxOrRadio = (parts.size() >= 5 && parts[4] == "true");
+                
+                LOGB("Mouse emu clicked: " << tagName << " type=" << type << " select=" << isSelect << " input=" << isInput << " checkbox/radio=" << isCheckboxOrRadio);
+                
+                // Determine mode to switch to after click
+                // SELECT elements (combobox) → STANDARD mode (handled by status bar)
+                // INPUT/TEXTAREA (but NOT checkbox/radio) → INSERT mode (for typing)
+                // Checkbox/radio → stay in MOUSE mode
+                // Other elements → stay in MOUSE mode
+                
+                if (isSelect) {
+                    // Combobox - switch to STANDARD mode
+                    mouse_emu_mode_active_ = false;
+                    SetMouseEmuModeActive(false);
+                    mode_switch_requested_ = true;
+                    switch_to_insert_mode_ = false; // Switch to STANDARD
+                    if (browser_) {
+                        browser_->GetHost()->Invalidate(PET_VIEW);
+                    }
+                } else if (isInput && !isCheckboxOrRadio) {
+                    // Text input field - switch to INSERT mode
+                    // Checkbox and radio buttons stay in MOUSE mode
+                    mouse_emu_mode_active_ = false;
+                    SetMouseEmuModeActive(false);
+                    mode_switch_requested_ = true;
+                    switch_to_insert_mode_ = true; // Switch to INSERT
+                    if (browser_) {
+                        browser_->GetHost()->Invalidate(PET_VIEW);
+                    }
+                }
+                // If isCheckboxOrRadio, we don't switch modes - stay in MOUSE
+            }
+        } catch (const std::exception& e) {
+            LOGB("Failed to parse mouse emu click info: " << e.what());
+        }
+        
+        // Always send the click event
+        HandleMouseEmuClick();
+        return true;
+    }
+    if (msg.find("[Brow6el] MOUSE_EMU_CLICK") == 0) {
+        // JavaScript determined this is not a select/input, so send real click
+        HandleMouseEmuClick();
+        return true;
+    }
+    if (msg.find("[Brow6el] MOUSE_EMU_DRAG_START") == 0) {
+        HandleMouseEmuDragStart();
+        return true;
+    }
+    if (msg.find("[Brow6el] MOUSE_EMU_DRAG_END") == 0) {
+        HandleMouseEmuDragEnd();
+        return true;
+    }
+    if (msg.find("[Brow6el] MOUSE_EMU_FOCUS:") == 0) {
+        // Parse element info: [Brow6el] MOUSE_EMU_FOCUS:tagName:type:isSelect:isInput:isCheckboxOrRadio
         try {
             std::string info = msg.substr(26);
             std::vector<std::string> parts;
@@ -267,12 +337,11 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
                 bool isSelect = (parts[2] == "true");
                 bool isInput = (parts[3] == "true");
                 
-                LOGB("Mouse emu clicked: " << tagName << " type=" << type << " select=" << isSelect << " input=" << isInput);
+                LOGB("Mouse emu focused: " << tagName << " type=" << type << " select=" << isSelect << " input=" << isInput);
                 
-                // Determine mode to switch to after click
+                // Determine mode to switch to after focus
                 // SELECT elements (combobox) → STANDARD mode (handled by status bar)
-                // INPUT/TEXTAREA → INSERT mode (for typing)
-                // Other elements → stay in MOUSE mode
+                // TEXT INPUT/TEXTAREA → INSERT mode (for typing)
                 
                 if (isSelect) {
                     // Combobox - switch to STANDARD mode
@@ -284,7 +353,7 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
                         browser_->GetHost()->Invalidate(PET_VIEW);
                     }
                 } else if (isInput) {
-                    // Input field - switch to INSERT mode
+                    // Text input field - switch to INSERT mode
                     mouse_emu_mode_active_ = false;
                     SetMouseEmuModeActive(false);
                     mode_switch_requested_ = true;
@@ -295,26 +364,23 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
                 }
             }
         } catch (const std::exception& e) {
-            LOGB("Failed to parse mouse emu click info: " << e.what());
+            LOGB("Failed to parse mouse emu focus info: " << e.what());
         }
         return true;
     }
-    if (msg.find("[Brow6el] MOUSE_EMU_CLICK") == 0) {
-        // JavaScript determined this is not a select/input, so send real click
-        HandleMouseEmuClick();
-        return true;
-    }
-    if (msg.find("[Brow6el] MOUSE_EMU_DRAG_START") == 0) {
-        HandleMouseEmuDragStart();
-        return true;
-    }
-    if (msg.find("[Brow6el] MOUSE_EMU_DRAG_END") == 0) {
-        HandleMouseEmuDragEnd();
-        return true;
-    }
     if (msg.find("[Brow6el] MOUSE_EMU_FOCUS") == 0) {
-        // JavaScript focused a select/input element, don't send click
+        // Old handler for backward compatibility
         LOGB("Mouse emu focused element: " << msg);
+        return true;
+    }
+    if (msg.find("[Brow6el] PHYSICAL_MOUSE_TEXT_INPUT") == 0) {
+        // Physical mouse clicked on a text input - switch to INSERT mode
+        LOGB("Physical mouse clicked text input - switching to INSERT mode");
+        mode_switch_requested_ = true;
+        switch_to_insert_mode_ = true;
+        if (browser_) {
+            browser_->GetHost()->Invalidate(PET_VIEW);
+        }
         return true;
     }
     if (msg.find("[Brow6el] MOUSE_EMU_GRID_ACTIVE:") == 0) {
@@ -1215,19 +1281,6 @@ void BrowserClient::HandleMouseEmuClick() {
     CefRefPtr<CefFrame> frame = browser_->GetMainFrame();
     if (!frame) return;
     
-    // First, check what element we're clicking on via JavaScript
-    std::string js = R"(
-        (function() {
-            if (window.__brow6el_mouse_emu) {
-                var elInfo = window.__brow6el_mouse_emu.getElementType();
-                if (elInfo) {
-                    console.log('[Brow6el] MOUSE_EMU_CLICK:' + elInfo.tagName + ':' + elInfo.type + ':' + elInfo.isSelect + ':' + elInfo.isInput);
-                }
-            }
-        })();
-    )";
-    frame->ExecuteJavaScript(js, "", 0);
-    
     // Use the stored position to send a real CEF mouse click
     CefMouseEvent mouse_event;
     mouse_event.x = mouse_emu_x_;
@@ -1239,14 +1292,11 @@ void BrowserClient::HandleMouseEmuClick() {
     // Send mouse move first
     browser_->GetHost()->SendMouseMoveEvent(mouse_event, false);
     
-    // For proper interaction with UI elements like comboboxes, 
-    // just send a single click event rather than down+up sequence
-    browser_->GetHost()->SendMouseClickEvent(mouse_event, MBT_LEFT, false, 1); // Mouse down
+    // Send mouse down
+    browser_->GetHost()->SendMouseClickEvent(mouse_event, MBT_LEFT, false, 1);
     
-    // Small delay before mouse up to allow element to process the click
-    usleep(50000); // 50ms delay
-    
-    browser_->GetHost()->SendMouseClickEvent(mouse_event, MBT_LEFT, true, 1);  // Mouse up
+    // Send mouse up immediately (no delay needed)
+    browser_->GetHost()->SendMouseClickEvent(mouse_event, MBT_LEFT, true, 1);
     
     // Still trigger JS visual feedback
     std::string js_flash = "if (window.__brow6el_mouse_emu) { window.__brow6el_mouse_emu.flashClick(); }";
