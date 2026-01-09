@@ -412,19 +412,23 @@
         // Simulate click at current position
         click: function() {
             // This is now handled by C++ using CEF mouse events
-            // But for SELECT elements, we just focus them instead
             const info = this.getElementType();
             
             if (info) {
-                if (info.isSelect || info.isInput) {
-                    // For select/input elements, just focus them - don't click
-                    // The select_detector.js will handle showing the options
+                // Check if this is a text-like input that should only be focused
+                const textInputTypes = ['text', 'password', 'email', 'search', 'tel', 'url', 'number', 'date', 'time', 'datetime-local', 'month', 'week'];
+                const isTextInput = info.isInput && textInputTypes.includes(info.type.toLowerCase());
+                
+                if ((info.isSelect || isTextInput) && !info.isCheckboxOrRadio) {
+                    // For select/text input elements, just focus them - don't click
+                    // Send element info so C++ can switch to appropriate mode
                     info.element.focus();
-                    console.log('[Brow6el] MOUSE_EMU_FOCUS:' + info.tagName);
+                    console.log('[Brow6el] MOUSE_EMU_FOCUS:' + info.tagName + ':' + info.type + ':' + info.isSelect + ':' + info.isInput + ':' + info.isCheckboxOrRadio);
                     this.flashClick();
                 } else {
-                    // For other elements, tell C++ to send real click via CEF
-                    console.log('[Brow6el] MOUSE_EMU_CLICK');
+                    // For other elements (including checkbox, radio, buttons), tell C++ to send real click via CEF
+                    // Include element info so C++ knows not to switch modes for checkbox/radio
+                    console.log('[Brow6el] MOUSE_EMU_CLICK:' + info.tagName + ':' + info.type + ':' + info.isSelect + ':' + info.isInput + ':' + info.isCheckboxOrRadio);
                     this.flashClick();
                 }
             }
@@ -581,12 +585,14 @@
             }
             
             if (el) {
+                const type = el.type || '';
                 return {
                     element: el,
                     tagName: el.tagName,
-                    type: el.type || '',
+                    type: type,
                     isSelect: el.tagName === 'SELECT',
-                    isInput: el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'
+                    isInput: el.tagName === 'INPUT' || el.tagName === 'TEXTAREA',
+                    isCheckboxOrRadio: type === 'checkbox' || type === 'radio'
                 };
             }
             return null;
