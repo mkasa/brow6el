@@ -33,9 +33,59 @@
         gridBaseHeight: 0,
         gridZoomHistory: [], // stack of previous grid states for backspace navigation
         
-        // Calculate grid size - fixed 3x3 for simplicity
+        // Test if label would overlap with cell borders by checking actual geometry
+        wouldLabelOverlapBorder: function(cellWidth, cellHeight) {
+            // Label: 30px width + 2px border = 34px total diameter
+            // But border-radius: 50% makes it circular, and some visual overlap is acceptable
+            // Use 15px radius (just the content, not the border) for a less conservative check
+            
+            const labelRadius = 15; // Just the content radius, allowing border to potentially touch
+            const cellBorderWidth = 2;
+            
+            // Distance from cell center to inner edge of cell border
+            const clearanceX = (cellWidth / 2) - cellBorderWidth;
+            const clearanceY = (cellHeight / 2) - cellBorderWidth;
+            
+            // Label overlaps if its content radius exceeds the clearance
+            return (clearanceX < labelRadius || clearanceY < labelRadius);
+        },
+        
+        // Calculate grid size - pick configuration that allows deepest zoom
         calculateGridSize: function(width, height) {
-            return { cols: 3, rows: 3 };
+            // Get number of available grid keys (default 9)
+            const gridKeys = window.__brow6el_grid_keys || 'qweasdzxc';
+            const maxCells = gridKeys.length;
+            
+            // Try grid configurations in order of preference
+            const configs = [
+                { cols: 3, rows: 3 }, // 9 cells - primary choice, matches qweasdzxc layout
+                { cols: 3, rows: 2 }, // 6 cells
+                { cols: 2, rows: 3 }, // 6 cells
+                { cols: 2, rows: 2 }, // 4 cells - square
+                { cols: 3, rows: 1 }, // 3 cells - horizontal
+                { cols: 1, rows: 3 }, // 3 cells - vertical
+                { cols: 2, rows: 1 }, // 2 cells - horizontal
+                { cols: 1, rows: 2 }, // 2 cells - vertical
+            ];
+            
+            // Find the best config - just use the first one where labels fit
+            for (const config of configs) {
+                const numCells = config.cols * config.rows;
+                
+                // Skip if we don't have enough keys for this grid
+                if (numCells > maxCells) continue;
+                
+                const cellWidth = width / config.cols;
+                const cellHeight = height / config.rows;
+                
+                // Check if current cells would have overlapping labels
+                if (!this.wouldLabelOverlapBorder(cellWidth, cellHeight)) {
+                    return config;
+                }
+            }
+            
+            // Absolute fallback
+            return { cols: 1, rows: 1 };
         },
         
         // Generate hint labels for grid: use configured keys or default to qweasdzxc
@@ -56,14 +106,54 @@
             const width = this.gridBaseWidth > 0 ? this.gridBaseWidth : window.innerWidth;
             const height = this.gridBaseHeight > 0 ? this.gridBaseHeight : window.innerHeight;
             
+            // Check if area is too small to divide at all
+            if (this.wouldLabelOverlapBorder(width, height)) {
+                // Area is too small even for a single label - just click center
+                this.gridMode = false;
+                this.x = baseX + width / 2;
+                this.y = baseY + height / 2;
+                this.updatePosition();
+                this.click();
+                
+                // Reset zoom state
+                this.gridBaseX = 0;
+                this.gridBaseY = 0;
+                this.gridBaseWidth = 0;
+                this.gridBaseHeight = 0;
+                this.gridZoomHistory = [];
+                
+                console.log('[Brow6el] MOUSE_EMU_GRID_TOO_SMALL_AUTO_CLICK');
+                return;
+            }
+            
             const { cols, rows } = this.calculateGridSize(width, height);
+            
+            // If we got a 1x1 grid, just position cursor at center and exit grid mode
+            if (cols === 1 && rows === 1) {
+                this.gridMode = false;
+                
+                // Hide grid overlays first
+                this.gridOverlays.forEach(overlay => overlay.remove());
+                this.gridOverlays = [];
+                this.gridCells = [];
+                
+                // Switch to precision mode BEFORE moving cursor
+                this.setMode('precision');
+                
+                // Now position cursor at center
+                this.x = baseX + width / 2;
+                this.y = baseY + height / 2;
+                this.updatePosition();
+                
+                return;
+            }
+            
             const cellWidth = width / cols;
             const cellHeight = height / rows;
             
-            // Check if we're at maximum zoom (cells would be too small for label to fit)
-            // Label is 30px diameter, so we need at least 30px in both dimensions
-            const labelSize = 30;
-            const atMaxZoom = (cellWidth / 3 < labelSize || cellHeight / 3 < labelSize);
+            // Check if we're at maximum zoom: can this cell be subdivided at all?
+            // If the cell itself is too small for a label, it's max zoom (will auto-click)
+            const atMaxZoom = this.wouldLabelOverlapBorder(cellWidth, cellHeight);
             const gridColor = atMaxZoom ? 'rgba(255, 50, 50, 0.7)' : 'rgba(0, 255, 150, 0.7)';
             const labelColor = atMaxZoom ? 'rgba(255, 50, 50, 0.9)' : 'rgba(0, 255, 150, 0.9)';
             
@@ -144,30 +234,6 @@
             const cell = this.gridCells.find(c => c.label === label);
             if (!cell) return false;
             
-            // Check if zooming in would make cells too small for label to fit
-            // Label is 30px diameter, so we need at least 30px in both dimensions
-            const labelSize = 30;
-            if (cell.width / 3 < labelSize || cell.height / 3 < labelSize) {
-                // Can't zoom in further - move cursor to cell center AND click
-                this.x = cell.centerX;
-                this.y = cell.centerY;
-                this.updatePosition();
-                
-                // Automatically click at this position
-                this.click();
-                
-                // Hide grid and reset zoom after clicking
-                this.hideGrid();
-                this.gridBaseX = 0;
-                this.gridBaseY = 0;
-                this.gridBaseWidth = 0;
-                this.gridBaseHeight = 0;
-                this.gridZoomHistory = [];
-                
-                console.log('[Brow6el] MOUSE_EMU_GRID_MAX_ZOOM_CLICK');
-                return true;
-            }
-            
             // Save current grid state to history before zooming in
             this.gridZoomHistory.push({
                 x: this.gridBaseX,
@@ -190,7 +256,7 @@
             this.gridBaseWidth = cell.width;
             this.gridBaseHeight = cell.height;
             
-            // Show sub-grid automatically
+            // Show sub-grid automatically (will handle 1x1 case inside showGrid)
             this.showGrid();
             
             console.log('[Brow6el] MOUSE_EMU_GRID_JUMP:' + label);
