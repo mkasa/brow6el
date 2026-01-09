@@ -24,6 +24,8 @@ public:
     void setBrowserClient(BrowserClient* client) { browser_client_ = client; }
     InputMode getCurrentMode() const { return current_mode_; }
     const char* getModeName() const;
+    void updateDimensions(int cols, int rows, int cell_w, int cell_h, 
+                          int pixel_w, int pixel_h);
     
 private:
     void enableMouseTracking();

@@ -23,6 +23,16 @@ void BrowserClient::GetViewRect(CefRefPtr<CefBrowser> browser, CefRect& rect) {
     rect.height = height_;
 }
 
+void BrowserClient::Resize(int width, int height) {
+    std::lock_guard<std::mutex> lock(render_mutex_);
+    width_ = width;
+    height_ = height;
+    
+    // Recreate the sixel renderer with new dimensions
+    renderer_ = std::make_unique<SixelRenderer>(width, height);
+    LOGB("Browser resized to " << width << "x" << height);
+}
+
 void BrowserClient::OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType type,
                            const RectList& dirtyRects, const void* buffer,
                            int width, int height) {
