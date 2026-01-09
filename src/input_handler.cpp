@@ -45,6 +45,24 @@ const char* InputHandler::getModeName() const {
     }
 }
 
+void InputHandler::updateDimensions(int cols, int rows, int cell_w, int cell_h, 
+                                    int pixel_w, int pixel_h) {
+    term_width_ = cols;
+    term_height_ = rows;
+    cell_width_ = cell_w;
+    cell_height_ = cell_h;
+    pixel_width_ = pixel_w;
+    pixel_height_ = pixel_h;
+    
+    FILE* log = fopen("/tmp/brow6el_debug.log", "a");
+    if (log) {
+        fprintf(log, "InputHandler dimensions updated: %dx%d cells, cell size: %dx%d, pixels: %dx%d\n",
+                term_width_, term_height_, cell_width_, cell_height_, 
+                pixel_width_, pixel_height_);
+        fclose(log);
+    }
+}
+
 void InputHandler::start() {
     if (running_) return;
     

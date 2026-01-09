@@ -104,6 +104,7 @@ public:
     CefRefPtr<CefBrowser> GetBrowser() { return browser_; }
     bool IsClosing() const { return is_closing_; }
     StatusBar* GetStatusBar() { return status_bar_.get(); }
+    void Resize(int width, int height);
     bool HandleSelectNavigation(int direction); // Returns true if handled
     bool HandleSelectConfirm(); // Returns true if handled
     bool IsSelectOptionsActive() const { return !current_options_.empty(); }

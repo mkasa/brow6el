@@ -17,6 +17,7 @@
 namespace fs = std::filesystem;
 
 static volatile bool g_running = true;
+static volatile bool g_needs_resize = false;
 static std::string g_original_title;
 
 void saveTerminalTitle() {
@@ -51,6 +52,10 @@ void crashHandler(int signum) {
     // Re-raise signal
     signal(signum, SIG_DFL);
     raise(signum);
+}
+
+void resizeHandler(int signum) {
+    g_needs_resize = true;
 }
 
 void requestShutdown() {
@@ -199,6 +204,7 @@ int main(int argc, char* argv[]) {
     signal(SIGSEGV, crashHandler);  // Segmentation fault
     signal(SIGABRT, crashHandler);  // Abort
     signal(SIGTRAP, crashHandler);  // Trace trap
+    signal(SIGWINCH, resizeHandler); // Window resize
     
     // Save original terminal title
     saveTerminalTitle();
@@ -308,6 +314,33 @@ int main(int argc, char* argv[]) {
     input_handler.start();
     
     while (g_running && !client->IsClosing()) {
+        // Handle terminal resize
+        if (g_needs_resize) {
+            g_needs_resize = false;
+            
+            // Re-detect terminal size
+            TerminalInfo newInfo = TerminalDetector::detect();
+            
+            if (newInfo.supports_sixel && newInfo.width > 0 && newInfo.height > 0) {
+                // Update browser client dimensions
+                client->Resize(newInfo.width, newInfo.height);
+                
+                // Update input handler dimensions
+                input_handler.updateDimensions(
+                    newInfo.width / newInfo.cell_width,
+                    newInfo.height / newInfo.cell_height,
+                    newInfo.cell_width,
+                    newInfo.cell_height,
+                    newInfo.width,
+                    newInfo.height
+                );
+                
+                // Notify CEF and force repaint
+                client->GetBrowser()->GetHost()->WasResized();
+                client->GetBrowser()->GetHost()->Invalidate(PET_VIEW);
+            }
+        }
+        
         CefDoMessageLoopWork();
         usleep(33333);
     }
