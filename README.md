@@ -99,7 +99,7 @@ Fast mouse positioning using keyboard-driven grid navigation. Press `g` in MOUSE
 - **Quick Jump** - Press a key (q/w/e/a/s/d/z/x/c) to jump to that grid cell
 - **Recursive Zoom** - Automatically shows sub-grid in selected cell for precision
 - **Visual Feedback** - Green grid indicates more zoom levels available, red indicates maximum zoom
-- **Auto-Click** - At maximum zoom, selecting a cell moves cursor and clicks automatically
+- **Auto-Precision_movement** - At maximum zoom, grid switches to cursor movement mode with high precision
 - **Navigation** - `Backspace` to zoom out, `ESC` to exit grid mode
 - **Configurable Keys** - Customize grid keys in `~/.brow6el/browser.conf` (grid_keys setting)
 
