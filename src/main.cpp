@@ -18,7 +18,9 @@ namespace fs = std::filesystem;
 
 static volatile bool g_running = true;
 static volatile bool g_needs_resize = false;
+static volatile bool g_suspended = false;
 static std::string g_original_title;
+static InputHandler* g_input_handler = nullptr;
 
 void saveTerminalTitle() {
     // Save current title (attempt to read via OSC query, fallback to default)
@@ -56,6 +58,38 @@ void crashHandler(int signum) {
 
 void resizeHandler(int signum) {
     g_needs_resize = true;
+}
+
+void suspendHandler(int signum) {
+    // Ctrl+Z: restore terminal to normal mode before suspending
+    if (g_input_handler) {
+        g_input_handler->stop();
+    }
+    
+    // Restore terminal
+    std::cout << "\033[?25h";  // Show cursor
+    fflush(stdout);
+    
+    g_suspended = true;
+    
+    // Send SIGSTOP to ourselves to actually suspend
+    signal(SIGTSTP, SIG_DFL);
+    raise(SIGTSTP);
+}
+
+void continueHandler(int signum) {
+    // fg: restore raw mode and continue
+    if (g_suspended) {
+        g_suspended = false;
+        
+        // Re-register the suspend handler
+        signal(SIGTSTP, suspendHandler);
+        
+        // Restart input handler
+        if (g_input_handler) {
+            g_input_handler->start();
+        }
+    }
 }
 
 void requestShutdown() {
@@ -205,6 +239,8 @@ int main(int argc, char* argv[]) {
     signal(SIGABRT, crashHandler);  // Abort
     signal(SIGTRAP, crashHandler);  // Trace trap
     signal(SIGWINCH, resizeHandler); // Window resize
+    signal(SIGTSTP, suspendHandler); // Ctrl+Z (suspend)
+    signal(SIGCONT, continueHandler); // fg (continue)
     
     // Save original terminal title
     saveTerminalTitle();
@@ -308,6 +344,9 @@ int main(int argc, char* argv[]) {
     input_handler.setBrowserClient(client.get()); // Link for select navigation
     client->SetInputMode(input_handler.getModeName()); // Set initial mode in status bar
     
+    // Set global pointer for signal handlers
+    g_input_handler = &input_handler;
+    
     // Set focus so the browser shows cursor/caret in input fields
     client->GetBrowser()->GetHost()->SetFocus(true);
     
@@ -347,6 +386,9 @@ int main(int argc, char* argv[]) {
     
     // Stop input handler before closing
     input_handler.stop();
+    
+    // Clear global pointer
+    g_input_handler = nullptr;
     
     // Prevent any further status bar updates
     if (client && client->GetStatusBar()) {
