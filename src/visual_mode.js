@@ -56,37 +56,59 @@
         // Initialize visual mode - start with collapsed cursor for positioning
         init: function() {
             this.active = true;
-            this.selectingMode = false; // Start in caret positioning mode
+            this.selectingMode = false;
             
-            // Clear any existing selection
             const sel = window.getSelection();
             sel.removeAllRanges();
             
-            // Find first visible text node in viewport
-            let textNode = this.findVisibleTextNode();
+            let startTextNode = null;
+            let startTextOffset = 0;
             
-            if (!textNode) {
-                // Fallback to first text node in document
-                const walker = document.createTreeWalker(
-                    document.body,
-                    NodeFilter.SHOW_TEXT,
-                    null,
-                    false
-                );
-                textNode = walker.nextNode();
+            // Try to use mouse cursor position if available
+            if (window.__brow6el_mouse_emu && window.__brow6el_mouse_emu.x !== undefined) {
+                const x = window.__brow6el_mouse_emu.x;
+                const y = window.__brow6el_mouse_emu.y;
+                
+                // Hide mouse cursor temporarily
+                const mouseCursor = window.__brow6el_mouse_emu.cursor;
+                if (mouseCursor) mouseCursor.style.display = 'none';
+                
+                // Get text position at cursor
+                if (document.caretRangeFromPoint) {
+                    const range = document.caretRangeFromPoint(x, y);
+                    if (range && range.startContainer.nodeType === Node.TEXT_NODE) {
+                        startTextNode = range.startContainer;
+                        startTextOffset = range.startOffset;
+                    }
+                } else if (document.caretPositionFromPoint) {
+                    const pos = document.caretPositionFromPoint(x, y);
+                    if (pos && pos.offsetNode.nodeType === Node.TEXT_NODE) {
+                        startTextNode = pos.offsetNode;
+                        startTextOffset = pos.offset;
+                    }
+                }
+                
+                if (mouseCursor) mouseCursor.style.display = '';
             }
             
-            if (textNode) {
-                this.startNode = textNode;
-                this.startOffset = 0;
+            // Fallback: find first visible text node
+            if (!startTextNode) {
+                startTextNode = this.findVisibleTextNode();
+                if (!startTextNode) {
+                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+                    startTextNode = walker.nextNode();
+                }
+            }
+            
+            if (startTextNode) {
+                this.startNode = startTextNode;
+                this.startOffset = startTextOffset;
                 
-                // Create collapsed cursor at start (caret mode)
                 const range = document.createRange();
-                range.setStart(textNode, 0);
+                range.setStart(startTextNode, startTextOffset);
                 range.collapse(true);
                 sel.addRange(range);
                 
-                // Add visual indicator for caret
                 this.updateCaretVisual();
             }
         },

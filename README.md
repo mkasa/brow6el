@@ -78,7 +78,7 @@ All keypresses pass through to the webpage. Use for typing in forms, text areas,
 
 ### VISUAL Mode [V]
 
-Text selection mode for copying page content:
+Text selection mode for copying page content. The caret starts at the first visible text, or if coming from MOUSE mode, at the mouse cursor position.
 
 **Caret Positioning (initial):**
 - `h` - Move cursor left by character
@@ -100,6 +100,8 @@ Text selection mode for copying page content:
 **Actions:**
 - `y` or `ENTER` - Copy selection to clipboard, exit VISUAL mode
 - `ESC` - Cancel selection, exit VISUAL mode
+
+**Tip:** Use MOUSE mode (`e`) to position cursor, then press `ESC` and `v` to start text selection at that exact position!
 
 ### MOUSE Mode [M]
 
