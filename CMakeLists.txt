@@ -89,6 +89,7 @@ set(SOURCES
     src/bookmarks.cpp
     src/user_scripts.cpp
     src/profile_config.cpp
+    src/clipboard.cpp
 )
 
 set(HEADERS
@@ -101,6 +102,7 @@ set(HEADERS
     src/bookmarks.h
     src/user_scripts.h
     src/profile_config.h
+    src/clipboard.h
 )
 
 # Create executable

@@ -1,5 +1,6 @@
 #include "browser_client.h"
 #include "profile_config.h"
+#include "clipboard.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -1483,5 +1484,18 @@ void BrowserClient::HandleDownloadManagerAction(char action) {
         
         std::lock_guard<std::mutex> render_lock(render_mutex_);
         status_bar_->showDownloadManager(display_list, download_manager_selected_index_);
+    }
+}
+
+void BrowserClient::CopyCurrentURL() {
+    if (!browser_ || !browser_->GetMainFrame()) {
+        LOGB("CopyCurrentURL: browser or frame is null");
+        return;
+    }
+    
+    std::string url = browser_->GetMainFrame()->GetURL().ToString();
+    if (!url.empty()) {
+        Clipboard::copyToClipboard(url);
+        LOGB("Copied URL to clipboard: " << url);
     }
 }

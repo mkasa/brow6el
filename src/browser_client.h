@@ -191,6 +191,9 @@ public:
     void HandleMouseEmuPosition(int x, int y);
     void ToggleInspectMode();
     
+    // Clipboard operations
+    void CopyCurrentURL();
+    
     // Mode switch request (from mouse click detection)
     bool GetModeSwitchRequest() const { return mode_switch_requested_; }
     bool GetSwitchToInsertMode() const { return switch_to_insert_mode_; }

@@ -55,6 +55,7 @@ Vim-like navigation with single-key commands (no Ctrl required):
 **Actions:**
 - `r` - Reload page
 - `u` - Navigate to URL
+- `U` - Copy current URL to clipboard (Shift+U)
 - `c` - Toggle JavaScript console
 - `d` - Add bookmark
 - `b` - Open bookmarks

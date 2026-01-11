@@ -989,8 +989,8 @@ void InputHandler::readLoop() {
                             } else if (c == 'r' || c == 'R') {
                                 // Reload
                                 if (browser_) browser_->Reload();
-                            } else if (c == 'u' || c == 'U') {
-                                // Navigate to URL (was Ctrl+L)
+                            } else if (c == 'u') {
+                                // Navigate to URL (was Ctrl+L) - lowercase u only
                                 url_input_active_ = true;
                                 url_input_buffer_.clear();
                                 if (browser_client_) {
@@ -1107,10 +1107,15 @@ void InputHandler::readLoop() {
                                 if (browser_client_) {
                                     browser_client_->SetUserScriptsActive(true);
                                 }
-                            } else if (c == 'y' || c == 'Y') {
-                                // Toggle auto-inject user scripts (was Ctrl+Y)
+                            } else if (c == 'y') {
+                                // Toggle auto-inject user scripts (lowercase y)
                                 if (browser_client_) {
                                     browser_client_->ToggleAutoInjectUserScripts();
+                                }
+                            } else if (c == 'U') {
+                                // Copy current URL to clipboard (uppercase U)
+                                if (browser_client_) {
+                                    browser_client_->CopyCurrentURL();
                                 }
                             } else if (c == 'x' || c == 'X') {
                                 // Exit/quit (was Ctrl+X)
