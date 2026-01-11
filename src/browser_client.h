@@ -191,6 +191,15 @@ public:
     void HandleMouseEmuPosition(int x, int y);
     void ToggleInspectMode();
     
+    // Visual Mode (text selection)
+    void ActivateVisualMode();
+    void SetVisualModeActive(bool active);
+    bool IsVisualModeActive() const { return visual_mode_active_; }
+    void HandleVisualModeKey(const std::string& key);
+    
+    // Clipboard operations
+    void CopyCurrentURL();
+    
     // Mode switch request (from mouse click detection)
     bool GetModeSwitchRequest() const { return mode_switch_requested_; }
     bool GetSwitchToInsertMode() const { return switch_to_insert_mode_; }
@@ -275,6 +284,9 @@ private:
     bool switch_to_insert_mode_ = false;
     bool grid_mode_active_ = false;
     bool grid_mode_handled_key_ = false;
+    
+    // Visual mode handling
+    bool visual_mode_active_ = false;
     
     // Input mode display
     const char* input_mode_ = "S";

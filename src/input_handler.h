@@ -12,7 +12,8 @@ public:
     enum InputMode {
         MODE_STANDARD,  // h/j/k/l for arrows, shortcuts without Ctrl
         MODE_MOUSE,     // hjkl for mouse movement, q/f for clicks
-        MODE_INSERT     // All keys pass through to CEF
+        MODE_INSERT,    // All keys pass through to CEF
+        MODE_VISUAL     // Text selection mode
     };
     
     InputHandler(CefRefPtr<CefBrowser> browser, int term_width, int term_height,
@@ -75,6 +76,9 @@ private:
     
     // Mouse emulation mode
     bool mouse_emu_mode_active_ = false;
+    
+    // Visual selection mode
+    bool visual_mode_active_ = false;
     
     // Mouse drag tracking
     bool mouse_button_down_ = false;

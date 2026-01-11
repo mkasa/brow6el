@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test Selection</title></head>
+<body>
+<p>Hello world this is a test of selection functionality.</p>
+<p>Second line with more text to select.</p>
+<script>
+// Test what sel.modify does
+const sel = window.getSelection();
+const p = document.querySelector('p');
+const textNode = p.firstChild;
+
+// Start at position 6 (after "Hello ")
+const range = document.createRange();
+range.setStart(textNode, 6);
+range.collapse(true);
+sel.removeAllRanges();
+sel.addRange(range);
+
+console.log('Initial:', sel.toString(), 'collapsed:', sel.getRangeAt(0).collapsed);
+console.log('Start offset:', sel.getRangeAt(0).startOffset);
+
+// Now extend by word
+sel.modify('extend', 'forward', 'word');
+console.log('After extend word:', sel.toString());
+console.log('Range:', sel.getRangeAt(0).startOffset, 'to', sel.getRangeAt(0).endOffset);
+</script>
+</body>
+</html>
