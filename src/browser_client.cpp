@@ -374,6 +374,22 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
         LOGB("Mouse emu focused element: " << msg);
         return true;
     }
+    if (msg.find("[Brow6el] VISUAL_MODE_COPY:") == 0) {
+        // Copy selected text from visual mode
+        std::string text = msg.substr(27); // Skip "[Brow6el] VISUAL_MODE_COPY:"
+        if (!text.empty()) {
+            Clipboard::copyToClipboard(text);
+            LOGB("Copied selection: " << text.length() << " characters");
+        }
+        // Visual mode will be exited by the input handler (y key)
+        return true;
+    }
+    if (msg.find("[Brow6el] VISUAL_MODE_CLOSED") == 0) {
+        // Visual mode closed - just log it
+        // Mode switch is handled by input handler (ESC key)
+        LOGB("Visual mode closed");
+        return true;
+    }
     if (msg.find("[Brow6el] PHYSICAL_MOUSE_TEXT_INPUT") == 0) {
         // Physical mouse clicked on a text input - switch to INSERT mode
         LOGB("Physical mouse clicked text input - switching to INSERT mode");
@@ -1498,4 +1514,44 @@ void BrowserClient::CopyCurrentURL() {
         Clipboard::copyToClipboard(url);
         LOGB("Copied URL to clipboard: " << url);
     }
+}
+
+void BrowserClient::ActivateVisualMode() {
+    if (!browser_ || !browser_->GetMainFrame()) {
+        LOGB("ActivateVisualMode: browser or frame is null");
+        return;
+    }
+    
+    visual_mode_active_ = true;
+    
+    // Load visual mode JavaScript
+    std::ifstream file("visual_mode.js");
+    if (!file.is_open()) {
+        LOGB("Failed to load visual_mode.js");
+        return;
+    }
+    
+    std::string js((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    file.close();
+    
+    browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
+}
+
+void BrowserClient::SetVisualModeActive(bool active) {
+    visual_mode_active_ = active;
+    
+    if (!active && browser_ && browser_->GetMainFrame()) {
+        // Cleanup visual mode
+        std::string js = "if (window.__brow6el_visual_mode) { window.__brow6el_visual_mode.cleanup(); }";
+        browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
+    }
+}
+
+void BrowserClient::HandleVisualModeKey(const std::string& key) {
+    if (!browser_ || !browser_->GetMainFrame()) {
+        return;
+    }
+    
+    std::string js = "if (window.__brow6el_visual_mode) { window.__brow6el_visual_mode.handleKey('" + key + "'); }";
+    browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
 }

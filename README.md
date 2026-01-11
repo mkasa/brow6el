@@ -68,12 +68,38 @@ Vim-like navigation with single-key commands (no Ctrl required):
 **Mode Switch:**
 - `i` - Enter INSERT mode
 - `e` - Enter MOUSE mode
+- `v` - Enter VISUAL mode (text selection)
 
 ### INSERT Mode [I]
 
 All keypresses pass through to the webpage. Use for typing in forms, text areas, etc.
 
 **Exit:** `ESC` - Return to STANDARD mode
+
+### VISUAL Mode [V]
+
+Text selection mode for copying page content:
+
+**Caret Positioning (initial):**
+- `h` - Move cursor left by character
+- `l` - Move cursor right by character
+- `w` - Move cursor forward by word
+- `b` - Move cursor backward by word
+- `j` - Move cursor down by line
+- `k` - Move cursor up by line
+- `v` - Start selecting from current position
+
+**Selection (after pressing v):**
+- `h` - Extend selection left by character
+- `l` - Extend selection right by character
+- `w` - Extend selection forward by word
+- `b` - Extend selection backward by word
+- `j` - Extend selection down by line
+- `k` - Extend selection up by line
+
+**Actions:**
+- `y` or `ENTER` - Copy selection to clipboard, exit VISUAL mode
+- `ESC` - Cancel selection, exit VISUAL mode
 
 ### MOUSE Mode [M]
 

@@ -41,6 +41,7 @@ const char* InputHandler::getModeName() const {
         case MODE_STANDARD: return "S";
         case MODE_MOUSE: return "M";
         case MODE_INSERT: return "I";
+        case MODE_VISUAL: return "V";
         default: return "?";
     }
 }
@@ -391,6 +392,17 @@ void InputHandler::readLoop() {
                                 browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
                                 // Remove CEF focus to prevent key events from going to input
                                 browser_->GetHost()->SetFocus(false);
+                                browser_->GetHost()->Invalidate(PET_VIEW);
+                            }
+                        }
+                    } else if (current_mode_ == MODE_VISUAL) {
+                        // ESC in VISUAL mode - exit visual mode, return to STANDARD
+                        current_mode_ = MODE_STANDARD;
+                        visual_mode_active_ = false;
+                        if (browser_client_) {
+                            browser_client_->SetVisualModeActive(false);
+                            browser_client_->SetInputMode(getModeName());
+                            if (browser_) {
                                 browser_->GetHost()->Invalidate(PET_VIEW);
                             }
                         }
@@ -976,6 +988,45 @@ void InputHandler::readLoop() {
                                 }
                             }
                             // Ignore other keys in mouse mode
+                        } else if (current_mode_ == MODE_VISUAL) {
+                            // VISUAL mode: v to start selecting, h/l/w/b for word, j/k for line, y/Enter to copy, ESC to cancel
+                            if (c == 'v' || c == 'V' || c == 'h' || c == 'l' || c == 'w' || c == 'b' || c == 'j' || c == 'k') {
+                                // Navigation and toggle keys - pass to visual mode JavaScript
+                                if (browser_client_) {
+                                    std::string key(1, tolower(c));
+                                    browser_client_->HandleVisualModeKey(key);
+                                }
+                                continue;
+                            } else if (c == 'y') {
+                                // Copy and exit visual mode
+                                if (browser_client_) {
+                                    browser_client_->HandleVisualModeKey("y");
+                                    // Exit visual mode
+                                    current_mode_ = MODE_STANDARD;
+                                    visual_mode_active_ = false;
+                                    browser_client_->SetVisualModeActive(false);
+                                    browser_client_->SetInputMode(getModeName());
+                                    if (browser_) {
+                                        browser_->GetHost()->Invalidate(PET_VIEW);
+                                    }
+                                }
+                                continue;
+                            } else if (c == '\r' || c == '\n') {
+                                // Enter - copy and exit
+                                if (browser_client_) {
+                                    browser_client_->HandleVisualModeKey("Enter");
+                                    // Exit visual mode
+                                    current_mode_ = MODE_STANDARD;
+                                    visual_mode_active_ = false;
+                                    browser_client_->SetVisualModeActive(false);
+                                    browser_client_->SetInputMode(getModeName());
+                                    if (browser_) {
+                                        browser_->GetHost()->Invalidate(PET_VIEW);
+                                    }
+                                }
+                                continue;
+                            }
+                            // ESC is handled separately in ESC section
                         } else {
                             // STANDARD mode: vim-like shortcuts
                             if (c == 'h' || c == 'H') {
@@ -1116,6 +1167,14 @@ void InputHandler::readLoop() {
                                 // Copy current URL to clipboard (uppercase U)
                                 if (browser_client_) {
                                     browser_client_->CopyCurrentURL();
+                                }
+                            } else if (c == 'v' || c == 'V') {
+                                // Enter visual mode (text selection)
+                                current_mode_ = MODE_VISUAL;
+                                visual_mode_active_ = true;
+                                if (browser_client_) {
+                                    browser_client_->SetInputMode(getModeName());
+                                    browser_client_->ActivateVisualMode();
                                 }
                             } else if (c == 'x' || c == 'X') {
                                 // Exit/quit (was Ctrl+X)

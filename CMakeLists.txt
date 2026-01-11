@@ -129,6 +129,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/select_detector.js ${CMAKE_CURREN
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/hint_mode.js ${CMAKE_CURRENT_BINARY_DIR}/hint_mode.js COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/mouse_emu.js ${CMAKE_CURRENT_BINARY_DIR}/mouse_emu.js COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/inspect_mode.js ${CMAKE_CURRENT_BINARY_DIR}/inspect_mode.js COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/visual_mode.js ${CMAKE_CURRENT_BINARY_DIR}/visual_mode.js COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/run_brow6el.sh ${CMAKE_CURRENT_BINARY_DIR}/run_brow6el.sh COPYONLY)
 
 # Copy bundled scripts directory
