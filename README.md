@@ -98,7 +98,7 @@ Text selection mode for copying page content. The caret starts at the first visi
 - `k` - Extend selection up by line
 
 **Actions:**
-- `y` or `ENTER` - Copy selection to clipboard, exit VISUAL mode
+- `y` - Copy selection to clipboard, exit VISUAL mode
 - `ESC` - Cancel selection, exit VISUAL mode
 
 **Tip:** Use MOUSE mode (`e`) to position cursor, then press `ESC` and `v` to start text selection at that exact position!
