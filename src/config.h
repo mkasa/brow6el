@@ -172,7 +172,8 @@ private:
             file << "enable-begin-frame-scheduling\n";
             file << "\n";
             file << "# Ozone Platform (for better compatibility)\n";
-            file << "enable-features=UseOzonePlatform\n";
+            file << "# DnsOverHttps feature enables DoH support (configure in browser.conf)\n";
+            file << "enable-features=UseOzonePlatform,DnsOverHttps\n";
             file << "ozone-platform=headless\n";
             file << "\n";
             file << "# Stability and Compatibility\n";
@@ -194,7 +195,7 @@ private:
             file << "\n";
             file << "# PDF Handling\n";
             file << "# Disable built-in PDF viewer to force downloads\n";
-            file << "disable-pdf-extension\n";
+            file << "#disable-pdf-extension\n";
             file << "\n";
             file << "# Memory Optimization\n";
             file << "js-flags=--max-old-space-size=512 --no-decommit-pooled-pages\n";

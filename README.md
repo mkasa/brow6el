@@ -37,6 +37,7 @@ A full-featured web browser for the terminal using Chromium (CEF) and libsixel f
 - **Popup Handling** - Terminal-friendly popup dialogs
 - **Multi-Instance** - Run multiple browser windows simultaneously
 - **Configurable Profiles** - Choose between temporary (private) or persistent (normal) browsing
+- **DNS-over-HTTPS (DoH)** - Secure DNS with configurable providers and modes
 - **Modern Web** - Full HTML5/CSS3/JavaScript support via Chromium
 
 ## Vim-Style Modal Control
@@ -269,6 +270,20 @@ default_url=https://example.com
 # Default: qweasdzxc (3x3 grid matching keyboard layout)
 # Alternative: abcdefghi (alphabetical)
 grid_keys=qweasdzxc
+
+# DNS-over-HTTPS (DoH) Configuration
+# Enable secure DNS to encrypt DNS queries
+doh_enabled=false
+doh_server=https://cloudflare-dns.com/dns-query
+doh_mode=secure
+# DoH mode options:
+#   secure: Mandatory DoH, no fallback (recommended for blocking)
+#   automatic: Use DoH when available, fallback to system DNS
+#   off: Disable DoH
+# Popular DoH servers:
+#   Cloudflare: https://cloudflare-dns.com/dns-query
+#   Google: https://dns.google/dns-query
+#   Quad9: https://dns.quad9.net/dns-query
 ```
 
 **Examples:**
@@ -276,6 +291,30 @@ grid_keys=qweasdzxc
 - Normal browsing: `profile_mode=persistent`
 - Multiple profiles: `profile_mode=custom` with different paths
 - Semi-private: `persistent` with `clear_cookies_on_exit=true`
+- Secure DNS with blocking: `doh_enabled=true` with `doh_mode=secure`
+
+### DNS-over-HTTPS (DoH)
+
+Brow6el supports DNS-over-HTTPS to encrypt DNS queries and prevent DNS-based tracking or blocking.
+
+**Configuration** (`~/.brow6el/browser.conf`):
+```ini
+doh_enabled=true
+doh_server=https://cloudflare-dns.com/dns-query
+doh_mode=secure
+```
+
+**DoH Modes:**
+- `secure` - Mandatory DoH with no fallback to system DNS (recommended for ad-blocking/privacy)
+- `automatic` - Attempts DoH first, falls back to system DNS on failure
+- `off` - Disables DoH
+
+**Popular DoH Providers:**
+- **Cloudflare:** `https://cloudflare-dns.com/dns-query` (fast, privacy-focused)
+- **Google:** `https://dns.google/dns-query` (reliable, global)
+- **Quad9:** `https://dns.quad9.net/dns-query` (security-focused, blocks malicious domains)
+
+**Note:** When using `secure` mode, ensure your DoH server resolves `google.com` (used by CEF for connectivity checks) or allows all domains, otherwise DoH may fail to initialize.
 
 ### JavaScript Console
 - Press `c` (in STANDARD mode) to open/close the console
