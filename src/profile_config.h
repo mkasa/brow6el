@@ -26,6 +26,9 @@ public:
     size_t getCacheSizeMB() const { return cache_size_mb_; }
     std::string getDefaultUrl() const { return default_url_; }
     std::string getGridKeys() const { return grid_keys_; }
+    bool isDohEnabled() const { return doh_enabled_; }
+    std::string getDohServer() const { return doh_server_; }
+    std::string getDohMode() const { return doh_mode_; }
     
     // Profile management
     std::string createProfileDirectory();
@@ -47,10 +50,14 @@ private:
     size_t cache_size_mb_ = 500;
     std::string default_url_ = "https://example.com";
     std::string grid_keys_ = "qweasdzxc";
+    bool doh_enabled_ = false;
+    std::string doh_server_ = "https://cloudflare-dns.com/dns-query";
+    std::string doh_mode_ = "secure";
     
     std::string expandPath(const std::string& path) const;
     std::string trim(const std::string& str);
     void createDefaultConfig();
+    void writeConfig(std::ofstream& file, bool use_defaults, bool include_examples);
     std::string getConfigDir();
     std::string getConfigPath();
 };

@@ -5,6 +5,7 @@
 #include <map>
 #include <fstream>
 #include <sstream>
+#include <iostream>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <pwd.h>
@@ -19,6 +20,11 @@ public:
     void loadCefFlags() {
         ensureConfigDir();
         std::string config_path = getConfigPath("cef_flags.conf");
+        
+        // Check if migration is needed
+        if (!checkConfigVersion(config_path)) {
+            migrateConfig(config_path);
+        }
         
         std::ifstream file(config_path);
         if (!file.good()) {
@@ -63,6 +69,9 @@ public:
 private:
     Config() {}
     
+    // Current config version - increment when making breaking changes
+    static constexpr int CONFIG_VERSION = 2;
+    
     std::vector<std::string> cef_flags_;
     std::map<std::string, std::string> cef_flags_with_value_;
     
@@ -94,10 +103,47 @@ private:
         }
     }
     
+    bool checkConfigVersion(const std::string& config_path) {
+        std::ifstream file(config_path);
+        if (!file.good()) {
+            return true; // No config exists, will create new one
+        }
+        
+        std::string line;
+        while (std::getline(file, line)) {
+            if (line.find("# Config Version: ") == 0) {
+                int version = std::stoi(line.substr(18));
+                return version == CONFIG_VERSION;
+            }
+        }
+        
+        // No version marker found, old config
+        return false;
+    }
+    
+    void migrateConfig(const std::string& config_path) {
+        // Backup old config
+        std::string backup_path = config_path + ".bak";
+        std::ifstream src(config_path, std::ios::binary);
+        std::ofstream dst(backup_path, std::ios::binary);
+        dst << src.rdbuf();
+        src.close();
+        dst.close();
+        
+        std::cout << "Migrating CEF flags config from old version...\n";
+        std::cout << "  Old config backed up to: " << backup_path << "\n";
+        std::cout << "  Creating new config with recommended settings\n";
+        std::cout << "  Review changes in ~/.brow6el/cef_flags.conf\n\n";
+        
+        // Create new config
+        createDefaultCefFlagsConfig(config_path);
+    }
+    
     void createDefaultCefFlagsConfig(const std::string& path) {
         std::ofstream file(path);
         if (file.is_open()) {
             file << "# Brow6el CEF Command Line Flags Configuration\n";
+            file << "# Config Version: " << CONFIG_VERSION << "\n";
             file << "# Lines starting with # are comments\n";
             file << "# Format: flag_name or flag_name=value\n";
             file << "#\n";
@@ -126,35 +172,33 @@ private:
             file << "enable-begin-frame-scheduling\n";
             file << "\n";
             file << "# Ozone Platform (for better compatibility)\n";
-            file << "enable-features=UseOzonePlatform\n";
+            file << "# DnsOverHttps feature enables DoH support (configure in browser.conf)\n";
+            file << "enable-features=UseOzonePlatform,DnsOverHttps\n";
             file << "ozone-platform=headless\n";
             file << "\n";
             file << "# Stability and Compatibility\n";
             file << "no-xshm\n";
             file << "disable-dev-shm-usage\n";
             file << "disable-setuid-sandbox\n";
+            file << "no-sandbox\n";
             file << "\n";
             file << "# Process Model\n";
-            file << "# Run in single process mode for stability in terminal\n";
-            file << "single-process\n";
+            file << "# Multi-process mode with in-process GPU (fixes SIGTRAP in CEF 138+)\n";
+            file << "# single-process mode had deadlock issues, use in-process-gpu instead\n";
+            file << "in-process-gpu\n";
+            file << "no-zygote\n";
+            file << "\n";
+            file << "# Limit subprocess spawning to prevent memory leaks\n";
+            file << "renderer-process-limit=1\n";
+            file << "disable-site-isolation-trials\n";
+            file << "disable-features=IsolateOrigins,site-per-process\n";
             file << "\n";
             file << "# PDF Handling\n";
             file << "# Disable built-in PDF viewer to force downloads\n";
-            file << "disable-pdf-extension\n";
+            file << "#disable-pdf-extension\n";
             file << "\n";
             file << "# Memory Optimization\n";
-            file << "# Reduce memory usage (may impact performance on complex sites)\n";
-            file << "# Uncomment to enable:\n";
-            file << "# disable-javascript-harmony-shipping\n";
-            file << "# disable-background-networking\n";
-            file << "# disable-client-side-phishing-detection\n";
-            file << "# disable-component-extensions-with-background-pages\n";
-            file << "# disable-default-apps\n";
-            file << "# disable-extensions\n";
-            file << "# disable-sync\n";
-            file << "# disable-background-timer-throttling\n";
-            file << "# renderer-process-limit=1\n";
-            file << "# max-active-webgl-contexts=1\n";
+            file << "js-flags=--max-old-space-size=512 --no-decommit-pooled-pages\n";
             file << "\n";
             file << "# Additional Options (commented out by default)\n";
             file << "# Uncomment to enable:\n";
@@ -169,14 +213,12 @@ private:
             file << "# Disable web security (use with caution!)\n";
             file << "# disable-web-security\n";
             file << "\n";
-            file << "# Disable same-origin policy (use with caution!)\n";
-            file << "# disable-site-isolation-trials\n";
-            file << "\n";
-            file << "# Force dark mode\n";
+            file << "# Force dark/light mode\n";
             file << "# force-dark-mode\n";
+            file << "# force-light-mode\n";
             file << "\n";
-            file << "no-zygote\n";
-            file << "js-flags=--no-decommit-pooled-pages\n";
+            file << "# Custom user agent\n";
+            file << "# user-agent=Mozilla/5.0 (X11; Linux x86_64) Brow6el/1.0\n";
             file << "\n";
             file.close();
         }

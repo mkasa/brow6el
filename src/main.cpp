@@ -3,6 +3,8 @@
 #include "include/cef_command_line.h"
 #include "include/cef_cookie.h"
 #include "include/cef_request_context.h"
+#include "include/cef_preference.h"
+#include "include/cef_values.h"
 #include "browser_app.h"
 #include "browser_client.h"
 #include "terminal_detector.h"
@@ -303,6 +305,34 @@ int main(int argc, char* argv[]) {
     if (!CefInitialize(main_args, settings, app.get(), nullptr)) {
         std::cerr << "Failed to initialize CEF" << std::endl;
         return 1;
+    }
+    
+    // Configure DNS-over-HTTPS using global preference manager (must be after CefInitialize)
+    if (profile_config.isDohEnabled()) {
+        CefRefPtr<CefPreferenceManager> pref_manager = CefPreferenceManager::GetGlobalPreferenceManager();
+        
+        std::string doh_server = profile_config.getDohServer();
+        std::string doh_mode = profile_config.getDohMode();
+        
+        std::cout << "Enabling DNS-over-HTTPS: " << doh_server << " (mode: " << doh_mode << ")" << std::endl;
+        
+        CefString error;
+        
+        // Set DoH mode
+        CefRefPtr<CefValue> mode_value = CefValue::Create();
+        mode_value->SetString(doh_mode);
+        if (!pref_manager->SetPreference("dns_over_https.mode", mode_value, error)) {
+            std::cerr << "Failed to set DoH mode: " << error.ToString() << std::endl;
+        }
+        
+        // Set DoH server template
+        CefRefPtr<CefValue> templates_value = CefValue::Create();
+        templates_value->SetString(doh_server);
+        if (!pref_manager->SetPreference("dns_over_https.templates", templates_value, error)) {
+            std::cerr << "Failed to set DoH templates: " << error.ToString() << std::endl;
+        }
+        
+        std::cout << "DoH configuration complete." << std::endl;
     }
     
     CefRefPtr<BrowserClient> client(new BrowserClient(termInfo.width, termInfo.height));
