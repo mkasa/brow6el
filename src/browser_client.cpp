@@ -11,9 +11,20 @@
     log << msg << std::endl; \
 } while(0)
 
-BrowserClient::BrowserClient(int width, int height)
-    : width_(width), height_(height), is_closing_(false), current_selected_index_(-1) {
-    renderer_ = std::make_unique<SixelRenderer>(width, height);
+BrowserClient::BrowserClient(int width, int height, int cell_width, int cell_height)
+    : width_(width), height_(height), 
+      cell_width_(cell_width), cell_height_(cell_height),
+      is_closing_(false), current_selected_index_(-1) {
+    
+    // Log cell dimensions using direct file write
+    std::ofstream log("/tmp/brow6el_debug.log", std::ios::app);
+    if (log) {
+        log << "BrowserClient created: " << width << "x" << height 
+            << " pixels, cell: " << cell_width << "x" << cell_height << std::endl;
+        log.close();
+    }
+    
+    renderer_ = std::make_unique<SixelRenderer>(width, height, cell_width, cell_height);
     status_bar_ = std::make_unique<StatusBar>();
 }
 
@@ -30,7 +41,7 @@ void BrowserClient::Resize(int width, int height) {
     height_ = height;
     
     // Recreate the sixel renderer with new dimensions
-    renderer_ = std::make_unique<SixelRenderer>(width, height);
+    renderer_ = std::make_unique<SixelRenderer>(width, height, cell_width_, cell_height_);
     LOGB("Browser resized to " << width << "x" << height);
 }
 
@@ -47,7 +58,36 @@ void BrowserClient::OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType type
     
     if (type == PET_VIEW && renderer_ && buffer && width > 0 && height > 0) {
         try {
-            renderer_->render(buffer, width, height, false);
+            // Force full render on first 3 paints to avoid black tiles on startup
+            bool force_render = false;
+            if (paint_count_ < 3) {
+                paint_count_++;
+                force_render = true;
+            }
+            
+            // Force full render if requested after OnLoadEnd
+            if (force_next_paint_) {
+                force_next_paint_ = false;
+                force_render = true;
+            }
+            
+            // Check if status bar requested a full redraw (e.g., after closing)
+            if (status_bar_ && status_bar_->IsRedrawRequested()) {
+                status_bar_->ClearRedrawRequest();
+                force_render = true;
+            }
+            
+            if (force_render) {
+                renderer_->forceFullRender();
+            }
+            
+            // Convert CEF RectList to std::vector<CefRect>
+            std::vector<CefRect> rects;
+            for (size_t i = 0; i < dirtyRects.size(); i++) {
+                rects.push_back(dirtyRects[i]);
+            }
+            
+            renderer_->render(buffer, width, height, false, rects);
             
             // Redraw status bar after sixel render (so it stays visible)
             // Skip only for hint mode (which has its own yellow status bar)
@@ -133,6 +173,15 @@ void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame>
     if (frame->IsMain()) {
         std::string url = frame->GetURL().ToString();
         LOGB("OnLoadEnd: url=" << url << " status=" << httpStatusCode);
+        
+        // Force full render on next paint (including first load to avoid race conditions)
+        force_next_paint_ = true;
+        first_load_complete_ = true;
+        
+        // Invalidate to trigger redraw
+        if (browser_) {
+            browser_->GetHost()->Invalidate(PET_VIEW);
+        }
         
         // Clear modes on navigation and request switch to STANDARD mode
         hint_mode_active_ = false;
@@ -281,6 +330,7 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
                     // Combobox - switch to STANDARD mode
                     mouse_emu_mode_active_ = false;
                     SetMouseEmuModeActive(false);
+                    ForceFullRedraw();
                     mode_switch_requested_ = true;
                     switch_to_insert_mode_ = false; // Switch to STANDARD
                     if (browser_) {
@@ -291,6 +341,7 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
                     // Checkbox and radio buttons stay in MOUSE mode
                     mouse_emu_mode_active_ = false;
                     SetMouseEmuModeActive(false);
+                    ForceFullRedraw();
                     mode_switch_requested_ = true;
                     switch_to_insert_mode_ = true; // Switch to INSERT
                     if (browser_) {
@@ -348,6 +399,7 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
                     // Combobox - switch to STANDARD mode
                     mouse_emu_mode_active_ = false;
                     SetMouseEmuModeActive(false);
+                    ForceFullRedraw();
                     mode_switch_requested_ = true;
                     switch_to_insert_mode_ = false; // Switch to STANDARD
                     if (browser_) {
@@ -357,6 +409,7 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
                     // Text input field - switch to INSERT mode
                     mouse_emu_mode_active_ = false;
                     SetMouseEmuModeActive(false);
+                    ForceFullRedraw();
                     mode_switch_requested_ = true;
                     switch_to_insert_mode_ = true; // Switch to INSERT
                     if (browser_) {
@@ -408,6 +461,10 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
     if (msg.find("[Brow6el] MOUSE_EMU_GRID_CLOSED") == 0) {
         // Grid mode closed
         grid_mode_active_ = false;
+        ForceFullRedraw();
+        if (browser_) {
+            browser_->GetHost()->Invalidate(PET_VIEW);
+        }
         return true;
     }
     if (msg.find("[Brow6el] MOUSE_EMU_GRID_HANDLED") == 0) {

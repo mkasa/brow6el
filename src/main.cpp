@@ -335,7 +335,14 @@ int main(int argc, char* argv[]) {
         std::cout << "DoH configuration complete." << std::endl;
     }
     
-    CefRefPtr<BrowserClient> client(new BrowserClient(termInfo.width, termInfo.height));
+    // Use cell dimensions from config if set, otherwise use auto-detected
+    int cell_width = profile_config.getCellWidth() > 0 ? profile_config.getCellWidth() : termInfo.cell_width;
+    int cell_height = profile_config.getCellHeight() > 0 ? profile_config.getCellHeight() : termInfo.cell_height;
+    
+    CefRefPtr<BrowserClient> client(new BrowserClient(termInfo.width, termInfo.height, cell_width, cell_height));
+    
+    // Configure tiled rendering from config
+    client->SetTiledRenderingEnabled(profile_config.isTiledRenderingEnabled());
     
     CefWindowInfo window_info;
     window_info.SetAsWindowless(0);
@@ -372,6 +379,7 @@ int main(int argc, char* argv[]) {
                                termInfo.cell_width, termInfo.cell_height,
                                termInfo.width, termInfo.height);
     input_handler.setBrowserClient(client.get()); // Link for select navigation
+    input_handler.setTiledRenderingEnabled(profile_config.isTiledRenderingEnabled()); // Set from config
     client->SetInputMode(input_handler.getModeName()); // Set initial mode in status bar
     
     // Set global pointer for signal handlers

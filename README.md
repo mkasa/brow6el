@@ -26,6 +26,7 @@ A full-featured web browser for the terminal using Chromium (CEF) and libsixel f
 ## Features
 
 - **Sixel Graphics** - Full page rendering with automatic resolution detection
+- **Tiled Rendering** - Optional tile-based rendering for reduced flicker (toggle with 'z' key)
 - **Mouse Support** - Click, scroll, and interact with web pages
 - **Vim-Style Modal Control** - Efficient keyboard navigation with three modes (STANDARD, INSERT, MOUSE)
 - **Grid Jump Mode** - Fast mouse positioning with recursive grid navigation (2-3 keystrokes to any element)
@@ -42,7 +43,7 @@ A full-featured web browser for the terminal using Chromium (CEF) and libsixel f
 
 ## Vim-Style Modal Control
 
-Brow6el uses a vim-inspired modal keyboard interface with three modes. The current mode is always shown in the status bar.
+Brow6el uses a vim-inspired modal keyboard interface with three modes. The current mode is always shown in the status bar (e.g., [S][T] for Standard mode with Tiled rendering).
 
 ### STANDARD Mode [S] - Default
 
@@ -63,6 +64,8 @@ Vim-like navigation with single-key commands (no Ctrl required):
 - `f` - Hint mode (keyboard link navigation)
 - `s` - User scripts menu
 - `y` - Toggle auto-inject user scripts
+- `z` - Toggle tiled rendering (reduces flicker)
+- `Z` - Force next frame to render monolithically
 - `m` - Open downloads manager
 - `x` - Exit browser
 
@@ -284,6 +287,18 @@ doh_mode=secure
 #   Cloudflare: https://cloudflare-dns.com/dns-query
 #   Google: https://dns.google/dns-query
 #   Quad9: https://dns.quad9.net/dns-query
+
+# Tiled Rendering
+# Enable tile-based sixel rendering (reduces flicker on updates)
+# When enabled, only changed screen regions are redrawn
+# When disabled, the entire screen is redrawn on every update
+tiled_rendering=true
+
+# Terminal Cell Dimensions (optional override)
+# Leave at 0 for auto-detection (recommended)
+# Only override if auto-detection produces incorrect results
+#cell_width=0
+#cell_height=0
 ```
 
 **Examples:**
@@ -315,6 +330,44 @@ doh_mode=secure
 - **Quad9:** `https://dns.quad9.net/dns-query` (security-focused, blocks malicious domains)
 
 **Note:** When using `secure` mode, ensure your DoH server resolves `google.com` (used by CEF for connectivity checks) or allows all domains, otherwise DoH may fail to initialize.
+
+### Tiled Rendering
+
+Brow6el supports two rendering modes that can be toggled on-the-fly:
+
+**Tiled Rendering (default: enabled):**
+- Only redraws changed screen regions
+- Significantly reduces flicker during page updates, scrolling, and video playback
+- More efficient for incremental updates
+- Tile size automatically adapts to your terminal resolution and cell size
+
+**Monolithic Rendering:**
+- Redraws the entire screen on every update
+- Simple and reliable
+- May show more flicker on dynamic content
+
+**Configuration** (`~/.brow6el/browser.conf`):
+```ini
+# Enable/disable tiled rendering at startup
+tiled_rendering=true
+
+# Optional: Override auto-detected terminal cell dimensions
+# Only needed if auto-detection is incorrect
+#cell_width=11
+#cell_height=25
+```
+
+**Runtime Toggle:**
+- Press `z` (in STANDARD mode) to toggle between tiled and monolithic rendering
+- Press `Z` (in STANDARD mode) to force the next frame to render monolithically (useful for forcing a full screen refresh)
+- Current mode shown in status bar: `[S][T]` (tiled) or `[S][M]` (monolithic)
+- Useful for comparing rendering quality or troubleshooting display issues
+
+**How It Works:**
+- Tiles are dynamically sized based on your terminal resolution (typically ~30-40 tiles per screen)
+- CEF provides dirty rectangles indicating what changed
+- Only tiles intersecting dirty regions are redrawn
+- Tiles are aligned to terminal cell boundaries and sixel band height (6 pixels) for artifact-free rendering
 
 ### JavaScript Console
 - Press `c` (in STANDARD mode) to open/close the console

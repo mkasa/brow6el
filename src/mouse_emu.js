@@ -145,6 +145,7 @@
                 this.y = baseY + height / 2;
                 this.updatePosition();
                 
+                console.log('[Brow6el] MOUSE_EMU_GRID_CLOSED');
                 return;
             }
             

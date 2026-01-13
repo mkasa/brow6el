@@ -87,6 +87,15 @@ void ProfileConfig::load() {
         else if (key == "doh_mode") {
             doh_mode_ = value;
         }
+        else if (key == "tiled_rendering") {
+            tiled_rendering_enabled_ = (value == "true");
+        }
+        else if (key == "cell_width") {
+            cell_width_override_ = std::stoi(value);
+        }
+        else if (key == "cell_height") {
+            cell_height_override_ = std::stoi(value);
+        }
     }
     file.close();
 }
@@ -179,6 +188,18 @@ void ProfileConfig::writeConfig(std::ofstream& file, bool use_defaults, bool inc
     file << "#   Cloudflare: https://cloudflare-dns.com/dns-query\n";
     file << "#   Google: https://dns.google/dns-query\n";
     file << "#   Quad9: https://dns.quad9.net/dns-query\n";
+    file << "\n";
+    file << "# Tiled Rendering\n";
+    file << "# Enable tile-based sixel rendering (reduces flicker on updates)\n";
+    file << "# When enabled, only changed screen regions are redrawn\n";
+    file << "# When disabled, the entire screen is redrawn on every update (default)\n";
+    file << "tiled_rendering=" << (use_defaults ? "false" : (tiled_rendering_enabled_ ? "true" : "false")) << "\n";
+    file << "\n";
+    file << "# Terminal Cell Dimensions (optional override)\n";
+    file << "# Leave at 0 for auto-detection (recommended)\n";
+    file << "# Only override if auto-detection produces incorrect results\n";
+    file << "#cell_width=" << (use_defaults ? "0" : std::to_string(cell_width_override_)) << "\n";
+    file << "#cell_height=" << (use_defaults ? "0" : std::to_string(cell_height_override_)) << "\n";
 }
 
 std::string ProfileConfig::getProfilePath() const {

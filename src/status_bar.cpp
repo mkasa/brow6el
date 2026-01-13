@@ -39,6 +39,9 @@ void StatusBar::clear(bool redraw_title) {
     current_options_.clear();
     // Don't clear current_title_ or current_mode_prefix_ - they should persist
     
+    // Request a full redraw on next paint to fill in the area where status bar was
+    redraw_requested_ = true;
+    
     // Immediately redraw the title bar if we have one (unless explicitly disabled)
     if (redraw_title && !current_title_.empty()) {
         showTitle(current_title_, current_mode_prefix_.empty() ? nullptr : current_mode_prefix_.c_str());

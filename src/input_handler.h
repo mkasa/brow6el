@@ -23,6 +23,7 @@ public:
     void start();
     void stop();
     void setBrowserClient(BrowserClient* client) { browser_client_ = client; }
+    void setTiledRenderingEnabled(bool enabled) { tiled_rendering_enabled_ = enabled; }
     InputMode getCurrentMode() const { return current_mode_; }
     const char* getModeName() const;
     void updateDimensions(int cols, int rows, int cell_w, int cell_h, 
@@ -89,4 +90,7 @@ private:
     
     // Modal control state
     InputMode current_mode_ = MODE_STANDARD;
+    
+    // Tiled rendering state (toggled with 'z' key)
+    bool tiled_rendering_enabled_ = false;
 };

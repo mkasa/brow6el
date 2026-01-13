@@ -37,13 +37,23 @@ InputHandler::~InputHandler() {
 }
 
 const char* InputHandler::getModeName() const {
+    // Create static buffer for mode string with rendering indicator
+    static char mode_buffer[16];
+    
+    const char* mode_letter;
     switch (current_mode_) {
-        case MODE_STANDARD: return "S";
-        case MODE_MOUSE: return "M";
-        case MODE_INSERT: return "I";
-        case MODE_VISUAL: return "V";
-        default: return "?";
+        case MODE_STANDARD: mode_letter = "S"; break;
+        case MODE_MOUSE: mode_letter = "M"; break;
+        case MODE_INSERT: mode_letter = "I"; break;
+        case MODE_VISUAL: mode_letter = "V"; break;
+        default: mode_letter = "?"; break;
     }
+    
+    // Add rendering mode indicator: [T]iled or [M]onolithic
+    const char* render_mode = tiled_rendering_enabled_ ? "T" : "M";
+    snprintf(mode_buffer, sizeof(mode_buffer), "%s][%s", mode_letter, render_mode);
+    
+    return mode_buffer;
 }
 
 void InputHandler::updateDimensions(int cols, int rows, int cell_w, int cell_h, 
@@ -426,6 +436,7 @@ void InputHandler::readLoop() {
                                 browser_client_->SetMouseEmuModeActive(false);
                                 browser_client_->SetInputMode(getModeName());
                                 browser_client_->GetStatusBar()->clear();
+                                browser_client_->ForceFullRedraw();
                                 if (browser_) {
                                     browser_->GetHost()->Invalidate(PET_VIEW);
                                 }
@@ -519,6 +530,7 @@ void InputHandler::readLoop() {
                             if (browser_client_) {
                                 browser_client_->SetMouseEmuModeActive(false);
                                 browser_client_->GetStatusBar()->clear();
+                                browser_client_->ForceFullRedraw();
                                 if (browser_) {
                                     browser_->GetHost()->Invalidate(PET_VIEW);
                                 }
@@ -822,6 +834,7 @@ void InputHandler::readLoop() {
                             if (browser_client_) {
                                 browser_client_->SetMouseEmuModeActive(false);
                                 browser_client_->GetStatusBar()->clear();
+                                browser_client_->ForceFullRedraw();
                                 if (browser_) {
                                     browser_->GetHost()->Invalidate(PET_VIEW);
                                 }
@@ -982,6 +995,7 @@ void InputHandler::readLoop() {
                                     browser_client_->SetMouseEmuModeActive(false);
                                     browser_client_->SetInputMode(getModeName());
                                     browser_client_->GetStatusBar()->clear();
+                                    browser_client_->ForceFullRedraw();
                                     if (browser_) {
                                         browser_->GetHost()->Invalidate(PET_VIEW);
                                     }
@@ -1162,6 +1176,29 @@ void InputHandler::readLoop() {
                                 // Toggle auto-inject user scripts (lowercase y)
                                 if (browser_client_) {
                                     browser_client_->ToggleAutoInjectUserScripts();
+                                }
+                            } else if (c == 'z') {
+                                // Toggle tiled rendering (z)
+                                if (browser_client_) {
+                                    // Toggle the state
+                                    tiled_rendering_enabled_ = !tiled_rendering_enabled_;
+                                    browser_client_->SetTiledRenderingEnabled(tiled_rendering_enabled_);
+                                    
+                                    // Update mode display to show new rendering mode
+                                    browser_client_->SetInputMode(getModeName());
+                                    
+                                    // Force a full redraw to show the change
+                                    if (browser_) {
+                                        browser_->GetHost()->Invalidate(PET_VIEW);
+                                    }
+                                }
+                            } else if (c == 'Z') {
+                                // Force next frame to render monolithically (Z)
+                                if (browser_client_) {
+                                    browser_client_->ForceFullRedraw();
+                                    if (browser_) {
+                                        browser_->GetHost()->Invalidate(PET_VIEW);
+                                    }
                                 }
                             } else if (c == 'U') {
                                 // Copy current URL to clipboard (uppercase U)
