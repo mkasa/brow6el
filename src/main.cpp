@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <filesystem>
+#include <fcntl.h>
 
 namespace fs = std::filesystem;
 
@@ -249,6 +250,14 @@ int main(int argc, char* argv[]) {
     
     std::cout << "Brow6el - Terminal Web Browser with Sixel Support" << std::endl;
     
+    // Redirect stderr to suppress GL errors and other noise from Chromium
+    int stderr_backup = dup(STDERR_FILENO);
+    int dev_null = open("/dev/null", O_WRONLY);
+    if (dev_null != -1) {
+        dup2(dev_null, STDERR_FILENO);
+        close(dev_null);
+    }
+    
     // Check if profile is locked by another instance (persistent/custom mode)
     if (profile_config.getMode() != ProfileMode::Temporary) {
         std::string lock_file = profile_path + "/SingletonLock";
@@ -427,6 +436,12 @@ int main(int argc, char* argv[]) {
     
     // Clear global pointer
     g_input_handler = nullptr;
+    
+    // Restore stderr before cleanup
+    if (stderr_backup != -1) {
+        dup2(stderr_backup, STDERR_FILENO);
+        close(stderr_backup);
+    }
     
     // Prevent any further status bar updates
     if (client && client->GetStatusBar()) {

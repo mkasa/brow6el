@@ -134,6 +134,10 @@ void SixelRenderer::render(const void* buffer, int width, int height, bool hasAl
         int tile_end_x = ((rect.x + rect.width + tile_width_ - 1) / tile_width_) * tile_width_;
         int tile_end_y = ((rect.y + rect.height + tile_height_ - 1) / tile_height_) * tile_height_;
         
+        // If CEF provided specific dirty rects, trust them and render all affected tiles
+        // Only use our own dirty detection when CEF gives us full screen (no specific rects)
+        bool use_dirty_detection = dirtyRects.empty();
+        
         for (int ty = tile_start_y; ty < tile_end_y; ty += tile_height_) {
             for (int tx = tile_start_x; tx < tile_end_x; tx += tile_width_) {
                 int tw = std::min(tile_width_, width_ - tx);
@@ -141,8 +145,8 @@ void SixelRenderer::render(const void* buffer, int width, int height, bool hasAl
                 
                 if (tw <= 0 || th <= 0) continue;
                 
-                // Check if tile is actually dirty
-                if (isTileDirty(src_buffer, width, tx, ty, tw, th)) {
+                // Check if tile is dirty (only when no specific dirty rects from CEF)
+                if (!use_dirty_detection || isTileDirty(src_buffer, width, tx, ty, tw, th)) {
                     renderTile(src_buffer, width, height, tx, ty, tw, th);
                 }
             }
