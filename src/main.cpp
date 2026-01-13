@@ -16,6 +16,7 @@
 #include <signal.h>
 #include <filesystem>
 #include <fcntl.h>
+#include <chrono>
 
 namespace fs = std::filesystem;
 
@@ -132,21 +133,31 @@ int main(int argc, char* argv[]) {
             std::cout << "    f                 Hint mode (keyboard navigation)\n";
             std::cout << "    s                 User scripts menu\n";
             std::cout << "    y                 Toggle auto-inject scripts\n";
+            std::cout << "    z                 Toggle tiled rendering\n";
+            std::cout << "    Z                 Force next frame redraw\n";
             std::cout << "    x                 Exit\n";
             std::cout << "    i                 Enter INSERT mode\n";
-            std::cout << "    e                 Enter MOUSE mode\n\n";
+            std::cout << "    e                 Enter MOUSE mode\n";
+            std::cout << "    v                 Enter VISUAL mode\n\n";
             std::cout << "  INSERT mode - All keys pass to webpage:\n";
             std::cout << "    ESC               Return to STANDARD mode\n\n";
             std::cout << "  MOUSE mode - Keyboard mouse emulation:\n";
             std::cout << "    hjkl              Move mouse (left/down/up/right)\n";
             std::cout << "    q/f               Precision/fast speed\n";
             std::cout << "    r                 Toggle drag and drop\n";
-            std::cout << "    SPACE/ENTER       Click\n";
+            std::cout << "    g                 Grid mode (quick jump)\n";
+            std::cout << "    SPACE             Click\n";
             std::cout << "    e or ESC          Return to STANDARD mode\n\n";
-            std::cout << "Mode indicator shown in status bar: [S], [I], or [M]\n\n";
+            std::cout << "  VISUAL mode - Text selection:\n";
+            std::cout << "    hjkl/wb           Navigate selection\n";
+            std::cout << "    y                 Copy selection\n";
+            std::cout << "    ESC               Return to STANDARD mode\n\n";
+            std::cout << "Mode indicators in status bar:\n";
+            std::cout << "  [S] - STANDARD mode   [I] - INSERT mode\n";
+            std::cout << "  [M] - MOUSE mode      [V] - VISUAL mode\n";
+            std::cout << "  [T] - Tiled rendering [M] - Monolithic rendering\n\n";
             std::cout << "Note: Profile mode can be configured in ~/.brow6el/browser.conf\n";
             std::cout << "      Bookmarks and user scripts are persistent\n";
-            std::cout << "      See VIM_CONTROL.md for detailed documentation\n";
             return 0;
         } else if (arg == "--version" || arg == "-v") {
             std::cout << "Brow6el " << BROW6EL_VERSION << "\n";
@@ -359,8 +370,9 @@ int main(int argc, char* argv[]) {
     CefBrowserSettings browser_settings;
     browser_settings.windowless_frame_rate = 30;
     
-    // Create request context with light color scheme
+    // Create request context with light color scheme and proper cache path
     CefRequestContextSettings context_settings;
+    CefString(&context_settings.cache_path).FromASCII(cache_path.c_str());
     CefRefPtr<CefRequestContext> request_context = CefRequestContext::CreateContext(context_settings, nullptr);
     
     // Set light color scheme to avoid forced dark mode
@@ -399,6 +411,10 @@ int main(int argc, char* argv[]) {
     
     input_handler.start();
     
+    // Time-based cookie flushing for persistent mode
+    auto last_cookie_flush = std::chrono::steady_clock::now();
+    const int COOKIE_FLUSH_INTERVAL_SECONDS = 30;
+    
     while (g_running && !client->IsClosing()) {
         // Handle terminal resize
         if (g_needs_resize) {
@@ -424,6 +440,16 @@ int main(int argc, char* argv[]) {
                 // Notify CEF and force repaint
                 client->GetBrowser()->GetHost()->WasResized();
                 client->GetBrowser()->GetHost()->Invalidate(PET_VIEW);
+            }
+        }
+        
+        // Periodic cookie flush for persistent mode (every 30 seconds)
+        if (profile_config.getMode() != ProfileMode::Temporary) {
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_cookie_flush).count();
+            if (elapsed >= COOKIE_FLUSH_INTERVAL_SECONDS) {
+                last_cookie_flush = now;
+                CefCookieManager::GetGlobalManager(nullptr)->FlushStore(nullptr);
             }
         }
         
