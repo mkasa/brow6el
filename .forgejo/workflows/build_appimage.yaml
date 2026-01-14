@@ -1,0 +1,157 @@
+name: Build Brow6el AppImage
+run-name: Building Brow6el AppImage for ${{ github.ref_name }}
+on: 
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-amd64:
+    runs-on: brow6el-ubuntu-latest
+    container:
+      options: --platform linux/amd64
+      volumes:
+        - /home/actions/artefacts:/artefacts
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      
+      - name: Verify architecture
+        run: |
+          echo "=== Architecture Information ==="
+          uname -a
+          dpkg --print-architecture
+          file /bin/bash
+      
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y \
+            build-essential \
+            cmake \
+            curl \
+            wget \
+            libx11-dev \
+            libxcomposite-dev \
+            libxdamage-dev \
+            libxext-dev \
+            libxfixes-dev \
+            libxrandr-dev \
+            libgbm-dev \
+            libxcb1-dev \
+            libxkbcommon-dev \
+            libnss3-dev \
+            libasound2-dev \
+            libdbus-1-dev \
+            libcups2-dev \
+            libdrm-dev \
+            libexpat1-dev \
+            libatk1.0-dev \
+            libatk-bridge2.0-dev \
+            libsixel-dev \
+            file \
+            patchelf
+      
+      - name: Download and build CEF
+        run: |
+          echo "=== Downloading CEF ==="
+          ./download_cef.sh
+      
+      - name: Build Brow6el
+        run: |
+          echo "=== Building Brow6el ==="
+          ./build.sh
+      
+      - name: Build AppImage
+        run: |
+          echo "=== Building AppImage ==="
+          ./build_appimage.sh
+      
+      - name: Copy AppImage to artifacts
+        run: |
+          yes | cp -rf build/brow6el-*.AppImage /artefacts/
+          ls -lh /artefacts/
+          echo "✓ AppImage copied to /artefacts/"
+      
+      - name: Build summary
+        run: |
+          echo "=== Build Summary ==="
+          echo "Architecture: amd64"
+          echo "AppImage location: /artefacts/"
+          ls -lh /artefacts/brow6el-*.AppImage
+
+  build-arm64:
+    runs-on: brow6el-ubuntu-latest
+    container:
+      options: --platform linux/arm64
+      volumes:
+        - /home/actions/artefacts:/artefacts
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      
+      - name: Verify architecture
+        run: |
+          echo "=== Architecture Information ==="
+          uname -a
+          dpkg --print-architecture
+          file /bin/bash
+      
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y \
+            build-essential \
+            cmake \
+            curl \
+            wget \
+            libx11-dev \
+            libxcomposite-dev \
+            libxdamage-dev \
+            libxext-dev \
+            libxfixes-dev \
+            libxrandr-dev \
+            libgbm-dev \
+            libxcb1-dev \
+            libxkbcommon-dev \
+            libnss3-dev \
+            libasound2-dev \
+            libdbus-1-dev \
+            libcups2-dev \
+            libdrm-dev \
+            libexpat1-dev \
+            libatk1.0-dev \
+            libatk-bridge2.0-dev \
+            libsixel-dev \
+            file \
+            patchelf
+      
+      - name: Download and build CEF
+        run: |
+          echo "=== Downloading CEF ==="
+          ./download_cef.sh
+      
+      - name: Build Brow6el
+        run: |
+          echo "=== Building Brow6el ==="
+          ./build.sh
+      
+      - name: Build AppImage
+        run: |
+          echo "=== Building AppImage ==="
+          ./build_appimage_arm64.sh
+      
+      - name: Copy AppImage to artifacts
+        run: |
+          yes | cp -rf build/brow6el-*.AppImage /artefacts/
+          ls -lh /artefacts/
+          echo "✓ AppImage copied to /artefacts/"
+      
+      - name: Build summary
+        run: |
+          echo "=== Build Summary ==="
+          echo "Architecture: arm64"
+          echo "AppImage location: /artefacts/"
+          ls -lh /artefacts/brow6el-*.AppImage
+
