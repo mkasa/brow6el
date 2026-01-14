@@ -71,12 +71,13 @@ EOF
 cat > "$APP_DIR/AppRun" << 'EOF'
 #!/bin/sh
 HERE="$(dirname "$(readlink -f "${0}")")"
+export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/usr:$LD_LIBRARY_PATH"
 cd "$HERE/usr"
 exec ./brow6el "$@"
 EOF
 chmod +x "$APP_DIR/AppRun"
 
-./linuxdeploy-aarch64.AppImage --appdir AppDir --output appimage \
+./linuxdeploy-aarch64.AppImage --appimage-extract-and-run --appdir AppDir --output appimage \
 --desktop-file AppDir/usr/share/applications/brow6el.desktop \
 --icon-file AppDir/usr/share/icons/hicolor/scalable/apps/brow6el.svg
 
