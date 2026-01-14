@@ -70,7 +70,7 @@ jobs:
       
       - name: Copy AppImage to artifacts
         run: |
-          yes | cp -rf build/brow6el-*.AppImage /artefacts/
+          cp -f build/brow6el-*.AppImage /artefacts/
           ls -lh /artefacts/
           echo "✓ AppImage copied to /artefacts/"
       
@@ -144,7 +144,7 @@ jobs:
       
       - name: Copy AppImage to artifacts
         run: |
-          yes | cp -rf build/brow6el-*.AppImage /artefacts/
+          cp -f build/brow6el-*.AppImage /artefacts/
           ls -lh /artefacts/
           echo "✓ AppImage copied to /artefacts/"
       
