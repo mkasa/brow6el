@@ -66,7 +66,7 @@ jobs:
       - name: Build AppImage
         run: |
           echo "=== Building AppImage ==="
-          ./build_appimage.sh
+          ./build_appimage_appimagetool.sh
       
       - name: Copy AppImage to artifacts
         run: |
@@ -140,7 +140,7 @@ jobs:
       - name: Build AppImage
         run: |
           echo "=== Building AppImage ==="
-          ./build_appimage_arm64.sh
+          ./build_appimage_appimagetool_arm64.sh
       
       - name: Copy AppImage to artifacts
         run: |
