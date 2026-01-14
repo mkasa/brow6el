@@ -71,7 +71,7 @@ EOF
 cat > "$APP_DIR/AppRun" << 'EOF'
 #!/bin/sh
 HERE="$(dirname "$(readlink -f "${0}")")"
-export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/usr:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$HERE/usr:$LD_LIBRARY_PATH"
 cd "$HERE/usr"
 exec ./brow6el "$@"
 EOF
