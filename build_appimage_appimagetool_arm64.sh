@@ -13,9 +13,15 @@ APP_DIR="AppDir"
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR"/usr/bin "$APP_DIR"/usr/share/applications "$APP_DIR"/usr/share/icons/hicolor/scalable/apps
 
-# Download appimagetool
+# Download and extract appimagetool (for ARM64 qemu compatibility)
 wget https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage
 chmod +x ./appimagetool-aarch64.AppImage
+
+# Extract AppImage without executing (works in qemu)
+offset=$(LANG=C grep -a -b -o -m 1 'hsqs' appimagetool-aarch64.AppImage | cut -d: -f1)
+dd if=appimagetool-aarch64.AppImage of=appimagetool.squashfs bs=1 skip=$offset 2>/dev/null
+unsquashfs -q appimagetool.squashfs
+rm appimagetool.squashfs
 
 # Copy all necessary files
 cp brow6el "$APP_DIR/usr/bin"
@@ -79,7 +85,7 @@ exec ./bin/brow6el "$@"
 EOF
 chmod +x "$APP_DIR/AppRun"
 
-# Create AppImage with appimagetool
-ARCH=aarch64 ./appimagetool-aarch64.AppImage --appimage-extract-and-run "$APP_DIR" brow6el-aarch64.AppImage
+# Create AppImage with extracted appimagetool
+ARCH=aarch64 ./squashfs-root/AppRun "$APP_DIR" brow6el-aarch64.AppImage
 
 echo "✓ AppImage created: build/brow6el-aarch64.AppImage"

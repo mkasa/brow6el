@@ -125,7 +125,8 @@ jobs:
             libatk-bridge2.0-dev \
             libsixel-dev \
             file \
-            patchelf
+            patchelf \
+            squashfs-tools
       
       - name: Download and build CEF
         run: |
