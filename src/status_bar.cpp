@@ -39,6 +39,9 @@ void StatusBar::clear(bool redraw_title) {
     current_options_.clear();
     // Don't clear current_title_ or current_mode_prefix_ - they should persist
     
+    // Request a full redraw on next paint to fill in the area where status bar was
+    redraw_requested_ = true;
+    
     // Immediately redraw the title bar if we have one (unless explicitly disabled)
     if (redraw_title && !current_title_.empty()) {
         showTitle(current_title_, current_mode_prefix_.empty() ? nullptr : current_mode_prefix_.c_str());
@@ -62,27 +65,34 @@ void StatusBar::showTitle(const std::string& title, const char* mode_prefix) {
     int rows = w.ws_row;
     int cols = w.ws_col;
     
-    // Build the display string with mode prefix if provided
-    std::string display_title;
+    // Build the display string with mode prefix on the right
+    std::string mode_str;
     if (mode_prefix) {
-        display_title = "[";
-        display_title += mode_prefix;
-        display_title += "] ";
+        mode_str = "[";
+        mode_str += mode_prefix;
+        mode_str += "]";
     }
-    display_title += title;
     
-    // Truncate title if too long (max cols - 5, then add "...")
-    int max_length = cols - 5;
-    if (max_length < 10) max_length = 10; // Minimum reasonable length
+    // Calculate available space for title
+    int mode_length = mode_str.length();
+    int max_title_length = cols - mode_length - 5; // 5 for padding
+    if (max_title_length < 10) max_title_length = 10;
     
-    if ((int)display_title.length() > max_length) {
-        display_title = display_title.substr(0, max_length) + "...";
+    std::string display_title = title;
+    if ((int)display_title.length() > max_title_length) {
+        display_title = display_title.substr(0, max_title_length) + "...";
     }
+    
+    // Calculate padding to right-align mode
+    int padding = cols - display_title.length() - mode_length - 2; // 2 for spaces
+    if (padding < 1) padding = 1;
     
     // Move to bottom line
     std::cout << "\033[" << rows << ";1H";
     std::cout << "\033[44m\033[97m"; // Blue background, white text
     std::cout << " " << display_title;
+    std::cout << std::string(padding, ' '); // Padding
+    std::cout << mode_str << " ";
     std::cout << "\033[K"; // Clear to end of line
     std::cout << "\033[0m"; // Reset colors
     std::cout << std::flush;

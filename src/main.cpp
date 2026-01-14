@@ -15,6 +15,8 @@
 #include <unistd.h>
 #include <signal.h>
 #include <filesystem>
+#include <fcntl.h>
+#include <chrono>
 
 namespace fs = std::filesystem;
 
@@ -131,21 +133,31 @@ int main(int argc, char* argv[]) {
             std::cout << "    f                 Hint mode (keyboard navigation)\n";
             std::cout << "    s                 User scripts menu\n";
             std::cout << "    y                 Toggle auto-inject scripts\n";
+            std::cout << "    z                 Toggle tiled rendering\n";
+            std::cout << "    Z                 Force next frame redraw\n";
             std::cout << "    x                 Exit\n";
             std::cout << "    i                 Enter INSERT mode\n";
-            std::cout << "    e                 Enter MOUSE mode\n\n";
+            std::cout << "    e                 Enter MOUSE mode\n";
+            std::cout << "    v                 Enter VISUAL mode\n\n";
             std::cout << "  INSERT mode - All keys pass to webpage:\n";
             std::cout << "    ESC               Return to STANDARD mode\n\n";
             std::cout << "  MOUSE mode - Keyboard mouse emulation:\n";
             std::cout << "    hjkl              Move mouse (left/down/up/right)\n";
             std::cout << "    q/f               Precision/fast speed\n";
             std::cout << "    r                 Toggle drag and drop\n";
-            std::cout << "    SPACE/ENTER       Click\n";
+            std::cout << "    g                 Grid mode (quick jump)\n";
+            std::cout << "    SPACE             Click\n";
             std::cout << "    e or ESC          Return to STANDARD mode\n\n";
-            std::cout << "Mode indicator shown in status bar: [S], [I], or [M]\n\n";
+            std::cout << "  VISUAL mode - Text selection:\n";
+            std::cout << "    hjkl/wb           Navigate selection\n";
+            std::cout << "    y                 Copy selection\n";
+            std::cout << "    ESC               Return to STANDARD mode\n\n";
+            std::cout << "Mode indicators in status bar:\n";
+            std::cout << "  [S] - STANDARD mode   [I] - INSERT mode\n";
+            std::cout << "  [M] - MOUSE mode      [V] - VISUAL mode\n";
+            std::cout << "  [T] - Tiled rendering [M] - Monolithic rendering\n\n";
             std::cout << "Note: Profile mode can be configured in ~/.brow6el/browser.conf\n";
             std::cout << "      Bookmarks and user scripts are persistent\n";
-            std::cout << "      See VIM_CONTROL.md for detailed documentation\n";
             return 0;
         } else if (arg == "--version" || arg == "-v") {
             std::cout << "Brow6el " << BROW6EL_VERSION << "\n";
@@ -249,6 +261,14 @@ int main(int argc, char* argv[]) {
     
     std::cout << "Brow6el - Terminal Web Browser with Sixel Support" << std::endl;
     
+    // Redirect stderr to suppress GL errors and other noise from Chromium
+    int stderr_backup = dup(STDERR_FILENO);
+    int dev_null = open("/dev/null", O_WRONLY);
+    if (dev_null != -1) {
+        dup2(dev_null, STDERR_FILENO);
+        close(dev_null);
+    }
+    
     // Check if profile is locked by another instance (persistent/custom mode)
     if (profile_config.getMode() != ProfileMode::Temporary) {
         std::string lock_file = profile_path + "/SingletonLock";
@@ -335,7 +355,14 @@ int main(int argc, char* argv[]) {
         std::cout << "DoH configuration complete." << std::endl;
     }
     
-    CefRefPtr<BrowserClient> client(new BrowserClient(termInfo.width, termInfo.height));
+    // Use cell dimensions from config if set, otherwise use auto-detected
+    int cell_width = profile_config.getCellWidth() > 0 ? profile_config.getCellWidth() : termInfo.cell_width;
+    int cell_height = profile_config.getCellHeight() > 0 ? profile_config.getCellHeight() : termInfo.cell_height;
+    
+    CefRefPtr<BrowserClient> client(new BrowserClient(termInfo.width, termInfo.height, cell_width, cell_height));
+    
+    // Configure tiled rendering from config
+    client->SetTiledRenderingEnabled(profile_config.isTiledRenderingEnabled());
     
     CefWindowInfo window_info;
     window_info.SetAsWindowless(0);
@@ -343,8 +370,9 @@ int main(int argc, char* argv[]) {
     CefBrowserSettings browser_settings;
     browser_settings.windowless_frame_rate = 30;
     
-    // Create request context with light color scheme
+    // Create request context with light color scheme and proper cache path
     CefRequestContextSettings context_settings;
+    CefString(&context_settings.cache_path).FromASCII(cache_path.c_str());
     CefRefPtr<CefRequestContext> request_context = CefRequestContext::CreateContext(context_settings, nullptr);
     
     // Set light color scheme to avoid forced dark mode
@@ -372,6 +400,7 @@ int main(int argc, char* argv[]) {
                                termInfo.cell_width, termInfo.cell_height,
                                termInfo.width, termInfo.height);
     input_handler.setBrowserClient(client.get()); // Link for select navigation
+    input_handler.setTiledRenderingEnabled(profile_config.isTiledRenderingEnabled()); // Set from config
     client->SetInputMode(input_handler.getModeName()); // Set initial mode in status bar
     
     // Set global pointer for signal handlers
@@ -381,6 +410,10 @@ int main(int argc, char* argv[]) {
     client->GetBrowser()->GetHost()->SetFocus(true);
     
     input_handler.start();
+    
+    // Time-based cookie flushing for persistent mode
+    auto last_cookie_flush = std::chrono::steady_clock::now();
+    const int COOKIE_FLUSH_INTERVAL_SECONDS = 30;
     
     while (g_running && !client->IsClosing()) {
         // Handle terminal resize
@@ -410,6 +443,16 @@ int main(int argc, char* argv[]) {
             }
         }
         
+        // Periodic cookie flush for persistent mode (every 30 seconds)
+        if (profile_config.getMode() != ProfileMode::Temporary) {
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_cookie_flush).count();
+            if (elapsed >= COOKIE_FLUSH_INTERVAL_SECONDS) {
+                last_cookie_flush = now;
+                CefCookieManager::GetGlobalManager(nullptr)->FlushStore(nullptr);
+            }
+        }
+        
         CefDoMessageLoopWork();
         usleep(33333);
     }
@@ -419,6 +462,12 @@ int main(int argc, char* argv[]) {
     
     // Clear global pointer
     g_input_handler = nullptr;
+    
+    // Restore stderr before cleanup
+    if (stderr_backup != -1) {
+        dup2(stderr_backup, STDERR_FILENO);
+        close(stderr_backup);
+    }
     
     // Prevent any further status bar updates
     if (client && client->GetStatusBar()) {

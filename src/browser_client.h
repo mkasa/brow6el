@@ -37,7 +37,7 @@ public:
         bool is_in_progress;
     };
     
-    BrowserClient(int width, int height);
+    BrowserClient(int width, int height, int cell_width, int cell_height);
     
     virtual CefRefPtr<CefRenderHandler> GetRenderHandler() override { return this; }
     virtual CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
@@ -105,6 +105,12 @@ public:
     bool IsClosing() const { return is_closing_; }
     StatusBar* GetStatusBar() { return status_bar_.get(); }
     void Resize(int width, int height);
+    void SetTiledRenderingEnabled(bool enabled) { 
+        if (renderer_) renderer_->setTiledRenderingEnabled(enabled); 
+    }
+    void ForceFullRedraw() {
+        if (renderer_) renderer_->forceFullRender();
+    }
     bool HandleSelectNavigation(int direction); // Returns true if handled
     bool HandleSelectConfirm(); // Returns true if handled
     bool IsSelectOptionsActive() const { return !current_options_.empty(); }
@@ -217,6 +223,8 @@ public:
 private:
     int width_;
     int height_;
+    int cell_width_;
+    int cell_height_;
     CefRefPtr<CefBrowser> browser_;
     std::unique_ptr<SixelRenderer> renderer_;
     std::unique_ptr<StatusBar> status_bar_;
@@ -287,6 +295,9 @@ private:
     
     // Visual mode handling
     bool visual_mode_active_ = false;
+    bool first_load_complete_ = false;
+    bool force_next_paint_ = false;
+    int paint_count_ = 0;
     
     // Input mode display
     const char* input_mode_ = "S";

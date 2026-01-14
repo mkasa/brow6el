@@ -29,6 +29,9 @@ public:
     bool isDohEnabled() const { return doh_enabled_; }
     std::string getDohServer() const { return doh_server_; }
     std::string getDohMode() const { return doh_mode_; }
+    bool isTiledRenderingEnabled() const { return tiled_rendering_enabled_; }
+    int getCellWidth() const { return cell_width_override_; }
+    int getCellHeight() const { return cell_height_override_; }
     
     // Profile management
     std::string createProfileDirectory();
@@ -53,6 +56,9 @@ private:
     bool doh_enabled_ = false;
     std::string doh_server_ = "https://cloudflare-dns.com/dns-query";
     std::string doh_mode_ = "secure";
+    bool tiled_rendering_enabled_ = false;
+    int cell_width_override_ = 0;  // 0 means auto-detect
+    int cell_height_override_ = 0; // 0 means auto-detect
     
     std::string expandPath(const std::string& path) const;
     std::string trim(const std::string& str);
