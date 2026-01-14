@@ -10,7 +10,7 @@ jobs:
   build-amd64:
     runs-on: brow6el-ubuntu-latest
     container:
-      options: --platform linux/amd64 --device /dev/fuse
+      options: --platform linux/amd64 --device /dev/fuse --cap-add SYS_ADMIN
       volumes:
         - /home/actions/artefacts:/artefacts
     steps:
@@ -85,7 +85,7 @@ jobs:
   build-arm64:
     runs-on: brow6el-ubuntu-latest
     container:
-      options: --platform linux/arm64 --device /dev/fuse
+      options: --platform linux/arm64 --device /dev/fuse --cap-add SYS_ADMIN
       volumes:
         - /home/actions/artefacts:/artefacts
     steps:
