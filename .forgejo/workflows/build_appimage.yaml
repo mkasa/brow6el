@@ -3,7 +3,7 @@ run-name: Building Brow6el AppImage for ${{ github.ref_name }}
 on: 
   push:
     branches:
-      - main
+      - build_test
   workflow_dispatch:
 
 jobs:
