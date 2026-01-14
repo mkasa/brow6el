@@ -26,10 +26,10 @@ A full-featured web browser for the terminal using Chromium (CEF) and libsixel f
 ## Features
 
 - **Sixel Graphics** - Full page rendering with automatic resolution detection
-- **Tiled Rendering** - Optional tile-based rendering for reduced flicker (toggle with 'z' key)
+- **Tiled Rendering** - Optional tile-based rendering for improved responsiveness at cost of some colour artefacts
 - **Mouse Support** - Click, scroll, and interact with web pages
-- **Vim-Style Modal Control** - Efficient keyboard navigation with three modes (STANDARD, INSERT, MOUSE)
-- **Grid Jump Mode** - Fast mouse positioning with recursive grid navigation (2-3 keystrokes to any element)
+- **Vim-Style Modal Control** - Efficient keyboard navigation with three modes (STANDARD, INSERT, MOUSE, VISUAL)
+- **Grid Jump Mode** - Fast mouse positioning with recursive grid navigation (3-4 keystrokes to almost any element)
 - **Element Inspector** - Browser DevTools-like element inspection in MOUSE mode
 - **JavaScript Console** - Execute JS commands and view console logs
 - **Bookmarks** - Save and organize your favorite pages
@@ -136,7 +136,7 @@ Fast mouse positioning using keyboard-driven grid navigation. Press `g` in MOUSE
 - **Navigation** - `Backspace` to zoom out, `ESC` to exit grid mode
 - **Configurable Keys** - Customize grid keys in `~/.brow6el/browser.conf` (grid_keys setting)
 
-Grid mode enables precise element selection with just 2-3 keystrokes, combining speed with accuracy.
+Grid mode enables precise element selection with just 3-4 keystrokes, combining speed with accuracy.
 
 #### Inspect Mode
 
@@ -335,7 +335,7 @@ doh_mode=secure
 
 Brow6el supports two rendering modes that can be toggled on-the-fly:
 
-**Tiled Rendering (default: enabled):**
+**Tiled Rendering (default: disabled):**
 - Only redraws changed screen regions
 - Significantly reduces flicker during page updates, scrolling, and video playback
 - More efficient for incremental updates
