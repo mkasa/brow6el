@@ -55,7 +55,7 @@ jobs:
             file \
             patchelf
       
-      - name: Download and build CEF
+      - name: Download CEF
         run: |
           echo "=== Downloading CEF ==="
           ARCH=$(uname -m)
@@ -254,7 +254,7 @@ jobs:
             patchelf \
             squashfs-tools
       
-      - name: Download and build CEF
+      - name: Download CEF
         run: |
           echo "=== Downloading CEF ==="
           ARCH=$(uname -m)
@@ -292,6 +292,15 @@ jobs:
           EXTRACTED_DIR="cef_binary_${CEF_VERSION}_${PLATFORM}_minimal"
           ln -sf "$EXTRACTED_DIR" cef_binary
           rm "$CEF_TARBALL"
+
+      - name: Building CEF wrapper library
+        run: |
+          echo "=== Building CEF wrapper library ==="
+          cd cef_binary
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release $CMAKE_ARCH_FLAG ..
+          make -j$(nproc) libcef_dll_wrapper
       
       - name: Build Brow6el
         run: |
