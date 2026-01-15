@@ -1,5 +1,7 @@
 name: Build Brow6el AppImage
 run-name: Building Brow6el AppImage for ${{ github.ref_name }}
+env:
+  CEF_VERSION: "143.0.14+gdd46a37+chromium-143.0.7499.193"
 on: 
   push:
     branches:
@@ -56,17 +58,141 @@ jobs:
       - name: Download and build CEF
         run: |
           echo "=== Downloading CEF ==="
-          ./download_cef.sh
-      
+          ARCH=$(uname -m)
+          if [ "$ARCH" = "aarch64" ]; then
+            PLATFORM="linuxarm64"
+            CMAKE_ARCH_FLAG="-DPROJECT_ARCH=arm64"
+          elif [ "$ARCH" = "x86_64" ]; then
+            PLATFORM="linux64"
+            CMAKE_ARCH_FLAG=""
+          else
+            echo "Error: Unsupported architecture: $ARCH"
+            exit 1
+          fi
+          CEF_TARBALL="cef_binary_${CEF_VERSION}_${PLATFORM}_minimal.tar.bz2"
+          CEF_URL="https://cef-builds.spotifycdn.com/${CEF_TARBALL}"
+          echo "Downloading from: $CEF_URL"
+          curl -L -o "$CEF_TARBALL" "$CEF_URL"
+          echo "Downloading checksum file..."
+          CHECKSUM_URL="${CEF_URL}.sha1"
+          curl -L -o "${CEF_TARBALL}.sha1" "$CHECKSUM_URL"
+          echo "Verifying checksum..."
+          EXPECTED_CHECKSUM=$(cat "${CEF_TARBALL}.sha1")
+          ACTUAL_CHECKSUM=$(sha1sum "$CEF_TARBALL" | awk '{print $1}')
+          if [ "$ACTUAL_CHECKSUM" != "$EXPECTED_CHECKSUM" ]; then
+              echo "Error: Checksum verification failed!"
+              echo "Expected: $EXPECTED_CHECKSUM"
+              echo "Got:      $ACTUAL_CHECKSUM"
+              rm "$CEF_TARBALL" "${CEF_TARBALL}.sha1"
+              exit 1
+          fi
+          echo "Checksum verified successfully."
+          rm "${CEF_TARBALL}.sha1"
+          echo "Extracting..."
+          tar xjf "$CEF_TARBALL"
+          EXTRACTED_DIR="cef_binary_${CEF_VERSION}_${PLATFORM}_minimal"
+          ln -sf "$EXTRACTED_DIR" cef_binary
+          rm "$CEF_TARBALL"
+
+      - name: Building CEF wrapper library
+        run: |
+          echo "=== Building CEF wrapper library ==="
+          cd cef_binary
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release $CMAKE_ARCH_FLAG ..
+          make -j$(nproc) libcef_dll_wrapper
+
       - name: Build Brow6el
         run: |
           echo "=== Building Brow6el ==="
-          ./build.sh
-      
+          if [ ! -d "cef_binary" ]; then
+            echo "CEF binary not found."
+            exit 1
+          fi
+          mkdir -p build
+          cd build
+          echo "Running CMake..."
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+          echo "Compiling..."
+          make -j$(nproc)
+          echo "Stripping debug symbols from libcef.so..."
+          if [ -f "libcef.so" ]; then
+            strip --strip-debug libcef.so
+            echo "libcef.so stripped (debug symbols removed)"
+          fi
+          echo ""
+          echo "Build complete!"
+
       - name: Build AppImage
         run: |
           echo "=== Building AppImage ==="
-          ./build_appimage_appimagetool.sh
+          cd build
+          # Create portable package directory
+          APP_DIR="AppDir"
+          rm -rf "$APP_DIR"
+          mkdir -p "$APP_DIR"/usr/bin "$APP_DIR"/usr/share/applications "$APP_DIR"/usr/share/icons/hicolor/scalable/apps
+          # Download appimagetool
+          wget https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x ./appimagetool-x86_64.AppImage
+          # Copy all necessary files
+          cp brow6el "$APP_DIR/usr/bin"
+          cp run_brow6el.sh "$APP_DIR/usr/bin"
+          cp -r locales "$APP_DIR/usr"
+          cp -r scripts "$APP_DIR/usr"
+          cp *.pak "$APP_DIR/usr" 2>/dev/null || true
+          cp *.bin "$APP_DIR/usr" 2>/dev/null || true
+          cp *.so "$APP_DIR/usr" 2>/dev/null || true
+          cp *.so.1 "$APP_DIR/usr" 2>/dev/null || true
+          cp *.dat "$APP_DIR/usr" 2>/dev/null || true
+          cp *.json "$APP_DIR/usr" 2>/dev/null || true
+          cp *.js "$APP_DIR/usr" 2>/dev/null || true
+          # Copy libsixel library
+          cp /lib/x86_64-linux-gnu/libsixel.so.1 "$APP_DIR/usr" 2>/dev/null || \
+            cp /usr/lib/x86_64-linux-gnu/libsixel.so.1 "$APP_DIR/usr" 2>/dev/null || \
+            echo "Warning: libsixel.so.1 not found"
+          # Copy CEF system dependencies
+          mkdir -p "$APP_DIR/usr/lib"
+          for lib in libasound.so.2 libX11.so.6 libXcomposite.so.1 libXdamage.so.1 \
+                    libXext.so.6 libXfixes.so.3 libXrandr.so.2 libgbm.so.1 \
+                    libxcb.so.1 libxkbcommon.so.0 libnss3.so libnssutil3.so \
+                    libnspr4.so libsmime3.so libdbus-1.so.3 libcups.so.2 \
+                    libdrm.so.2 libexpat.so.1 libatk-1.0.so.0 libatk-bridge-2.0.so.0; do
+            cp /lib/x86_64-linux-gnu/$lib "$APP_DIR/usr/lib/" 2>/dev/null || \
+              cp /usr/lib/x86_64-linux-gnu/$lib "$APP_DIR/usr/lib/" 2>/dev/null || true
+          done
+          # Minimal placeholder icon
+          cat > "$APP_DIR/usr/share/icons/hicolor/scalable/apps/brow6el.svg" << 'EOF'
+          <svg width="256" height="256" xmlns="http://www.w3.org/2000/svg">
+              <rect width="256" height="256" fill="#ffffff"/>
+              <text x="128" y="128" font-size="60" text-anchor="middle" dominant-baseline="middle" fill="#000000">B</text>
+          </svg>
+          EOF
+          # Copy icon to root AppDir for appimagetool
+          cp "$APP_DIR/usr/share/icons/hicolor/scalable/apps/brow6el.svg" "$APP_DIR/"
+          # Minimal .desktop file
+          cat > "$APP_DIR/brow6el.desktop" << EOF
+          [Desktop Entry]
+          Name=brow6el
+          Comment=sixel-based web browser (terminal only)
+          Exec=brow6el %U
+          Icon=brow6el
+          Type=Application
+          Categories=Network;WebBrowser;
+          Terminal=true
+          EOF
+          # AppRun wrapper
+          cat > "$APP_DIR/AppRun" << 'EOF'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "${0}")")"
+          export LD_LIBRARY_PATH="$HERE/usr:$HERE/usr/lib:$LD_LIBRARY_PATH"
+          cd "$HERE/usr"
+          exec ./bin/brow6el "$@"
+          EOF
+          chmod +x "$APP_DIR/AppRun"
+          # Create AppImage with appimagetool
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run "$APP_DIR" brow6el-x86_64.AppImage
+          echo "✓ AppImage created: build/brow6el-x86_64.AppImage"
       
       - name: Copy AppImage to artifacts
         run: |
@@ -131,17 +257,136 @@ jobs:
       - name: Download and build CEF
         run: |
           echo "=== Downloading CEF ==="
-          ./download_cef.sh
+          ARCH=$(uname -m)
+          if [ "$ARCH" = "aarch64" ]; then
+            PLATFORM="linuxarm64"
+            CMAKE_ARCH_FLAG="-DPROJECT_ARCH=arm64"
+          elif [ "$ARCH" = "x86_64" ]; then
+            PLATFORM="linux64"
+            CMAKE_ARCH_FLAG=""
+          else
+            echo "Error: Unsupported architecture: $ARCH"
+            exit 1
+          fi
+          CEF_TARBALL="cef_binary_${CEF_VERSION}_${PLATFORM}_minimal.tar.bz2"
+          CEF_URL="https://cef-builds.spotifycdn.com/${CEF_TARBALL}"
+          echo "Downloading from: $CEF_URL"
+          curl -L -o "$CEF_TARBALL" "$CEF_URL"
+          echo "Downloading checksum file..."
+          CHECKSUM_URL="${CEF_URL}.sha1"
+          curl -L -o "${CEF_TARBALL}.sha1" "$CHECKSUM_URL"
+          echo "Verifying checksum..."
+          EXPECTED_CHECKSUM=$(cat "${CEF_TARBALL}.sha1")
+          ACTUAL_CHECKSUM=$(sha1sum "$CEF_TARBALL" | awk '{print $1}')
+          if [ "$ACTUAL_CHECKSUM" != "$EXPECTED_CHECKSUM" ]; then
+              echo "Error: Checksum verification failed!"
+              echo "Expected: $EXPECTED_CHECKSUM"
+              echo "Got:      $ACTUAL_CHECKSUM"
+              rm "$CEF_TARBALL" "${CEF_TARBALL}.sha1"
+              exit 1
+          fi
+          echo "Checksum verified successfully."
+          rm "${CEF_TARBALL}.sha1"
+          echo "Extracting..."
+          tar xjf "$CEF_TARBALL"
+          EXTRACTED_DIR="cef_binary_${CEF_VERSION}_${PLATFORM}_minimal"
+          ln -sf "$EXTRACTED_DIR" cef_binary
+          rm "$CEF_TARBALL"
       
       - name: Build Brow6el
         run: |
           echo "=== Building Brow6el ==="
-          ./build.sh
+          if [ ! -d "cef_binary" ]; then
+            echo "CEF binary not found."
+            exit 1
+          fi
+          mkdir -p build
+          cd build
+          echo "Running CMake..."
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+          echo "Compiling..."
+          make -j$(nproc)
+          echo "Stripping debug symbols from libcef.so..."
+          if [ -f "libcef.so" ]; then
+            strip --strip-debug libcef.so
+            echo "libcef.so stripped (debug symbols removed)"
+          fi
+          echo ""
+          echo "Build complete!"
       
       - name: Build AppImage
         run: |
           echo "=== Building AppImage ==="
-          ./build_appimage_appimagetool_arm64.sh
+          cd build
+          APP_DIR="AppDir"
+          rm -rf "$APP_DIR"
+          mkdir -p "$APP_DIR"/usr/bin "$APP_DIR"/usr/share/applications "$APP_DIR"/usr/share/icons/hicolor/scalable/apps
+          # Download and extract appimagetool (for ARM64 qemu compatibility)
+          wget https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage
+          chmod +x ./appimagetool-aarch64.AppImage
+          # Extract AppImage without executing (works in qemu)
+          offset=$(LANG=C grep -a -b -o -m 1 'hsqs' appimagetool-aarch64.AppImage | cut -d: -f1)
+          dd if=appimagetool-aarch64.AppImage of=appimagetool.squashfs bs=1 skip=$offset 2>/dev/null
+          unsquashfs -q appimagetool.squashfs
+          rm appimagetool.squashfs
+          # Copy all necessary files
+          cp brow6el "$APP_DIR/usr/bin"
+          cp run_brow6el.sh "$APP_DIR/usr/bin"
+          cp -r locales "$APP_DIR/usr"
+          cp -r scripts "$APP_DIR/usr"
+          cp *.pak "$APP_DIR/usr" 2>/dev/null || true
+          cp *.bin "$APP_DIR/usr" 2>/dev/null || true
+          cp *.so "$APP_DIR/usr" 2>/dev/null || true
+          cp *.so.1 "$APP_DIR/usr" 2>/dev/null || true
+          cp *.dat "$APP_DIR/usr" 2>/dev/null || true
+          cp *.json "$APP_DIR/usr" 2>/dev/null || true
+          cp *.js "$APP_DIR/usr" 2>/dev/null || true
+          # Copy libsixel library
+          cp /lib/aarch64-linux-gnu/libsixel.so.1 "$APP_DIR/usr" 2>/dev/null || \
+            cp /usr/lib/aarch64-linux-gnu/libsixel.so.1 "$APP_DIR/usr" 2>/dev/null || \
+            echo "Warning: libsixel.so.1 not found"
+          # Copy CEF system dependencies
+          mkdir -p "$APP_DIR/usr/lib"
+          for lib in libasound.so.2 libX11.so.6 libXcomposite.so.1 libXdamage.so.1 \
+                    libXext.so.6 libXfixes.so.3 libXrandr.so.2 libgbm.so.1 \
+                    libxcb.so.1 libxkbcommon.so.0 libnss3.so libnssutil3.so \
+                    libnspr4.so libsmime3.so libdbus-1.so.3 libcups.so.2 \
+                    libdrm.so.2 libexpat.so.1 libatk-1.0.so.0 libatk-bridge-2.0.so.0; do
+            cp /lib/aarch64-linux-gnu/$lib "$APP_DIR/usr/lib/" 2>/dev/null || \
+              cp /usr/lib/aarch64-linux-gnu/$lib "$APP_DIR/usr/lib/" 2>/dev/null || true
+          done
+          # Minimal placeholder icon
+          cat > "$APP_DIR/usr/share/icons/hicolor/scalable/apps/brow6el.svg" << 'EOF'
+          <svg width="256" height="256" xmlns="http://www.w3.org/2000/svg">
+              <rect width="256" height="256" fill="#ffffff"/>
+              <text x="128" y="128" font-size="60" text-anchor="middle" dominant-baseline="middle" fill="#000000">B</text>
+          </svg>
+          EOF
+          # Copy icon to root AppDir for appimagetool
+          cp "$APP_DIR/usr/share/icons/hicolor/scalable/apps/brow6el.svg" "$APP_DIR/"
+          # Minimal .desktop file
+          cat > "$APP_DIR/brow6el.desktop" << EOF
+          [Desktop Entry]
+          Name=brow6el
+          Comment=sixel-based web browser (terminal only)
+          Exec=brow6el %U
+          Icon=brow6el
+          Type=Application
+          Categories=Network;WebBrowser;
+          Terminal=true
+          EOF
+          # AppRun wrapper
+          cat > "$APP_DIR/AppRun" << 'EOF'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "${0}")")"
+          export LD_LIBRARY_PATH="$HERE/usr:$HERE/usr/lib:$LD_LIBRARY_PATH"
+          cd "$HERE/usr"
+          exec ./bin/brow6el "$@"
+          EOF
+          chmod +x "$APP_DIR/AppRun"
+          # Create AppImage with extracted appimagetool
+          ARCH=aarch64 ./squashfs-root/AppRun "$APP_DIR" brow6el-aarch64.AppImage
+          echo "✓ AppImage created: build/brow6el-aarch64.AppImage"
       
       - name: Copy AppImage to artifacts
         run: |
