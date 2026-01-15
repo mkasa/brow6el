@@ -139,7 +139,7 @@ jobs:
           cp brow6el "$APP_DIR/usr/bin"
           cp run_brow6el.sh "$APP_DIR/usr/bin"
           cp -r locales "$APP_DIR/usr"
-          cp -r scripts "$APP_DIR/usr"
+          cp -r scripts "$APP_DIR/usr/bin"
           cp *.pak "$APP_DIR/usr" 2>/dev/null || true
           cp *.bin "$APP_DIR/usr" 2>/dev/null || true
           cp *.so "$APP_DIR/usr" 2>/dev/null || true
@@ -343,7 +343,7 @@ jobs:
           cp brow6el "$APP_DIR/usr/bin"
           cp run_brow6el.sh "$APP_DIR/usr/bin"
           cp -r locales "$APP_DIR/usr"
-          cp -r scripts "$APP_DIR/usr"
+          cp -r scripts "$APP_DIR/usr/bin"
           cp *.pak "$APP_DIR/usr" 2>/dev/null || true
           cp *.bin "$APP_DIR/usr" 2>/dev/null || true
           cp *.so "$APP_DIR/usr" 2>/dev/null || true
