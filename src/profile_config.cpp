@@ -1,392 +1,411 @@
 #include "profile_config.h"
-#include <fstream>
-#include <sstream>
 #include <filesystem>
-#include <random>
+#include <fstream>
 #include <iostream>
+#include <pwd.h>
+#include <random>
+#include <sstream>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <pwd.h>
 
 namespace fs = std::filesystem;
 
-ProfileConfig::ProfileConfig() {
-    load();
-}
+ProfileConfig::ProfileConfig() { load(); }
 
 std::string ProfileConfig::getConfigDir() {
-    const char* home = getenv("HOME");
-    if (!home) {
-        struct passwd* pw = getpwuid(getuid());
-        if (pw) {
-            home = pw->pw_dir;
-        }
+  const char *home = getenv("HOME");
+  if (!home) {
+    struct passwd *pw = getpwuid(getuid());
+    if (pw) {
+      home = pw->pw_dir;
     }
-    if (!home) {
-        return ".brow6el";
-    }
-    return std::string(home) + "/.brow6el";
+  }
+  if (!home) {
+    return ".brow6el";
+  }
+  return std::string(home) + "/.brow6el";
 }
 
 std::string ProfileConfig::getConfigPath() {
-    return getConfigDir() + "/browser.conf";
+  return getConfigDir() + "/browser.conf";
 }
 
 void ProfileConfig::load() {
-    std::string config_path = getConfigPath();
-    std::ifstream file(config_path);
-    
-    if (!file.good()) {
-        createDefaultConfig();
-        return;
+  std::string config_path = getConfigPath();
+  std::ifstream file(config_path);
+
+  if (!file.good()) {
+    createDefaultConfig();
+    return;
+  }
+
+  std::string line;
+  while (std::getline(file, line)) {
+    if (line.empty() || line[0] == '#')
+      continue;
+
+    size_t eq = line.find('=');
+    if (eq == std::string::npos)
+      continue;
+
+    std::string key = trim(line.substr(0, eq));
+    std::string value = trim(line.substr(eq + 1));
+
+    if (key == "profile_mode") {
+      if (value == "temporary")
+        mode_ = ProfileMode::Temporary;
+      else if (value == "persistent")
+        mode_ = ProfileMode::Persistent;
+      else if (value == "custom")
+        mode_ = ProfileMode::Custom;
+    } else if (key == "profile_path") {
+      custom_path_ = value;
+    } else if (key == "cache_size_mb") {
+      try {
+        cache_size_mb_ = std::stoul(value);
+      } catch (...) {
+      }
+    } else if (key == "clear_cache_on_exit") {
+      clear_cache_on_exit_ = (value == "true");
+    } else if (key == "clear_cookies_on_exit") {
+      clear_cookies_on_exit_ = (value == "true");
+    } else if (key == "default_url") {
+      default_url_ = value;
+    } else if (key == "grid_keys") {
+      if (value.length() == 9) {
+        grid_keys_ = value;
+      }
+    } else if (key == "doh_enabled") {
+      doh_enabled_ = (value == "true");
+    } else if (key == "doh_server") {
+      doh_server_ = value;
+    } else if (key == "doh_mode") {
+      doh_mode_ = value;
+    } else if (key == "tiled_rendering") {
+      tiled_rendering_enabled_ = (value == "true");
+    } else if (key == "cell_width") {
+      cell_width_override_ = std::stoi(value);
+    } else if (key == "cell_height") {
+      cell_height_override_ = std::stoi(value);
     }
-    
-    std::string line;
-    while (std::getline(file, line)) {
-        if (line.empty() || line[0] == '#') continue;
-        
-        size_t eq = line.find('=');
-        if (eq == std::string::npos) continue;
-        
-        std::string key = trim(line.substr(0, eq));
-        std::string value = trim(line.substr(eq + 1));
-        
-        if (key == "profile_mode") {
-            if (value == "temporary") mode_ = ProfileMode::Temporary;
-            else if (value == "persistent") mode_ = ProfileMode::Persistent;
-            else if (value == "custom") mode_ = ProfileMode::Custom;
-        }
-        else if (key == "profile_path") {
-            custom_path_ = value;
-        }
-        else if (key == "cache_size_mb") {
-            try {
-                cache_size_mb_ = std::stoul(value);
-            } catch (...) {}
-        }
-        else if (key == "clear_cache_on_exit") {
-            clear_cache_on_exit_ = (value == "true");
-        }
-        else if (key == "clear_cookies_on_exit") {
-            clear_cookies_on_exit_ = (value == "true");
-        }
-        else if (key == "default_url") {
-            default_url_ = value;
-        }
-        else if (key == "grid_keys") {
-            if (value.length() == 9) {
-                grid_keys_ = value;
-            }
-        }
-        else if (key == "doh_enabled") {
-            doh_enabled_ = (value == "true");
-        }
-        else if (key == "doh_server") {
-            doh_server_ = value;
-        }
-        else if (key == "doh_mode") {
-            doh_mode_ = value;
-        }
-        else if (key == "tiled_rendering") {
-            tiled_rendering_enabled_ = (value == "true");
-        }
-        else if (key == "cell_width") {
-            cell_width_override_ = std::stoi(value);
-        }
-        else if (key == "cell_height") {
-            cell_height_override_ = std::stoi(value);
-        }
-    }
-    file.close();
+  }
+  file.close();
 }
 
 void ProfileConfig::save() {
-    std::string config_path = getConfigPath();
-    std::ofstream file(config_path);
-    
-    if (!file.is_open()) {
-        std::cerr << "Failed to save browser config" << std::endl;
-        return;
-    }
-    
-    writeConfig(file, false, false);
-    file.close();
+  std::string config_path = getConfigPath();
+  std::ofstream file(config_path);
+
+  if (!file.is_open()) {
+    std::cerr << "Failed to save browser config" << std::endl;
+    return;
+  }
+
+  writeConfig(file, false, false);
+  file.close();
 }
 
-void ProfileConfig::writeConfig(std::ofstream& file, bool use_defaults, bool include_examples) {
-    file << "# Browser Profile Configuration\n";
-    file << "# Generated by brow6el\n";
-    file << "\n";
-    file << "# Profile mode: temporary, persistent, or custom\n";
-    file << "# - temporary: New profile each session, deleted on exit (private mode)\n";
-    file << "# - persistent: Profile saved at ~/.brow6el/profile\n";
-    file << "# - custom: Use profile_path below\n";
-    
-    if (use_defaults) {
-        file << "profile_mode=temporary\n";
-    } else {
-        switch (mode_) {
-            case ProfileMode::Temporary:
-                file << "profile_mode=temporary\n";
-                break;
-            case ProfileMode::Persistent:
-                file << "profile_mode=persistent\n";
-                break;
-            case ProfileMode::Custom:
-                file << "profile_mode=custom\n";
-                break;
-        }
+void ProfileConfig::writeConfig(std::ofstream &file, bool use_defaults,
+                                bool include_examples) {
+  file << "# Browser Profile Configuration\n";
+  file << "# Generated by brow6el\n";
+  file << "\n";
+  file << "# Profile mode: temporary, persistent, or custom\n";
+  file << "# - temporary: New profile each session, deleted on exit (private "
+          "mode)\n";
+  file << "# - persistent: Profile saved at ~/.brow6el/profile\n";
+  file << "# - custom: Use profile_path below\n";
+
+  if (use_defaults) {
+    file << "profile_mode=temporary\n";
+  } else {
+    switch (mode_) {
+    case ProfileMode::Temporary:
+      file << "profile_mode=temporary\n";
+      break;
+    case ProfileMode::Persistent:
+      file << "profile_mode=persistent\n";
+      break;
+    case ProfileMode::Custom:
+      file << "profile_mode=custom\n";
+      break;
     }
-    
+  }
+
+  file << "\n";
+  file << "# Profile path (only used when profile_mode=custom)\n";
+  file << "# Can use ~ for home directory\n";
+  file << "profile_path="
+       << (use_defaults ? "~/.brow6el/profile" : custom_path_) << "\n";
+  file << "\n";
+  file << "# Cache settings\n";
+  file << "cache_size_mb=" << (use_defaults ? 500 : cache_size_mb_) << "\n";
+  file << "clear_cache_on_exit="
+       << (use_defaults ? "false" : (clear_cache_on_exit_ ? "true" : "false"))
+       << "\n";
+  file << "\n";
+  file << "# Privacy options"
+       << (use_defaults ? " (for persistent/custom profiles)" : "") << "\n";
+  file << "clear_cookies_on_exit="
+       << (use_defaults ? "false" : (clear_cookies_on_exit_ ? "true" : "false"))
+       << "\n";
+
+  if (include_examples) {
     file << "\n";
-    file << "# Profile path (only used when profile_mode=custom)\n";
-    file << "# Can use ~ for home directory\n";
-    file << "profile_path=" << (use_defaults ? "~/.brow6el/profile" : custom_path_) << "\n";
-    file << "\n";
-    file << "# Cache settings\n";
-    file << "cache_size_mb=" << (use_defaults ? 500 : cache_size_mb_) << "\n";
-    file << "clear_cache_on_exit=" << (use_defaults ? "false" : (clear_cache_on_exit_ ? "true" : "false")) << "\n";
-    file << "\n";
-    file << "# Privacy options" << (use_defaults ? " (for persistent/custom profiles)" : "") << "\n";
-    file << "clear_cookies_on_exit=" << (use_defaults ? "false" : (clear_cookies_on_exit_ ? "true" : "false")) << "\n";
-    
-    if (include_examples) {
-        file << "\n";
-        file << "# Examples:\n";
-        file << "# For normal browsing with saved sessions:\n";
-        file << "#   profile_mode=persistent\n";
-        file << "#\n";
-        file << "# For custom profile location:\n";
-        file << "#   profile_mode=custom\n";
-        file << "#   profile_path=/path/to/my/profile\n";
-        file << "#\n";
-        file << "# For semi-private (settings persist, cache cleared):\n";
-        file << "#   profile_mode=persistent\n";
-        file << "#   clear_cache_on_exit=true\n";
-        file << "#   clear_cookies_on_exit=true\n";
-    }
-    
-    file << "\n";
-    file << "# Default homepage URL\n";
-    file << "default_url=" << (use_defaults ? "https://example.com" : default_url_) << "\n";
-    file << "\n";
-    file << "# Grid keys for mouse emulation grid jump mode (must be exactly 9 characters)\n";
-    file << "# Default: qweasdzxc (3x3 grid matching keyboard layout)\n";
-    file << "# Alternative: abcdefghi (alphabetical)\n";
-    file << "grid_keys=" << (use_defaults ? "qweasdzxc" : grid_keys_) << "\n";
-    file << "\n";
-    file << "# DNS-over-HTTPS (DoH) Configuration\n";
-    file << "# Enable secure DNS to encrypt DNS queries\n";
-    file << "doh_enabled=" << (use_defaults ? "false" : (doh_enabled_ ? "true" : "false")) << "\n";
-    file << "doh_server=" << (use_defaults ? "https://cloudflare-dns.com/dns-query" : doh_server_) << "\n";
-    file << "doh_mode=" << (use_defaults ? "secure" : doh_mode_) << "\n";
-    file << "# DoH mode options:\n";
-    file << "#   secure: Mandatory DoH, no fallback (recommended for blocking)\n";
-    file << "#   automatic: Use DoH when available, fallback to system DNS\n";
-    file << "#   off: Disable DoH\n";
-    file << "# Popular DoH servers:\n";
-    file << "#   Cloudflare: https://cloudflare-dns.com/dns-query\n";
-    file << "#   Google: https://dns.google/dns-query\n";
-    file << "#   Quad9: https://dns.quad9.net/dns-query\n";
-    file << "\n";
-    file << "# Tiled Rendering\n";
-    file << "# Enable tile-based sixel rendering (reduces flicker on updates)\n";
-    file << "# When enabled, only changed screen regions are redrawn\n";
-    file << "# When disabled, the entire screen is redrawn on every update (default)\n";
-    file << "tiled_rendering=" << (use_defaults ? "false" : (tiled_rendering_enabled_ ? "true" : "false")) << "\n";
-    file << "\n";
-    file << "# Terminal Cell Dimensions (optional override)\n";
-    file << "# Leave at 0 for auto-detection (recommended)\n";
-    file << "# Only override if auto-detection produces incorrect results\n";
-    file << "#cell_width=" << (use_defaults ? "0" : std::to_string(cell_width_override_)) << "\n";
-    file << "#cell_height=" << (use_defaults ? "0" : std::to_string(cell_height_override_)) << "\n";
+    file << "# Examples:\n";
+    file << "# For normal browsing with saved sessions:\n";
+    file << "#   profile_mode=persistent\n";
+    file << "#\n";
+    file << "# For custom profile location:\n";
+    file << "#   profile_mode=custom\n";
+    file << "#   profile_path=/path/to/my/profile\n";
+    file << "#\n";
+    file << "# For semi-private (settings persist, cache cleared):\n";
+    file << "#   profile_mode=persistent\n";
+    file << "#   clear_cache_on_exit=true\n";
+    file << "#   clear_cookies_on_exit=true\n";
+  }
+
+  file << "\n";
+  file << "# Default homepage URL\n";
+  file << "default_url="
+       << (use_defaults ? "https://example.com" : default_url_) << "\n";
+  file << "\n";
+  file << "# Grid keys for mouse emulation grid jump mode (must be exactly 9 "
+          "characters)\n";
+  file << "# Default: qweasdzxc (3x3 grid matching keyboard layout)\n";
+  file << "# Alternative: abcdefghi (alphabetical)\n";
+  file << "grid_keys=" << (use_defaults ? "qweasdzxc" : grid_keys_) << "\n";
+  file << "\n";
+  file << "# DNS-over-HTTPS (DoH) Configuration\n";
+  file << "# Enable secure DNS to encrypt DNS queries\n";
+  file << "doh_enabled="
+       << (use_defaults ? "false" : (doh_enabled_ ? "true" : "false")) << "\n";
+  file << "doh_server="
+       << (use_defaults ? "https://cloudflare-dns.com/dns-query" : doh_server_)
+       << "\n";
+  file << "doh_mode=" << (use_defaults ? "secure" : doh_mode_) << "\n";
+  file << "# DoH mode options:\n";
+  file << "#   secure: Mandatory DoH, no fallback (recommended for blocking)\n";
+  file << "#   automatic: Use DoH when available, fallback to system DNS\n";
+  file << "#   off: Disable DoH\n";
+  file << "# Popular DoH servers:\n";
+  file << "#   Cloudflare: https://cloudflare-dns.com/dns-query\n";
+  file << "#   Google: https://dns.google/dns-query\n";
+  file << "#   Quad9: https://dns.quad9.net/dns-query\n";
+  file << "\n";
+  file << "# Tiled Rendering\n";
+  file << "# Enable tile-based sixel rendering (reduces flicker on updates)\n";
+  file << "# When enabled, only changed screen regions are redrawn\n";
+  file << "# When disabled, the entire screen is redrawn on every update "
+          "(default)\n";
+  file << "tiled_rendering="
+       << (use_defaults ? "false"
+                        : (tiled_rendering_enabled_ ? "true" : "false"))
+       << "\n";
+  file << "\n";
+  file << "# Terminal Cell Dimensions (optional override)\n";
+  file << "# Leave at 0 for auto-detection (recommended)\n";
+  file << "# Only override if auto-detection produces incorrect results\n";
+  file << "#cell_width="
+       << (use_defaults ? "0" : std::to_string(cell_width_override_)) << "\n";
+  file << "#cell_height="
+       << (use_defaults ? "0" : std::to_string(cell_height_override_)) << "\n";
 }
 
 std::string ProfileConfig::getProfilePath() const {
-    switch (mode_) {
-        case ProfileMode::Temporary:
-            return ""; // Will be generated
-        case ProfileMode::Persistent:
-            return expandPath("~/.brow6el/profile");
-        case ProfileMode::Custom:
-            return expandPath(custom_path_);
-    }
-    return "";
+  switch (mode_) {
+  case ProfileMode::Temporary:
+    return ""; // Will be generated
+  case ProfileMode::Persistent:
+    return expandPath("~/.brow6el/profile");
+  case ProfileMode::Custom:
+    return expandPath(custom_path_);
+  }
+  return "";
 }
 
 std::string ProfileConfig::createProfileDirectory() {
-    std::string path;
-    
-    switch (mode_) {
-        case ProfileMode::Temporary: {
-            // Create unique temporary directory
-            path = "/tmp";
-            
-            // Add unique identifier with PID and random number
-            std::random_device rd;
-            path += "/brow6el_" + std::to_string(getpid()) + 
-                    "_" + std::to_string(rd());
-            break;
-        }
-        
-        case ProfileMode::Persistent:
-            path = expandPath("~/.brow6el/profile");
-            break;
-            
-        case ProfileMode::Custom:
-            path = expandPath(custom_path_);
-            if (path.empty()) {
-                std::cerr << "Custom profile path is empty, falling back to persistent" << std::endl;
-                path = expandPath("~/.brow6el/profile");
-            }
-            break;
+  std::string path;
+
+  switch (mode_) {
+  case ProfileMode::Temporary: {
+    // Create unique temporary directory
+    path = "/tmp";
+
+    // Add unique identifier with PID and random number
+    std::random_device rd;
+    path += "/brow6el_" + std::to_string(getpid()) + "_" + std::to_string(rd());
+    break;
+  }
+
+  case ProfileMode::Persistent:
+    path = expandPath("~/.brow6el/profile");
+    break;
+
+  case ProfileMode::Custom:
+    path = expandPath(custom_path_);
+    if (path.empty()) {
+      std::cerr << "Custom profile path is empty, falling back to persistent"
+                << std::endl;
+      path = expandPath("~/.brow6el/profile");
     }
-    
-    // Create directory if it doesn't exist
-    std::error_code ec;
-    fs::create_directories(path, ec);
-    
-    if (ec) {
-        std::cerr << "Failed to create profile directory '" << path << "': " 
-                  << ec.message() << std::endl;
-        return "";
-    }
-    
-    // Set permissions (Unix) - owner only for security
-    #ifndef _WIN32
-    fs::permissions(path, fs::perms::owner_all, 
-                   fs::perm_options::replace, ec);
-    if (ec) {
-        std::cerr << "Warning: Failed to set profile permissions: " 
-                  << ec.message() << std::endl;
-    }
-    #endif
-    
-    current_profile_path_ = path;
-    
-    // Log profile info
-    const char* mode_str = "";
-    switch (mode_) {
-        case ProfileMode::Temporary: mode_str = "temporary"; break;
-        case ProfileMode::Persistent: mode_str = "persistent"; break;
-        case ProfileMode::Custom: mode_str = "custom"; break;
-    }
-    std::cout << "Profile mode: " << mode_str << std::endl;
-    std::cout << "Profile path: " << path << std::endl;
-    
-    return path;
+    break;
+  }
+
+  // Create directory if it doesn't exist
+  std::error_code ec;
+  fs::create_directories(path, ec);
+
+  if (ec) {
+    std::cerr << "Failed to create profile directory '" << path
+              << "': " << ec.message() << std::endl;
+    return "";
+  }
+
+// Set permissions (Unix) - owner only for security
+#ifndef _WIN32
+  fs::permissions(path, fs::perms::owner_all, fs::perm_options::replace, ec);
+  if (ec) {
+    std::cerr << "Warning: Failed to set profile permissions: " << ec.message()
+              << std::endl;
+  }
+#endif
+
+  current_profile_path_ = path;
+
+  // Log profile info
+  const char *mode_str = "";
+  switch (mode_) {
+  case ProfileMode::Temporary:
+    mode_str = "temporary";
+    break;
+  case ProfileMode::Persistent:
+    mode_str = "persistent";
+    break;
+  case ProfileMode::Custom:
+    mode_str = "custom";
+    break;
+  }
+  std::cout << "Profile mode: " << mode_str << std::endl;
+  std::cout << "Profile path: " << path << std::endl;
+
+  return path;
 }
 
 void ProfileConfig::cleanupProfile() {
-    if (current_profile_path_.empty()) return;
-    
-    std::cout << "Cleaning up profile..." << std::endl;
-    
-    // Always delete temporary profiles
-    if (mode_ == ProfileMode::Temporary) {
-        std::error_code ec;
-        fs::remove_all(current_profile_path_, ec);
-        if (ec) {
-            std::cerr << "Failed to cleanup profile: " 
-                      << ec.message() << std::endl;
-        } else {
-            std::cout << "Temporary profile deleted" << std::endl;
-        }
-        return;
+  if (current_profile_path_.empty())
+    return;
+
+  std::cout << "Cleaning up profile..." << std::endl;
+
+  // Always delete temporary profiles
+  if (mode_ == ProfileMode::Temporary) {
+    std::error_code ec;
+    fs::remove_all(current_profile_path_, ec);
+    if (ec) {
+      std::cerr << "Failed to cleanup profile: " << ec.message() << std::endl;
+    } else {
+      std::cout << "Temporary profile deleted" << std::endl;
     }
-    
-    // For persistent/custom profiles, handle selective cleanup
-    if (clear_cache_on_exit_) {
-        std::error_code ec;
-        fs::path cache_dir = fs::path(current_profile_path_) / "cache";
-        if (fs::exists(cache_dir)) {
-            fs::remove_all(cache_dir, ec);
-            if (!ec) {
-                std::cout << "Cache cleared" << std::endl;
-            }
-        }
-        
-        // Also clear GPUCache
-        fs::path gpu_cache = fs::path(current_profile_path_) / "GPUCache";
-        if (fs::exists(gpu_cache)) {
-            fs::remove_all(gpu_cache, ec);
-        }
+    return;
+  }
+
+  // For persistent/custom profiles, handle selective cleanup
+  if (clear_cache_on_exit_) {
+    std::error_code ec;
+    fs::path cache_dir = fs::path(current_profile_path_) / "cache";
+    if (fs::exists(cache_dir)) {
+      fs::remove_all(cache_dir, ec);
+      if (!ec) {
+        std::cout << "Cache cleared" << std::endl;
+      }
     }
-    
-    if (clear_cookies_on_exit_) {
-        // Clear cookies file
-        fs::path cookies = fs::path(current_profile_path_) / "Cookies";
-        std::error_code ec;
-        if (fs::exists(cookies)) {
-            fs::remove(cookies, ec);
-            if (!ec) {
-                std::cout << "Cookies cleared" << std::endl;
-            }
-        }
-        
-        // Also clear Cookies-journal
-        fs::path cookies_journal = fs::path(current_profile_path_) / "Cookies-journal";
-        if (fs::exists(cookies_journal)) {
-            fs::remove(cookies_journal, ec);
-        }
+
+    // Also clear GPUCache
+    fs::path gpu_cache = fs::path(current_profile_path_) / "GPUCache";
+    if (fs::exists(gpu_cache)) {
+      fs::remove_all(gpu_cache, ec);
     }
+  }
+
+  if (clear_cookies_on_exit_) {
+    // Clear cookies file
+    fs::path cookies = fs::path(current_profile_path_) / "Cookies";
+    std::error_code ec;
+    if (fs::exists(cookies)) {
+      fs::remove(cookies, ec);
+      if (!ec) {
+        std::cout << "Cookies cleared" << std::endl;
+      }
+    }
+
+    // Also clear Cookies-journal
+    fs::path cookies_journal =
+        fs::path(current_profile_path_) / "Cookies-journal";
+    if (fs::exists(cookies_journal)) {
+      fs::remove(cookies_journal, ec);
+    }
+  }
 }
 
-void ProfileConfig::overrideMode(const std::string& mode_str) {
-    if (mode_str == "persistent") {
-        mode_ = ProfileMode::Persistent;
-        std::cout << "Profile mode overridden to: persistent" << std::endl;
-    } else if (mode_str == "temporary") {
-        mode_ = ProfileMode::Temporary;
-        std::cout << "Profile mode overridden to: temporary" << std::endl;
-    } else if (mode_str == "custom") {
-        mode_ = ProfileMode::Custom;
-        std::cout << "Profile mode overridden to: custom" << std::endl;
-    } else {
-        std::cerr << "Unknown profile mode: " << mode_str << std::endl;
-    }
+void ProfileConfig::overrideMode(const std::string &mode_str) {
+  if (mode_str == "persistent") {
+    mode_ = ProfileMode::Persistent;
+    std::cout << "Profile mode overridden to: persistent" << std::endl;
+  } else if (mode_str == "temporary") {
+    mode_ = ProfileMode::Temporary;
+    std::cout << "Profile mode overridden to: temporary" << std::endl;
+  } else if (mode_str == "custom") {
+    mode_ = ProfileMode::Custom;
+    std::cout << "Profile mode overridden to: custom" << std::endl;
+  } else {
+    std::cerr << "Unknown profile mode: " << mode_str << std::endl;
+  }
 }
 
 void ProfileConfig::createDefaultConfig() {
-    std::string config_dir = getConfigDir();
-    std::string config_path = getConfigPath();
-    
-    // Ensure directory exists
-    struct stat st;
-    if (stat(config_dir.c_str(), &st) != 0) {
-        mkdir(config_dir.c_str(), 0755);
-    }
-    
-    std::ofstream file(config_path);
-    if (!file.is_open()) {
-        std::cerr << "Failed to create default browser config" << std::endl;
-        return;
-    }
-    
-    writeConfig(file, true, true);
-    file.close();
+  std::string config_dir = getConfigDir();
+  std::string config_path = getConfigPath();
+
+  // Ensure directory exists
+  struct stat st;
+  if (stat(config_dir.c_str(), &st) != 0) {
+    mkdir(config_dir.c_str(), 0755);
+  }
+
+  std::ofstream file(config_path);
+  if (!file.is_open()) {
+    std::cerr << "Failed to create default browser config" << std::endl;
+    return;
+  }
+
+  writeConfig(file, true, true);
+  file.close();
 }
 
-std::string ProfileConfig::expandPath(const std::string& path) const {
-    if (path.empty() || path[0] != '~') return path;
-    
-    const char* home = getenv("HOME");
-    if (!home) {
-        struct passwd* pw = getpwuid(getuid());
-        if (pw) {
-            home = pw->pw_dir;
-        }
+std::string ProfileConfig::expandPath(const std::string &path) const {
+  if (path.empty() || path[0] != '~')
+    return path;
+
+  const char *home = getenv("HOME");
+  if (!home) {
+    struct passwd *pw = getpwuid(getuid());
+    if (pw) {
+      home = pw->pw_dir;
     }
-    
-    if (!home) return path;
-    return std::string(home) + path.substr(1);
+  }
+
+  if (!home)
+    return path;
+  return std::string(home) + path.substr(1);
 }
 
-std::string ProfileConfig::trim(const std::string& str) {
-    size_t first = str.find_first_not_of(" \t\r\n");
-    if (first == std::string::npos) {
-        return "";
-    }
-    size_t last = str.find_last_not_of(" \t\r\n");
-    return str.substr(first, last - first + 1);
+std::string ProfileConfig::trim(const std::string &str) {
+  size_t first = str.find_first_not_of(" \t\r\n");
+  if (first == std::string::npos) {
+    return "";
+  }
+  size_t last = str.find_last_not_of(" \t\r\n");
+  return str.substr(first, last - first + 1);
 }
