@@ -658,12 +658,17 @@ void StatusBar::showBookmarks(const std::vector<std::string> &bookmarks,
   int rows = w.ws_row;
   int cols = w.ws_col;
 
-  // Calculate how many bookmarks to show (max 10 lines)
-  int max_display = std::min(10, (int)bookmarks.size());
-  int start_line = rows - max_display - 2;
+  // Use bottom half of screen for bookmarks (or at least 10 lines), same as console
+  int dialog_height = std::max(10, rows / 2);
+  int start_line = rows - dialog_height + 1;
+  
+  // Calculate how many bookmarks to show
+  int max_display = dialog_height - 1; // Minus header line
 
-  // Clear status area
-  clearStatusArea();
+  // Clear the entire dialog area from start_line to bottom of screen
+  for (int i = start_line; i <= rows; i++) {
+    std::cout << "\033[" << i << ";1H\033[2K"; // Move to line and clear entire line
+  }
 
   // Draw header
   std::cout << "\033[" << start_line << ";1H";
@@ -763,12 +768,17 @@ void StatusBar::showUserScripts(const std::vector<std::string> &scripts,
   int rows = w.ws_row;
   int cols = w.ws_col;
 
-  // Calculate how many scripts to show (max 10 lines)
-  int max_display = std::min(10, (int)scripts.size());
-  int start_line = rows - max_display - 2;
+  // Use bottom half of screen for scripts (or at least 10 lines), same as console
+  int dialog_height = std::max(10, rows / 2);
+  int start_line = rows - dialog_height + 1;
+  
+  // Calculate how many scripts to show
+  int max_display = dialog_height - 1; // Minus header line
 
-  // Clear status area
-  clearStatusArea();
+  // Clear the entire dialog area from start_line to bottom of screen
+  for (int i = start_line; i <= rows; i++) {
+    std::cout << "\033[" << i << ";1H\033[2K"; // Move to line and clear entire line
+  }
 
   // Draw header
   std::cout << "\033[" << start_line << ";1H";
@@ -855,13 +865,17 @@ void StatusBar::showDownloadManager(const std::vector<std::string> &downloads,
     ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
     int rows = w.ws_row;
 
-    // Position at top of status area (rows - 9 for 10-line status area)
-    int header_line = rows - 9;
+    // Use same height calculation as non-empty case
+    int dialog_height = std::max(10, rows / 2);
+    int start_line = rows - dialog_height + 1;
 
-    clearStatusArea();
+    // Clear the entire dialog area from start_line to bottom of screen
+    for (int i = start_line; i <= rows; i++) {
+      std::cout << "\033[" << i << ";1H\033[2K"; // Move to line and clear entire line
+    }
 
     std::cout
-        << "\033[" << header_line
+        << "\033[" << start_line
         << ";1H\033[44m\033[97m\033[1m 📥 Download Manager \033[K\033[0m\n";
     std::cout << "\033[40m\033[97m No downloads yet.\033[K\033[0m"
               << std::flush;
@@ -880,12 +894,17 @@ void StatusBar::showDownloadManager(const std::vector<std::string> &downloads,
   int rows = w.ws_row;
   int cols = w.ws_col;
 
-  // Always position at top of status area (rows - 9)
-  int start_line = rows - 9;
-  int max_display =
-      std::min(9, (int)downloads.size()); // Max 9 items (1 line for header)
+  // Use bottom half of screen for downloads (or at least 10 lines), same as console
+  int dialog_height = std::max(10, rows / 2);
+  int start_line = rows - dialog_height + 1;
+  
+  // Calculate how many downloads to show
+  int max_display = dialog_height - 1; // Minus header line
 
-  clearStatusArea();
+  // Clear the entire dialog area from start_line to bottom of screen
+  for (int i = start_line; i <= rows; i++) {
+    std::cout << "\033[" << i << ";1H\033[2K"; // Move to line and clear entire line
+  }
 
   std::cout << "\033[" << start_line
             << ";1H\033[44m\033[97m\033[1m 📥 Download Manager (↑↓ navigate, x "
