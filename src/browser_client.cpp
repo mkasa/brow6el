@@ -12,6 +12,31 @@
     log << msg << std::endl;                                                   \
   } while (0)
 
+CefRefPtr<CefRenderHandler> BrowserClient::GetRenderHandler() {
+  return this;
+}
+CefRefPtr<CefLifeSpanHandler> BrowserClient::GetLifeSpanHandler() {
+  return this;
+}
+CefRefPtr<CefLoadHandler> BrowserClient::GetLoadHandler() {
+  return this;
+}
+CefRefPtr<CefDisplayHandler> BrowserClient::GetDisplayHandler() {
+  return this;
+}
+CefRefPtr<CefJSDialogHandler> BrowserClient::GetJSDialogHandler() {
+  return this;
+}
+CefRefPtr<CefDownloadHandler> BrowserClient::GetDownloadHandler() {
+  return this;
+}
+CefRefPtr<CefDialogHandler> BrowserClient::GetDialogHandler() {
+  return this;
+}
+CefRefPtr<CefRequestHandler> BrowserClient::GetRequestHandler() {
+  return static_cast<CefRequestHandler*>(this);
+}
+
 BrowserClient::BrowserClient(int width, int height, int cell_width,
                              int cell_height)
     : width_(width), height_(height), cell_width_(cell_width),
@@ -55,12 +80,13 @@ void BrowserClient::OnPaint(CefRefPtr<CefBrowser> browser,
   std::lock_guard<std::mutex> lock(render_mutex_);
 
   // Skip rendering when URL input, console, popup confirm, JS dialog, file
-  // input, download confirm, bookmarks, user scripts, or download manager is
+  // input, download confirm, auth dialog, bookmarks, user scripts, or download manager is
   // active Note: hint_mode_active and mouse_emu_mode_active are NOT in this
   // list because they use JS overlays that need the page visible
   if (url_input_active_ || console_active_ || popup_confirm_active_ ||
       js_dialog_active_ || file_input_active_ || download_confirm_active_ ||
-      bookmarks_active_ || user_scripts_active_ || download_manager_active_) {
+      auth_dialog_active_ || bookmarks_active_ || user_scripts_active_ || 
+      download_manager_active_) {
     return;
   }
 
@@ -905,6 +931,67 @@ void BrowserClient::HandleFileDialogResponse(const std::string &file_path) {
       std::vector<CefString> file_paths;
       file_paths.push_back(file_path);
       callback->Continue(file_paths);
+    } else {
+      callback->Cancel();
+    }
+  }
+
+  if (browser_ && browser_->GetHost()) {
+    browser_->GetHost()->Invalidate(PET_VIEW);
+  }
+}
+
+bool BrowserClient::GetAuthCredentials(
+    CefRefPtr<CefBrowser> browser, const CefString &origin_url, bool isProxy,
+    const CefString &host, int port, const CefString &realm,
+    const CefString &scheme, CefRefPtr<CefAuthCallback> callback) {
+  
+  std::lock_guard<std::mutex> lock(auth_mutex_);
+
+  auth_dialog_active_ = true;
+  auth_callback_ = callback;
+  auth_realm_ = realm.ToString();
+  
+  // If realm is empty, show host:port instead
+  std::string display_realm = auth_realm_;
+  if (display_realm.empty()) {
+    display_realm = host.ToString() + ":" + std::to_string(port);
+  }
+
+  if (status_bar_) {
+    status_bar_->showAuthDialog("Username:", display_realm);
+  }
+
+  return true;
+}
+
+void BrowserClient::HandleAuthResponse(bool accept,
+                                       const std::string &username,
+                                       const std::string &password) {
+  if (is_closing_) {
+    return;
+  }
+
+  CefRefPtr<CefAuthCallback> callback;
+
+  {
+    std::lock_guard<std::mutex> lock(auth_mutex_);
+
+    if (!auth_dialog_active_ || !auth_callback_) {
+      return;
+    }
+
+    LOGB("Auth response: accept=" << accept << " username=" << username);
+
+    callback = auth_callback_;
+    auth_callback_ = nullptr;
+    auth_dialog_active_ = false;
+    auth_realm_.clear();
+  }
+
+  if (callback) {
+    if (accept && !username.empty()) {
+      callback->Continue(username, password);
     } else {
       callback->Cancel();
     }

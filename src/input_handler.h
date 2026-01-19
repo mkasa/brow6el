@@ -67,6 +67,12 @@ private:
   bool file_input_active_ = false;
   std::string file_input_buffer_;
 
+  // Auth dialog mode
+  bool auth_dialog_active_ = false;
+  std::string auth_username_buffer_;
+  std::string auth_password_buffer_;
+  bool auth_password_mode_ = false; // true when entering password
+
   // Console input mode
   bool console_input_active_ = false;
   std::string console_input_buffer_;

@@ -160,6 +160,49 @@ void StatusBar::showFileInput(const std::string &default_path) {
   restoreCursorPosition();
 }
 
+void StatusBar::showAuthDialog(const std::string &input_display,
+                                const std::string &realm) {
+  std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
+
+  saveCursorPosition();
+
+  struct winsize w;
+  ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+  int rows = w.ws_row;
+
+  // Use bottom 4 lines for auth dialog
+  int start_line = rows - 3;
+  
+  // Clear the dialog area
+  for (int i = start_line; i <= rows; i++) {
+    std::cout << "\033[" << i << ";1H\033[2K";
+  }
+
+  // Draw header
+  std::cout << "\033[" << start_line << ";1H";
+  std::cout << "\033[44m\033[97m\033[1m"; // Blue background, white bold text
+  std::cout << " 🔒 Authentication Required";
+  std::cout << "\033[K\033[0m\n";
+
+  // Show realm
+  std::cout << "\033[40m\033[97m"; // Black background, white text
+  std::cout << " Realm: " << realm;
+  std::cout << "\033[K\033[0m\n";
+
+  // Input line with current field and value
+  std::cout << "\033[40m\033[97m"; // Black background, white text
+  std::cout << " " << input_display;
+  std::cout << "\033[K\033[0m\n";
+  
+  // Instructions
+  std::cout << "\033[40m\033[90m"; // Dark gray text
+  std::cout << " (Enter to move to password, Esc to cancel)";
+  std::cout << "\033[K\033[0m";
+  std::cout << std::flush;
+
+  restoreCursorPosition();
+}
+
 void StatusBar::showComboboxOptions(const std::vector<std::string> &options,
                                     int selected_index) {
   if (options.empty()) {

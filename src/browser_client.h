@@ -7,6 +7,7 @@
 #include "include/cef_download_handler.h"
 #include "include/cef_jsdialog_handler.h"
 #include "include/cef_render_handler.h"
+#include "include/cef_request_handler.h"
 #include "sixel_renderer.h"
 #include "status_bar.h"
 #include "user_scripts.h"
@@ -21,7 +22,8 @@ class BrowserClient : public CefClient,
                       public CefDisplayHandler,
                       public CefJSDialogHandler,
                       public CefDownloadHandler,
-                      public CefDialogHandler {
+                      public CefDialogHandler,
+                      public CefRequestHandler {
 public:
   struct DownloadEntry {
     int32_t id;
@@ -39,25 +41,14 @@ public:
 
   BrowserClient(int width, int height, int cell_width, int cell_height);
 
-  virtual CefRefPtr<CefRenderHandler> GetRenderHandler() override {
-    return this;
-  }
-  virtual CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override {
-    return this;
-  }
-  virtual CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
-  virtual CefRefPtr<CefDisplayHandler> GetDisplayHandler() override {
-    return this;
-  }
-  virtual CefRefPtr<CefJSDialogHandler> GetJSDialogHandler() override {
-    return this;
-  }
-  virtual CefRefPtr<CefDownloadHandler> GetDownloadHandler() override {
-    return this;
-  }
-  virtual CefRefPtr<CefDialogHandler> GetDialogHandler() override {
-    return this;
-  }
+  CefRefPtr<CefRenderHandler> GetRenderHandler() override;
+  CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override;
+  CefRefPtr<CefLoadHandler> GetLoadHandler() override;
+  CefRefPtr<CefDisplayHandler> GetDisplayHandler() override;
+  CefRefPtr<CefJSDialogHandler> GetJSDialogHandler() override;
+  CefRefPtr<CefDownloadHandler> GetDownloadHandler() override;
+  CefRefPtr<CefDialogHandler> GetDialogHandler() override;
+  CefRefPtr<CefRequestHandler> GetRequestHandler() override;
 
   virtual void GetViewRect(CefRefPtr<CefBrowser> browser,
                            CefRect &rect) override;
@@ -111,6 +102,16 @@ public:
                             const std::vector<CefString> &accept_descriptions,
                             CefRefPtr<CefFileDialogCallback> callback) override;
 
+  // CefRequestHandler method
+  virtual bool GetAuthCredentials(CefRefPtr<CefBrowser> browser,
+                                  const CefString &origin_url,
+                                  bool isProxy,
+                                  const CefString &host,
+                                  int port,
+                                  const CefString &realm,
+                                  const CefString &scheme,
+                                  CefRefPtr<CefAuthCallback> callback) override;
+
   CefRefPtr<CefBrowser> GetBrowser() { return browser_; }
   bool IsClosing() const { return is_closing_; }
   StatusBar *GetStatusBar() { return status_bar_.get(); }
@@ -147,6 +148,13 @@ public:
   const std::string &GetJSDialogPromptDefault() const {
     return js_dialog_prompt_default_;
   }
+
+  // HTTP Basic Auth handling
+  void SetAuthDialogActive(bool active) { auth_dialog_active_ = active; }
+  bool IsAuthDialogActive() const { return auth_dialog_active_; }
+  const std::string &GetAuthRealm() const { return auth_realm_; }
+  void HandleAuthResponse(bool accept, const std::string &username = "",
+                         const std::string &password = "");
 
   // File dialog handling
   void SetFileInputActive(bool active) { file_input_active_ = active; }
@@ -278,6 +286,12 @@ private:
   bool file_input_active_ = false;
   CefRefPtr<CefFileDialogCallback> file_dialog_callback_;
   std::mutex file_dialog_mutex_;
+
+  // HTTP Basic Auth handling
+  bool auth_dialog_active_ = false;
+  std::string auth_realm_;
+  CefRefPtr<CefAuthCallback> auth_callback_;
+  std::mutex auth_mutex_;
 
   // Download handling
   bool download_confirm_active_ = false;
