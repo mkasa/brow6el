@@ -68,7 +68,7 @@ private:
   Config() {}
 
   // Current config version - increment when making breaking changes
-  static constexpr int CONFIG_VERSION = 2;
+  static constexpr int CONFIG_VERSION = 3;
 
   std::vector<std::string> cef_flags_;
   std::map<std::string, std::string> cef_flags_with_value_;
@@ -180,6 +180,10 @@ private:
       file << "disable-dev-shm-usage\n";
       file << "disable-setuid-sandbox\n";
       file << "no-sandbox\n";
+      file << "\n";
+      file << "# HTTP Basic Authentication\n";
+      file << "# Disable Chrome's built-in login prompt to enable custom auth dialog\n";
+      file << "disable-chrome-login-prompt\n";
       file << "\n";
       file << "# Process Model\n";
       file << "# Multi-process mode with in-process GPU (fixes SIGTRAP in CEF "

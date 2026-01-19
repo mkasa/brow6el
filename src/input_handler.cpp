@@ -280,6 +280,15 @@ void InputHandler::readLoop() {
       file_input_buffer_.clear();
     }
 
+    // Sync auth dialog state with browser client
+    if (browser_client_ && browser_client_->IsAuthDialogActive() &&
+        !auth_dialog_active_) {
+      auth_dialog_active_ = true;
+      auth_username_buffer_.clear();
+      auth_password_buffer_.clear();
+      auth_password_mode_ = false;
+    }
+
     // Sync hint mode state bidirectionally
     if (browser_client_) {
       if (browser_client_->IsHintModeActive() && !hint_mode_active_) {
@@ -375,6 +384,18 @@ void InputHandler::readLoop() {
               browser_client_->SetConsoleActive(false);
               browser_client_->GetStatusBar()->clear();
               // Force a paint to refresh screen
+              if (browser_) {
+                browser_->GetHost()->Invalidate(PET_VIEW);
+              }
+            }
+          } else if (auth_dialog_active_) {
+            auth_dialog_active_ = false;
+            auth_username_buffer_.clear();
+            auth_password_buffer_.clear();
+            auth_password_mode_ = false;
+            if (browser_client_) {
+              browser_client_->HandleAuthResponse(false);
+              browser_client_->GetStatusBar()->clear();
               if (browser_) {
                 browser_->GetHost()->Invalidate(PET_VIEW);
               }
@@ -736,6 +757,30 @@ void InputHandler::readLoop() {
             url_input_buffer_.clear();
             continue;
           }
+          // Check if auth dialog is active
+          if (auth_dialog_active_) {
+            if (!auth_password_mode_) {
+              // First Enter - move to password
+              auth_password_mode_ = true;
+              if (browser_client_) {
+                browser_client_->GetStatusBar()->showAuthDialog(
+                    "Username: " + auth_username_buffer_ + " | Password:",
+                    browser_client_->GetAuthRealm());
+              }
+            } else {
+              // Second Enter - submit
+              auth_dialog_active_ = false;
+              if (browser_client_) {
+                browser_client_->HandleAuthResponse(true, auth_username_buffer_,
+                                                   auth_password_buffer_);
+                browser_client_->GetStatusBar()->clear();
+              }
+              auth_username_buffer_.clear();
+              auth_password_buffer_.clear();
+              auth_password_mode_ = false;
+            }
+            continue;
+          }
           // Check if File input is active
           if (file_input_active_) {
             file_input_active_ = false;
@@ -828,6 +873,27 @@ void InputHandler::readLoop() {
                     file_input_buffer_);
               }
             }
+          } else if (auth_dialog_active_) {
+            if (auth_password_mode_) {
+              if (!auth_password_buffer_.empty()) {
+                removeLastUTF8Char(auth_password_buffer_);
+                std::string masked(auth_password_buffer_.length(), '*');
+                if (browser_client_) {
+                  browser_client_->GetStatusBar()->showAuthDialog(
+                      "Username: " + auth_username_buffer_ + " | Password: " + masked,
+                      browser_client_->GetAuthRealm());
+                }
+              }
+            } else {
+              if (!auth_username_buffer_.empty()) {
+                removeLastUTF8Char(auth_username_buffer_);
+                if (browser_client_) {
+                  browser_client_->GetStatusBar()->showAuthDialog(
+                      "Username: " + auth_username_buffer_,
+                      browser_client_->GetAuthRealm());
+                }
+              }
+            }
           } else if (hint_mode_active_) {
             if (!hint_input_buffer_.empty()) {
               hint_input_buffer_.pop_back();
@@ -846,6 +912,18 @@ void InputHandler::readLoop() {
             if (browser_client_) {
               browser_client_->SetUrlInputActive(false);
               browser_client_->GetStatusBar()->clear();
+            }
+          } else if (auth_dialog_active_) {
+            auth_dialog_active_ = false;
+            auth_username_buffer_.clear();
+            auth_password_buffer_.clear();
+            auth_password_mode_ = false;
+            if (browser_client_) {
+              browser_client_->HandleAuthResponse(false);
+              browser_client_->GetStatusBar()->clear();
+              if (browser_) {
+                browser_->GetHost()->Invalidate(PET_VIEW);
+              }
             }
           } else if (hint_mode_active_) {
             // Cancel hint mode on ESC
@@ -954,6 +1032,23 @@ void InputHandler::readLoop() {
             if (browser_client_) {
               browser_client_->GetStatusBar()->showFileInput(
                   file_input_buffer_);
+            }
+          } else if (auth_dialog_active_) {
+            if (auth_password_mode_) {
+              auth_password_buffer_ += c;
+              std::string masked(auth_password_buffer_.length(), '*');
+              if (browser_client_) {
+                browser_client_->GetStatusBar()->showAuthDialog(
+                    "Username: " + auth_username_buffer_ + " | Password: " + masked,
+                    browser_client_->GetAuthRealm());
+              }
+            } else {
+              auth_username_buffer_ += c;
+              if (browser_client_) {
+                browser_client_->GetStatusBar()->showAuthDialog(
+                    "Username: " + auth_username_buffer_,
+                    browser_client_->GetAuthRealm());
+              }
             }
           } else {
             // Mode-specific handling
@@ -1337,6 +1432,23 @@ void InputHandler::readLoop() {
               if (browser_client_) {
                 browser_client_->GetStatusBar()->showFileInput(
                     file_input_buffer_);
+              }
+            } else if (auth_dialog_active_) {
+              if (auth_password_mode_) {
+                auth_password_buffer_ += utf8_char;
+                std::string masked(auth_password_buffer_.length(), '*');
+                if (browser_client_) {
+                  browser_client_->GetStatusBar()->showAuthDialog(
+                      "Username: " + auth_username_buffer_ + " | Password: " + masked,
+                      browser_client_->GetAuthRealm());
+                }
+              } else {
+                auth_username_buffer_ += utf8_char;
+                if (browser_client_) {
+                  browser_client_->GetStatusBar()->showAuthDialog(
+                      "Username: " + auth_username_buffer_,
+                      browser_client_->GetAuthRealm());
+                }
               }
             } else if (current_mode_ == MODE_INSERT) {
               // In INSERT mode, send UTF-8 character to CEF
