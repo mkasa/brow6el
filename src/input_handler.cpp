@@ -1401,7 +1401,7 @@ void InputHandler::readLoop() {
                     if (last_slash != std::string::npos) {
                       exe_dir = exe_dir.substr(0, last_slash);
                     }
-                    std::string tutorial_path = exe_dir + "/../src/tutorial.html";
+                    std::string tutorial_path = exe_dir + "/tutorial.html";
                     std::string url = "file://" + tutorial_path;
                     browser_->GetMainFrame()->LoadURL(url);
                   }
