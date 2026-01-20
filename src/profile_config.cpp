@@ -87,6 +87,12 @@ void ProfileConfig::load() {
       cell_width_override_ = std::stoi(value);
     } else if (key == "cell_height") {
       cell_height_override_ = std::stoi(value);
+    } else if (key == "graphics_protocol") {
+      if (value == "sixel" || value == "kitty") {
+        graphics_protocol_ = value;
+      }
+    } else if (key == "show_internal_console_logs") {
+      show_internal_console_logs_ = (value == "true");
     }
   }
   file.close();
@@ -199,6 +205,8 @@ void ProfileConfig::writeConfig(std::ofstream &file, bool use_defaults,
   file << "# When enabled, only changed screen regions are redrawn\n";
   file << "# When disabled, the entire screen is redrawn on every update "
           "(default)\n";
+  file << "# NOTE: Only applies to sixel protocol. Kitty protocol always uses "
+          "full-frame rendering.\n";
   file << "tiled_rendering="
        << (use_defaults ? "false"
                         : (tiled_rendering_enabled_ ? "true" : "false"))
@@ -211,6 +219,21 @@ void ProfileConfig::writeConfig(std::ofstream &file, bool use_defaults,
        << (use_defaults ? "0" : std::to_string(cell_width_override_)) << "\n";
   file << "#cell_height="
        << (use_defaults ? "0" : std::to_string(cell_height_override_)) << "\n";
+  file << "\n";
+  file << "# Graphics Protocol\n";
+  file << "# Choose between 'sixel' (default, widely supported) or 'kitty' "
+          "(kitty terminal protocol)\n";
+  file << "# sixel: Traditional sixel graphics (recommended for most terminals)\n";
+  file << "# kitty: Kitty graphics protocol (for kitty, ghostty, wezterm, etc.)\n";
+  file << "graphics_protocol="
+       << (use_defaults ? "sixel" : graphics_protocol_) << "\n";
+  file << "\n";
+  file << "# Show internal console messages\n";
+  file << "# When false, hides internal [Brow6el] debug messages from JS console\n";
+  file << "# Set to true if you need to debug browser internals\n";
+  file << "show_internal_console_logs="
+       << (use_defaults ? "false" : (show_internal_console_logs_ ? "true" : "false"))
+       << "\n";
 }
 
 std::string ProfileConfig::getProfilePath() const {

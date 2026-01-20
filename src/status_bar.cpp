@@ -1,9 +1,56 @@
 #include "status_bar.h"
+#include "kitty_renderer.h"
+#include "profile_config.h"
 #include "sixel_renderer.h"
 #include <algorithm>
 #include <iostream>
 #include <sys/ioctl.h>
 #include <unistd.h>
+
+// Helper to prepare for showing dialogs (crop renderer if using Kitty)
+static void prepareDialogArea(int dialog_rows) {
+  ProfileConfig &config = ProfileConfig::getInstance();
+  if (config.getGraphicsProtocol() == "kitty") {
+    // Get renderer instance and crop it to exclude dialog area
+    KittyRenderer* renderer = KittyRenderer::getGlobalInstance();
+    if (renderer) {
+      renderer->renderCropped(dialog_rows);
+    }
+  }
+}
+
+// Legacy prepareDialogArea without parameter - just delete images
+static void prepareDialogArea() {
+  ProfileConfig &config = ProfileConfig::getInstance();
+  if (config.getGraphicsProtocol() == "kitty") {
+    // Just delete all images
+    printf("\033_Ga=d,d=a;\033\\");
+    fflush(stdout);
+  }
+}
+
+// Helper to get KittyRenderer instance for cropping
+static KittyRenderer* getKittyRenderer() {
+  // We need access to the renderer - will be set by browser_client
+  static KittyRenderer* renderer = nullptr;
+  return renderer;
+}
+
+// Helper to crop and re-render for dialogs
+static void cropKittyImageForDialog(int start_row, int num_rows) {
+  ProfileConfig &config = ProfileConfig::getInstance();
+  if (config.getGraphicsProtocol() != "kitty") {
+    return; // Not using Kitty
+  }
+  
+  // Delete all images
+  printf("\033_Ga=d,d=a;\033\\");
+  fflush(stdout);
+  
+  // Note: Cropped re-render would require access to renderer instance
+  // For now, just delete - browser will re-render on dialog close
+}
+
 
 StatusBar::StatusBar() : is_showing_(false), current_selected_(0) {}
 
@@ -19,15 +66,43 @@ void StatusBar::clearStatusArea() {
   ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
   int rows = w.ws_row;
 
-  // Move to bottom and clear several lines
-  for (int i = 0; i < 10; i++) {
-    std::cout << "\033[" << (rows - i) << ";1H\033[K";
+  // Clear bottom half of screen (where dialogs appear) more aggressively for Kitty
+  ProfileConfig &config = ProfileConfig::getInstance();
+  if (config.getGraphicsProtocol() == "kitty") {
+    // Clear entire screen to remove all dialog text
+    std::cout << "\033[2J";
+  } else {
+    // For sixel, just clear bottom half
+    int clear_start = rows / 2;
+    for (int i = clear_start; i <= rows; i++) {
+      std::cout << "\033[" << i << ";1H\033[2K"; // Move to line and clear entire line
+    }
   }
   std::cout << std::flush;
 }
 
 void StatusBar::clear(bool redraw_title) {
-  clearStatusArea();
+  // For Kitty: clear entire screen to remove dialog text
+  ProfileConfig &config = ProfileConfig::getInstance();
+  if (config.getGraphicsProtocol() == "kitty") {
+    std::cout << "\033[2J\033[H" << std::flush;
+    // Delete all images
+    printf("\033_Ga=d,d=a;\033\\");
+    fflush(stdout);
+    
+    // Small delay to ensure terminal processes clear before re-rendering
+    usleep(20000); // 20ms
+    
+    // Force immediate re-render of full frame to cover dialog text
+    KittyRenderer* renderer = KittyRenderer::getGlobalInstance();
+    if (renderer && !renderer->getPrevBuffer().empty()) {
+      // Re-render full frame (0 = no cropping)
+      renderer->renderCropped(0);
+    }
+  } else {
+    clearStatusArea();
+  }
+  
   is_showing_ = false;
   current_options_.clear();
   // Don't clear current_title_ or current_mode_prefix_ - they should persist
@@ -124,6 +199,7 @@ void StatusBar::showURLInput(const std::string &current_url) {
   std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
 
   saveCursorPosition();
+  // No prepareDialogArea - single line doesn't need cropping
 
   struct winsize w;
   ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
@@ -144,6 +220,7 @@ void StatusBar::showFileInput(const std::string &default_path) {
   std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
 
   saveCursorPosition();
+  // No prepareDialogArea - single line doesn't need cropping
 
   struct winsize w;
   ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
@@ -165,12 +242,15 @@ void StatusBar::showAuthDialog(const std::string &input_display,
   std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
 
   saveCursorPosition();
-
+  
   struct winsize w;
   ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
   int rows = w.ws_row;
 
   // Use bottom 4 lines for auth dialog
+  int dialog_rows = 4;
+  prepareDialogArea(dialog_rows);
+  
   int start_line = rows - 3;
   
   // Clear the dialog area
@@ -225,6 +305,16 @@ void StatusBar::showComboboxOptions(const std::vector<std::string> &options,
 
   // Calculate how many options to show (max 8 lines)
   int max_display = std::min(8, (int)options.size());
+  
+  // Calculate dialog height: header (1) + options (max_display) + scroll indicators (1 if needed)
+  int dialog_rows = max_display + 1; // header + options
+  if (options.size() > max_display) {
+    dialog_rows++; // add line for scroll indicators
+  }
+  
+  // Crop renderer for Kitty protocol
+  prepareDialogArea(dialog_rows);
+  
   int start_line = rows - max_display - 1;
 
   // Clear the entire options area
@@ -298,6 +388,8 @@ void StatusBar::showConsole(const std::vector<std::string> &logs,
                             const std::string &input, int scroll_offset) {
   std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
 
+  saveCursorPosition();
+
   struct winsize w;
   ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
   int rows = w.ws_row;
@@ -306,6 +398,9 @@ void StatusBar::showConsole(const std::vector<std::string> &logs,
   // Use bottom half of screen for console (or at least 10 lines)
   int console_height = std::max(10, rows / 2);
   int start_line = rows - console_height + 1;
+  
+  // Crop renderer to exclude console area
+  prepareDialogArea(console_height);
 
   // Save cursor position AFTER we know where we'll be drawing
   saveCursorPosition();
@@ -400,7 +495,11 @@ void StatusBar::showPopupConfirm(const std::string &url) {
   int cols = w.ws_col;
 
   // Use 5 lines at bottom
+  int dialog_height = 5;
   int start_line = rows - 4;
+  
+  // Crop renderer
+  prepareDialogArea(dialog_height);
 
   // Clear area
   for (int i = 0; i < 5; i++) {
@@ -452,7 +551,11 @@ void StatusBar::showJSAlert(const std::string &message) {
   int cols = w.ws_col;
 
   // Use 5 lines at bottom
+  int dialog_height = 5;
   int start_line = rows - 4;
+  
+  // Crop renderer
+  prepareDialogArea(dialog_height);
 
   // Clear area
   for (int i = 0; i < 5; i++) {
@@ -501,7 +604,11 @@ void StatusBar::showJSConfirm(const std::string &message) {
   int cols = w.ws_col;
 
   // Use 5 lines at bottom
+  int dialog_height = 5;
   int start_line = rows - 4;
+  
+  // Crop renderer
+  prepareDialogArea(dialog_height);
 
   // Clear area
   for (int i = 0; i < 5; i++) {
@@ -554,7 +661,11 @@ void StatusBar::showJSPrompt(const std::string &message,
   int cols = w.ws_col;
 
   // Use 5 lines at bottom
+  int dialog_height = 5;
   int start_line = rows - 4;
+  
+  // Crop renderer
+  prepareDialogArea(dialog_height);
 
   // Clear area
   for (int i = 0; i < 5; i++) {
@@ -606,7 +717,11 @@ void StatusBar::showDownloadConfirm(const std::string &filename,
   int cols = w.ws_col;
 
   // Use 6 lines at bottom
+  int dialog_height = 6;
   int start_line = rows - 5;
+  
+  // Crop renderer
+  prepareDialogArea(dialog_height);
 
   // Clear area
   for (int i = 0; i < 6; i++) {
@@ -663,6 +778,7 @@ void StatusBar::showBookmarks(const std::vector<std::string> &bookmarks,
     std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
 
     saveCursorPosition();
+    prepareDialogArea();
 
     struct winsize w;
     ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
@@ -705,6 +821,9 @@ void StatusBar::showBookmarks(const std::vector<std::string> &bookmarks,
   int dialog_height = std::max(10, rows / 2);
   int start_line = rows - dialog_height + 1;
   
+  // Crop renderer to exclude dialog area
+  prepareDialogArea(dialog_height);
+  
   // Calculate how many bookmarks to show
   int max_display = dialog_height - 1; // Minus header line
 
@@ -718,7 +837,8 @@ void StatusBar::showBookmarks(const std::vector<std::string> &bookmarks,
   std::cout << "\033[44m\033[97m\033[1m"; // Blue background, white bold text
   std::cout
       << " 📚 Bookmarks (↑↓ navigate, Enter open, d delete, b/Esc close) ";
-  std::cout << "\033[K\033[0m\n";
+  std::cout << "\033[K\033[0m" << std::flush;
+  std::cout << "\n";
 
   // Determine which bookmarks to show (with scrolling)
   int start_idx = 0;
@@ -746,7 +866,8 @@ void StatusBar::showBookmarks(const std::vector<std::string> &bookmarks,
       std::cout << "\033[40m\033[97m"; // Black background, white text
       std::cout << "   " << bookmark;
     }
-    std::cout << "\033[K\033[0m\n"; // Clear to end of line and reset
+    std::cout << "\033[K\033[0m" << std::flush;
+    std::cout << "\n"; // Clear to end of line and reset
   }
 
   // Show scroll indicators if needed
@@ -773,6 +894,7 @@ void StatusBar::showUserScripts(const std::vector<std::string> &scripts,
     std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
 
     saveCursorPosition();
+    prepareDialogArea();
 
     struct winsize w;
     ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
@@ -814,6 +936,9 @@ void StatusBar::showUserScripts(const std::vector<std::string> &scripts,
   // Use bottom half of screen for scripts (or at least 10 lines), same as console
   int dialog_height = std::max(10, rows / 2);
   int start_line = rows - dialog_height + 1;
+  
+  // Crop renderer
+  prepareDialogArea(dialog_height);
   
   // Calculate how many scripts to show
   int max_display = dialog_height - 1; // Minus header line
@@ -904,6 +1029,7 @@ void StatusBar::showDownloadManager(const std::vector<std::string> &downloads,
   if (downloads.empty()) {
     std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
     saveCursorPosition();
+    
     struct winsize w;
     ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
     int rows = w.ws_row;
@@ -911,6 +1037,9 @@ void StatusBar::showDownloadManager(const std::vector<std::string> &downloads,
     // Use same height calculation as non-empty case
     int dialog_height = std::max(10, rows / 2);
     int start_line = rows - dialog_height + 1;
+    
+    // Crop renderer
+    prepareDialogArea(dialog_height);
 
     // Clear the entire dialog area from start_line to bottom of screen
     for (int i = start_line; i <= rows; i++) {
@@ -932,6 +1061,7 @@ void StatusBar::showDownloadManager(const std::vector<std::string> &downloads,
   current_options_ = downloads;
   current_selected_ = selected_index;
   saveCursorPosition();
+  
   struct winsize w;
   ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
   int rows = w.ws_row;
@@ -940,6 +1070,9 @@ void StatusBar::showDownloadManager(const std::vector<std::string> &downloads,
   // Use bottom half of screen for downloads (or at least 10 lines), same as console
   int dialog_height = std::max(10, rows / 2);
   int start_line = rows - dialog_height + 1;
+  
+  // Crop renderer
+  prepareDialogArea(dialog_height);
   
   // Calculate how many downloads to show
   int max_display = dialog_height - 1; // Minus header line

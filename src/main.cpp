@@ -105,6 +105,7 @@ int main(int argc, char *argv[]) {
   // Parse command line arguments
   std::string url = config.getDefaultUrl();
   std::string profile_mode_override;
+  std::string graphics_protocol_override;
 
   for (int i = 1; i < argc; i++) {
     std::string arg = argv[i];
@@ -114,9 +115,10 @@ int main(int argc, char *argv[]) {
       std::cout << "Usage: brow6el [OPTIONS] [URL]\n\n";
       std::cout << "Options:\n";
       std::cout << "  --persistent        Use persistent profile mode\n";
-      std::cout
-          << "  --temporary         Use temporary profile mode (private)\n";
+      std::cout << "  --temporary         Use temporary profile mode\n";
       std::cout << "  --custom            Use custom profile mode\n";
+      std::cout << "  --sixel             Use sixel graphics protocol\n";
+      std::cout << "  --kitty             Use kitty graphics protocol\n";
       std::cout << "  --version           Show version information\n\n";
       std::cout << "Vim-Style Modal Control:\n";
       std::cout << "  STANDARD mode (default) - Single-key commands:\n";
@@ -168,9 +170,14 @@ int main(int argc, char *argv[]) {
       profile_mode_override = "temporary";
     } else if (arg == "--custom") {
       profile_mode_override = "custom";
+    } else if (arg == "--sixel") {
+      graphics_protocol_override = "sixel";
+    } else if (arg == "--kitty") {
+      graphics_protocol_override = "kitty";
     } else if (arg[0] != '-') {
       url = arg;
     }
+    // Don't reject unknown options here - CEF may use them for subprocesses
   }
 
   // Get executable directory for resources (needed by both main and
@@ -227,6 +234,12 @@ int main(int argc, char *argv[]) {
   if (!profile_mode_override.empty()) {
     profile_config.overrideMode(profile_mode_override);
   }
+  
+  // Apply graphics protocol override if provided
+  if (!graphics_protocol_override.empty()) {
+    profile_config.overrideGraphicsProtocol(graphics_protocol_override);
+    std::cout << "Graphics protocol overridden to: " << graphics_protocol_override << std::endl;
+  }
 
   std::string profile_path = profile_config.createProfileDirectory();
 
@@ -261,6 +274,39 @@ int main(int argc, char *argv[]) {
   saveTerminalTitle();
 
   std::cout << "Brow6el - Terminal Web Browser with Sixel Support" << std::endl;
+
+  // Detect graphics support BEFORE redirecting stderr
+  TerminalInfo termInfo = TerminalDetector::detect();
+
+  // Debug: log detection results
+  std::cout << "Graphics detection: Sixel=" << (termInfo.supports_sixel ? "YES" : "NO") 
+            << ", Kitty=" << (termInfo.supports_kitty ? "YES" : "NO") << std::endl;
+
+  // Check if terminal supports graphics (either sixel or kitty)
+  std::string graphics_protocol = config.getGraphicsProtocol();
+  bool has_graphics_support = false;
+  
+  if (graphics_protocol == "kitty" && termInfo.supports_kitty) {
+    has_graphics_support = true;
+  } else if (graphics_protocol == "sixel" && termInfo.supports_sixel) {
+    has_graphics_support = true;
+  } else if (termInfo.supports_sixel || termInfo.supports_kitty) {
+    // Fallback: if preferred protocol not supported, use whichever is available
+    has_graphics_support = true;
+    if (graphics_protocol == "kitty" && !termInfo.supports_kitty && termInfo.supports_sixel) {
+      std::cout << "Warning: Kitty protocol not supported, falling back to Sixel" << std::endl;
+    } else if (graphics_protocol == "sixel" && !termInfo.supports_sixel && termInfo.supports_kitty) {
+      std::cout << "Warning: Sixel not supported, falling back to Kitty protocol" << std::endl;
+    }
+  }
+  
+  if (!has_graphics_support) {
+    std::cout << "Error: Your terminal does not support graphics rendering" << std::endl;
+    std::cout << "Please use a terminal emulator with graphics support:" << std::endl;
+    std::cout << "  Sixel: mlterm, xterm, wezterm, foot, etc." << std::endl;
+    std::cout << "  Kitty: kitty, ghostty, wezterm, etc." << std::endl;
+    return 1;
+  }
 
   // Redirect stderr to suppress GL errors and other noise from Chromium
   int stderr_backup = dup(STDERR_FILENO);
@@ -319,16 +365,6 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  TerminalInfo termInfo = TerminalDetector::detect();
-
-  if (!termInfo.supports_sixel) {
-    std::cerr << "Error: Your terminal does not support Sixel graphics"
-              << std::endl;
-    std::cerr << "Please use a terminal emulator with Sixel support (e.g., "
-                 "mlterm, xterm with sixel)"
-              << std::endl;
-    return 1;
-  }
 
   if (!CefInitialize(main_args, settings, app.get(), nullptr)) {
     std::cerr << "Failed to initialize CEF" << std::endl;
@@ -337,17 +373,17 @@ int main(int argc, char *argv[]) {
 
   // Configure DNS-over-HTTPS using global preference manager (must be after
   // CefInitialize)
+  CefRefPtr<CefPreferenceManager> pref_manager =
+      CefPreferenceManager::GetGlobalPreferenceManager();
+  CefString error;
+  
   if (profile_config.isDohEnabled()) {
-    CefRefPtr<CefPreferenceManager> pref_manager =
-        CefPreferenceManager::GetGlobalPreferenceManager();
-
+    // Enable DoH
     std::string doh_server = profile_config.getDohServer();
     std::string doh_mode = profile_config.getDohMode();
 
     std::cout << "Enabling DNS-over-HTTPS: " << doh_server
               << " (mode: " << doh_mode << ")" << std::endl;
-
-    CefString error;
 
     // Set DoH mode
     CefRefPtr<CefValue> mode_value = CefValue::Create();
@@ -367,6 +403,11 @@ int main(int argc, char *argv[]) {
     }
 
     std::cout << "DoH configuration complete." << std::endl;
+  } else {
+    // Explicitly disable DoH (important for persistent profiles that may have it enabled from previous runs)
+    CefRefPtr<CefValue> mode_value = CefValue::Create();
+    mode_value->SetString("off");
+    pref_manager->SetPreference("dns_over_https.mode", mode_value, error);
   }
 
   // Use cell dimensions from config if set, otherwise use auto-detected
@@ -378,10 +419,14 @@ int main(int argc, char *argv[]) {
                         : termInfo.cell_height;
 
   CefRefPtr<BrowserClient> client(new BrowserClient(
-      termInfo.width, termInfo.height, cell_width, cell_height));
+      termInfo.width, termInfo.height, cell_width, cell_height,
+      termInfo.supports_sixel, termInfo.supports_kitty));
 
   // Configure tiled rendering from config
   client->SetTiledRenderingEnabled(profile_config.isTiledRenderingEnabled());
+  
+  // Configure internal console log visibility
+  client->SetShowInternalConsoleLogs(profile_config.showInternalConsoleLogs());
 
   CefWindowInfo window_info;
   window_info.SetAsWindowless(0);
@@ -444,7 +489,7 @@ int main(int argc, char *argv[]) {
       // Re-detect terminal size
       TerminalInfo newInfo = TerminalDetector::detect();
 
-      if (newInfo.supports_sixel && newInfo.width > 0 && newInfo.height > 0) {
+      if ((newInfo.supports_sixel || newInfo.supports_kitty) && newInfo.width > 0 && newInfo.height > 0) {
         // Update browser client dimensions
         client->Resize(newInfo.width, newInfo.height);
 

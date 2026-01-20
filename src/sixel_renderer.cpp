@@ -5,8 +5,8 @@
 #include <iostream>
 #include <mutex>
 
-// Global terminal mutex
-static std::mutex g_terminal_mutex;
+// Global terminal mutex (defined in image_renderer.cpp)
+extern std::mutex g_terminal_mutex;
 
 // C-style callback for sixel output
 static int sixel_write_callback(char *data, int size, void *priv) {

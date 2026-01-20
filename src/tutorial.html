@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brow6el Tutorial - Learn Modal Browser Navigation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        h2 {
+            color: #34495e;
+            margin-top: 40px;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+        }
+        
+        h3 {
+            color: #555;
+            margin-top: 25px;
+        }
+        
+        .lesson {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .mode-indicator {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-family: monospace;
+            margin: 0 4px;
+        }
+        
+        .mode-standard {
+            background: #3498db;
+            color: white;
+        }
+        
+        .mode-insert {
+            background: #2ecc71;
+            color: white;
+        }
+        
+        .mode-mouse {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .mode-visual {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .key {
+            display: inline-block;
+            background: #ecf0f1;
+            border: 1px solid #bdc3c7;
+            border-radius: 3px;
+            padding: 2px 8px;
+            font-family: monospace;
+            font-weight: bold;
+            margin: 0 2px;
+            box-shadow: 0 2px 0 #95a5a6;
+        }
+        
+        .shortcut-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .shortcut-list li {
+            padding: 8px;
+            margin: 4px 0;
+            background: #f8f9fa;
+            border-left: 3px solid #3498db;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .shortcut-key {
+            font-weight: bold;
+            min-width: 60px;
+        }
+        
+        .practice-area {
+            background: #fff3cd;
+            border: 2px dashed #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        
+        .practice-area h4 {
+            margin-top: 0;
+            color: #856404;
+        }
+        
+        .tip {
+            background: #d1ecf1;
+            border-left: 4px solid #0c5460;
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        
+        .tip strong {
+            color: #0c5460;
+        }
+        
+        .warning {
+            background: #f8d7da;
+            border-left: 4px solid #721c24;
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        
+        .warning strong {
+            color: #721c24;
+        }
+        
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        
+        .exercise {
+            counter-increment: exercise;
+            margin: 20px 0;
+            padding: 15px;
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            border-radius: 4px;
+        }
+        
+        .exercise:before {
+            content: "Exercise " counter(exercise) ": ";
+            font-weight: bold;
+            color: #2e7d32;
+        }
+        
+        .toc {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .toc li {
+            margin: 8px 0;
+        }
+        
+        .toc a {
+            color: #1976d2;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        
+        body {
+            counter-reset: exercise;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌐 Brow6el Tutorial - Master Modal Browser Navigation</h1>
+    
+    <div class="warning" style="background: #fff3cd; border-left: 4px solid #ffc107;">
+        <strong>⌨️ First Things First - How to Scroll This Page:</strong><br>
+        Use these keys to navigate through this tutorial:<br>
+        <span class="key">j</span> = scroll down &nbsp;&nbsp;&nbsp;
+        <span class="key">k</span> = scroll up &nbsp;&nbsp;&nbsp;
+        <span class="key">t</span> = scroll up faster &nbsp;&nbsp;&nbsp;
+        <span class="key">g</span> = scroll down faster
+    </div>
+    
+    <div class="lesson">
+        <p><strong>Welcome to Brow6el!</strong> This tutorial will teach you how to use this terminal-based web browser with Vim-style modal controls. If you've used Vim, you'll feel right at home. If not, don't worry – we'll guide you through everything step by step.</p>
+        
+        <p>Brow6el uses <strong>modes</strong> to separate different types of interactions, making keyboard navigation efficient and powerful.</p>
+    </div>
+
+    <div class="toc">
+        <h3>📋 Table of Contents</h3>
+        <ul>
+            <li><a href="#modes">1. Understanding Modes</a></li>
+            <li><a href="#standard">2. STANDARD Mode - Navigation & Commands</a></li>
+            <li><a href="#mouse">3. MOUSE Mode - Keyboard Mouse Control</a></li>
+            <li><a href="#insert">4. INSERT Mode - Text Input</a></li>
+            <li><a href="#visual">5. VISUAL Mode - Text Selection</a></li>
+            <li><a href="#features">6. Advanced Features</a></li>
+            <li><a href="#tips">7. Tips & Tricks</a></li>
+        </ul>
+    </div>
+
+    <h2 id="modes">1. Understanding Modes</h2>
+    
+    <div class="lesson">
+        <p>Brow6el has four distinct modes, each designed for different tasks:</p>
+        
+        <ul>
+            <li><span class="mode-indicator mode-standard">[S]</span> <strong>STANDARD</strong> - Single-key commands for navigation and browser controls (default)</li>
+            <li><span class="mode-indicator mode-insert">[I]</span> <strong>INSERT</strong> - All keys pass through to web forms and input fields</li>
+            <li><span class="mode-indicator mode-mouse">[M]</span> <strong>MOUSE</strong> - Keyboard-based mouse emulation for clicking links and elements</li>
+            <li><span class="mode-indicator mode-visual">[V]</span> <strong>VISUAL</strong> - Select and copy text from web pages</li>
+        </ul>
+        
+        <div class="tip">
+            <strong>💡 Tip:</strong> The current mode is always shown in the status bar at the bottom of the screen. Press <span class="key">ESC</span> in any mode to return to STANDARD mode.
+        </div>
+        
+        <div class="practice-area">
+            <h4>🎯 Check Your Status Bar</h4>
+            <p>Look at the bottom of your screen right now. You should see <span class="mode-indicator mode-standard">[S]</span> indicating you're in STANDARD mode.</p>
+        </div>
+    </div>
+
+    <h2 id="standard">2. STANDARD Mode - Navigation & Commands</h2>
+    
+    <div class="lesson">
+        <p>This is your home base. From STANDARD mode, you can navigate pages, manage bookmarks, and access all browser features with single-key commands.</p>
+        
+        <h3>Page Navigation</h3>
+        <ul class="shortcut-list">
+            <li><span class="shortcut-key"><span class="key">h</span><span class="key">j</span><span class="key">k</span><span class="key">l</span></span> <span>Move left, down, up, right (like Vim arrow keys)</span></li>
+            <li><span class="shortcut-key"><span class="key">t</span></span> <span>Scroll up (think "top")</span></li>
+            <li><span class="shortcut-key"><span class="key">g</span></span> <span>Scroll down (think "go down")</span></li>
+        </ul>
+        
+        <div class="exercise">
+            Try scrolling this page using <span class="key">j</span> (down) and <span class="key">k</span> (up). Get a feel for the rhythm!
+        </div>
+        
+        <h3>URL & Page Management</h3>
+        <ul class="shortcut-list">
+            <li><span class="shortcut-key"><span class="key">u</span></span> <span>Navigate to URL (opens URL input dialog)</span></li>
+            <li><span class="shortcut-key"><span class="key">p</span></span> <span>Previous page in history (back)</span></li>
+            <li><span class="shortcut-key"><span class="key">n</span></span> <span>Next page in history (forward)</span></li>
+            <li><span class="shortcut-key"><span class="key">r</span></span> <span>Reload current page</span></li>
+            <li><span class="shortcut-key"><span class="key">d</span></span> <span>Add current page to bookmarks</span></li>
+            <li><span class="shortcut-key"><span class="key">b</span></span> <span>Open bookmarks menu</span></li>
+        </ul>
+        
+        <div class="exercise">
+            Press <span class="key">u</span> to open the URL dialog. Type a URL and press <span class="key">Enter</span> to navigate. Try <code>example.com</code>!
+        </div>
+        
+        <h3>Advanced Navigation</h3>
+        <ul class="shortcut-list">
+            <li><span class="shortcut-key"><span class="key">f</span></span> <span>Hint mode - show link labels for keyboard navigation</span></li>
+            <li><span class="shortcut-key"><span class="key">e</span></span> <span>Enter MOUSE mode for precise clicking</span></li>
+            <li><span class="shortcut-key"><span class="key">v</span></span> <span>Enter VISUAL mode for text selection</span></li>
+        </ul>
+        
+        <h3>Developer & Advanced</h3>
+        <ul class="shortcut-list">
+            <li><span class="shortcut-key"><span class="key">c</span></span> <span>Toggle JavaScript console</span></li>
+            <li><span class="shortcut-key"><span class="key">s</span></span> <span>User scripts menu</span></li>
+            <li><span class="shortcut-key"><span class="key">y</span></span> <span>Toggle auto-inject user scripts</span></li>
+            <li><span class="shortcut-key"><span class="key">z</span></span> <span>Toggle tiled rendering (sixel only)</span></li>
+            <li><span class="shortcut-key"><span class="key">Z</span></span> <span>Force full screen redraw</span></li>
+        </ul>
+        
+        <h3>Mode Switching</h3>
+        <ul class="shortcut-list">
+            <li><span class="shortcut-key"><span class="key">i</span></span> <span>Enter INSERT mode (for forms)</span></li>
+            <li><span class="shortcut-key"><span class="key">x</span></span> <span>Exit browser</span></li>
+        </ul>
+    </div>
+
+    <h2 id="mouse">3. MOUSE Mode - Keyboard Mouse Control</h2>
+    
+    <div class="lesson">
+        <p>MOUSE mode lets you control a virtual mouse cursor using your keyboard. This is perfect for clicking buttons, interacting with complex web apps, or when hint mode doesn't capture all clickable elements.</p>
+        
+        <div class="tip">
+            <strong>💡 Activation:</strong> Press <span class="key">e</span> from STANDARD mode. A colored cursor will appear on screen. The color indicates speed mode.
+        </div>
+        
+        <h3>Cursor Movement</h3>
+        <ul class="shortcut-list">
+            <li><span class="shortcut-key"><span class="key">h</span><span class="key">j</span><span class="key">k</span><span class="key">l</span></span> <span>Move cursor left, down, up, right</span></li>
+            <li><span class="shortcut-key"><span class="key">q</span></span> <span>Toggle precision mode (slow, accurate - blue cursor)</span></li>
+            <li><span class="shortcut-key"><span class="key">f</span></span> <span>Toggle fast mode (quick movement - red cursor)</span></li>
+        </ul>
+        
+        <h3>Actions</h3>
+        <ul class="shortcut-list">
+            <li><span class="shortcut-key"><span class="key">SPACE</span></span> <span>Click at cursor position</span></li>
+            <li><span class="shortcut-key"><span class="key">ENTER</span></span> <span>Click at cursor position</span></li>
+            <li><span class="shortcut-key"><span class="key">r</span></span> <span>Toggle drag mode (for drag & drop)</span></li>
+            <li><span class="shortcut-key"><span class="key">g</span></span> <span>Grid mode - quick jump to screen regions</span></li>
+        </ul>
+        
+        <h3>Exit</h3>
+        <ul class="shortcut-list">
+            <li><span class="shortcut-key"><span class="key">e</span></span> <span>Exit MOUSE mode back to STANDARD</span></li>
+            <li><span class="shortcut-key"><span class="key">ESC</span></span> <span>Exit MOUSE mode back to STANDARD</span></li>
+        </ul>
+        
+        <div class="exercise">
+            Try entering MOUSE mode with <span class="key">e</span>, moving the cursor with <span class="key">h</span><span class="key">j</span><span class="key">k</span><span class="key">l</span>, and clicking this button: <button style="padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;" onclick="alert('Great job! You clicked using MOUSE mode!')">Click Me!</button>
+        </div>
+        
+        <h3>Grid Mode</h3>
+        <p>Grid mode divides the screen into a 3×3 grid. Press <span class="key">g</span> in MOUSE mode to activate, then press one of these keys to jump:</p>
+        <pre>q w e
+a s d
+z x c</pre>
+        <p>Each key corresponds to a screen position. By default, these keys match your keyboard layout for easy memorization.</p>
+    </div>
+
+    <h2 id="insert">4. INSERT Mode - Text Input</h2>
+    
+    <div class="lesson">
+        <p>INSERT mode is where all your keypresses go directly to the webpage. This is essential for filling out forms, typing in search boxes, and interacting with web applications.</p>
+        
+        <div class="tip">
+            <strong>💡 How to use:</strong> Press <span class="key">i</span> from STANDARD mode. The status bar will show <span class="mode-indicator mode-insert">[I]</span>. Now you can type normally in any form field.
+        </div>
+        
+        <ul class="shortcut-list">
+            <li><span class="shortcut-key"><span class="key">ESC</span></span> <span>Return to STANDARD mode</span></li>
+        </ul>
+        
+        <div class="practice-area">
+            <h4>🎯 Try It Now!</h4>
+            <p>Below is a text input field. Follow these steps:</p>
+            <ol>
+                <li>Use MOUSE mode (<span class="key">e</span>) to click the field below, or use your terminal mouse if available</li>
+                <li>Press <span class="key">i</span> to enter INSERT mode</li>
+                <li>Type something: <input type="text" placeholder="Type here..." style="padding: 8px; border: 2px solid #3498db; border-radius: 4px; width: 300px;"></li>
+                <li>Press <span class="key">ESC</span> to return to STANDARD mode</li>
+            </ol>
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ Common Mistake:</strong> Forgetting you're in INSERT mode and trying to use navigation keys like <span class="key">j</span> and <span class="key">k</span>. They'll just type letters! Always check the status bar mode indicator.
+        </div>
+    </div>
+
+    <h2 id="visual">5. VISUAL Mode - Text Selection</h2>
+    
+    <div class="lesson">
+        <p>VISUAL mode lets you select and copy text from web pages using keyboard navigation.</p>
+        
+        <div class="tip">
+            <strong>💡 Activation:</strong> Press <span class="key">v</span> from STANDARD mode. The status bar shows <span class="mode-indicator mode-visual">[V]</span>.
+        </div>
+        
+        <h3>Selection Movement</h3>
+        <ul class="shortcut-list">
+            <li><span class="shortcut-key"><span class="key">h</span><span class="key">j</span><span class="key">k</span><span class="key">l</span></span> <span>Move selection left, down, up, right</span></li>
+            <li><span class="shortcut-key"><span class="key">w</span></span> <span>Move to next word</span></li>
+            <li><span class="shortcut-key"><span class="key">b</span></span> <span>Move to previous word</span></li>
+        </ul>
+        
+        <h3>Actions</h3>
+        <ul class="shortcut-list">
+            <li><span class="shortcut-key"><span class="key">y</span></span> <span>Yank (copy) selected text to clipboard</span></li>
+            <li><span class="shortcut-key"><span class="key">ESC</span></span> <span>Exit VISUAL mode back to STANDARD</span></li>
+        </ul>
+        
+        <div class="exercise">
+            Try selecting this text: <strong>Press 'v', navigate with 'hjkl', and press 'y' to copy!</strong> Then paste it somewhere to verify.
+        </div>
+    </div>
+
+    <h2 id="features">6. Advanced Features</h2>
+    
+    <div class="lesson">
+        <h3>Hint Mode (Link Navigation)</h3>
+        <p>Hint mode is one of the most powerful features. Press <span class="key">f</span> and all clickable elements get labeled with letters/numbers.</p>
+        
+        <div class="tip">
+            <strong>💡 Usage:</strong> Press <span class="key">f</span>, then type the label shown next to the link you want to click. The link will be activated instantly!
+        </div>
+        
+        <div class="practice-area">
+            <h4>🎯 Practice Links</h4>
+            <p>Press <span class="key">f</span> now and try clicking these links:</p>
+            <ul>
+                <li><a href="#modes">Jump to Modes section</a></li>
+                <li><a href="#standard">Jump to Standard Mode</a></li>
+                <li><a href="#tips">Jump to Tips section</a></li>
+            </ul>
+        </div>
+        
+        <h3>Bookmarks</h3>
+        <ul>
+            <li>Press <span class="key">d</span> to bookmark the current page</li>
+            <li>Press <span class="key">b</span> to open bookmarks, use <span class="key">j</span>/<span class="key">k</span> to navigate, <span class="key">ENTER</span> to open</li>
+            <li>Press <span class="key">x</span> in bookmarks menu to delete selected bookmark</li>
+        </ul>
+        
+        <h3>User Scripts</h3>
+        <p>Inject custom JavaScript into web pages for enhanced functionality.</p>
+        <ul>
+            <li>Press <span class="key">s</span> to open user scripts menu</li>
+            <li>Press <span class="key">y</span> to toggle auto-inject on page load</li>
+            <li>Scripts are stored in <code>~/.brow6el/userscripts/</code></li>
+        </ul>
+        
+        <p>Example scripts are in the <code>examples/</code> directory:</p>
+        <ul>
+            <li><strong>reader-mode.js</strong> - Simplify articles for better readability</li>
+            <li><strong>force-light-mode.js</strong> - Override dark themes</li>
+        </ul>
+        
+        <h3>JavaScript Console</h3>
+        <p>Press <span class="key">c</span> to toggle the console. View page errors, warnings, and console.log() output. Navigate with <span class="key">j</span>/<span class="key">k</span>, exit with <span class="key">ESC</span>.</p>
+        
+        <h3>Profile Modes</h3>
+        <p>Configure in <code>~/.brow6el/browser.conf</code> or use command-line flags:</p>
+        <ul>
+            <li><code>--temporary</code> - Private mode, deleted on exit</li>
+            <li><code>--persistent</code> - Save cookies, cache, history</li>
+            <li><code>--custom</code> - Use custom profile path</li>
+        </ul>
+        
+        <h3>Graphics Protocol</h3>
+        <p>Choose rendering protocol in <code>browser.conf</code> or via command line:</p>
+        <ul>
+            <li><code>--sixel</code> - Use sixel graphics (default, widely supported)</li>
+            <li><code>--kitty</code> - Use kitty graphics protocol (kitty, ghostty, wezterm)</li>
+        </ul>
+    </div>
+
+    <h2 id="tips">7. Tips & Tricks</h2>
+    
+    <div class="lesson">
+        <h3>Workflow Optimization</h3>
+        
+        <div class="tip">
+            <strong>💡 Quick Link Navigation:</strong> For pages with many links, use hint mode (<span class="key">f</span>) instead of MOUSE mode. It's much faster!
+        </div>
+        
+        <div class="tip">
+            <strong>💡 Form Filling:</strong> Use MOUSE mode to click the first field, then press <span class="key">i</span> to enter INSERT mode. Fill the form, then <span class="key">ESC</span> when done.
+        </div>
+        
+        <div class="tip">
+            <strong>💡 Reading Articles:</strong> Use <span class="key">t</span> and <span class="key">g</span> for smooth scrolling through long articles. Much more comfortable than holding <span class="key">j</span>!
+        </div>
+        
+        <div class="tip">
+            <strong>💡 Quick Bookmarking:</strong> On a page you like? Just press <span class="key">d</span>. Later press <span class="key">b</span> to access all your bookmarks.
+        </div>
+        
+        <h3>Common Workflows</h3>
+        
+        <h4>Search Engine Workflow</h4>
+        <ol>
+            <li>Press <span class="key">u</span> to open URL dialog</li>
+            <li>Type <code>google.com</code> (or your preferred search engine)</li>
+            <li>Press <span class="key">Enter</span></li>
+            <li>When page loads, press <span class="key">i</span> for INSERT mode</li>
+            <li>Type your search query</li>
+            <li>Press <span class="key">ESC</span>, then <span class="key">f</span> to click search or first result</li>
+        </ol>
+        
+        <h4>Article Reading Workflow</h4>
+        <ol>
+            <li>Navigate to article using hint mode or URL</li>
+            <li>(Optional) Press <span class="key">s</span> and inject reader-mode.js for cleaner layout</li>
+            <li>Use <span class="key">t</span>/<span class="key">g</span> to scroll smoothly</li>
+            <li>Press <span class="key">v</span> to select interesting quotes, <span class="key">y</span> to copy</li>
+            <li>Press <span class="key">d</span> to bookmark if you want to return later</li>
+        </ol>
+        
+        <h3>Performance Tips</h3>
+        
+        <div class="tip">
+            <strong>💡 Graphics Protocol:</strong> If using kitty terminal, use <code>--kitty</code> flag for better performance. Otherwise use <code>--sixel</code> (default).
+        </div>
+        
+        <div class="tip">
+            <strong>💡 Force Redraw:</strong> If the screen looks corrupted, press <span class="key">Z</span> (capital Z) to force a full redraw.
+        </div>
+        
+        <h3>Troubleshooting</h3>
+        
+        <div class="warning">
+            <strong>⚠️ Terminal not displaying graphics?</strong> Make sure your terminal supports sixel (mlterm, xterm, wezterm, foot) or kitty protocol (kitty, ghostty, wezterm).
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ Keys not working?</strong> Check your mode! In INSERT mode, navigation keys won't work. Press <span class="key">ESC</span> to return to STANDARD mode.
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ Hint mode not showing hints?</strong> Wait a moment for the page to fully render overlays. On complex pages, this might take a second or two.
+        </div>
+    </div>
+
+    <div class="lesson">
+        <h2>🎓 Congratulations!</h2>
+        <p>You've completed the Brow6el tutorial! You now know:</p>
+        <ul>
+            <li>✅ How to navigate using STANDARD mode</li>
+            <li>✅ When and how to use INSERT mode for forms</li>
+            <li>✅ How to control the mouse cursor with your keyboard</li>
+            <li>✅ How to select and copy text in VISUAL mode</li>
+            <li>✅ Advanced features like bookmarks, hint mode, and user scripts</li>
+        </ul>
+        
+        <div class="tip">
+            <strong>💡 Next Steps:</strong> Practice makes perfect! Try browsing your favorite websites using only keyboard navigation. You'll be amazed at how fast it becomes!
+        </div>
+        
+        <div class="practice-area">
+            <h4>🎯 Final Challenge</h4>
+            <p>Without using your mouse at all:</p>
+            <ol>
+                <li>Press <span class="key">u</span> and navigate to <code>news.ycombinator.com</code></li>
+                <li>Use hint mode (<span class="key">f</span>) to open an article</li>
+                <li>Scroll through it with <span class="key">t</span>/<span class="key">g</span></li>
+                <li>Select a quote with VISUAL mode (<span class="key">v</span>) and copy it (<span class="key">y</span>)</li>
+                <li>Bookmark it (<span class="key">d</span>)</li>
+                <li>Go back (<span class="key">p</span>) and open your bookmarks (<span class="key">b</span>)</li>
+            </ol>
+            <p>If you can do all this smoothly, you're officially a Brow6el power user! 🚀</p>
+        </div>
+        
+        <p style="text-align: center; margin-top: 40px; color: #7f8c8d;">
+            <strong>Happy browsing!</strong><br>
+            For more info, check <code>~/.brow6el/</code> or run <code>brow6el --help</code>
+        </p>
+    </div>
+</body>
+</html>

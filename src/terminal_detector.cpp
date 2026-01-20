@@ -10,8 +10,9 @@ TerminalInfo TerminalDetector::detect() {
   TerminalInfo info = {0};
 
   info.supports_sixel = checkSixelSupport();
+  info.supports_kitty = checkKittySupport();
 
-  if (info.supports_sixel) {
+  if (info.supports_sixel || info.supports_kitty) {
     querySixelGeometry(info.width, info.height);
 
     int cols, rows;
@@ -92,6 +93,84 @@ bool TerminalDetector::checkSixelSupport() {
   tcflush(STDIN_FILENO, TCIFLUSH);
 
   return supported;
+}
+
+bool TerminalDetector::checkKittySupport() {
+  // Check if stdin is actually a terminal
+  if (!isatty(STDIN_FILENO)) {
+    return false;
+  }
+
+  // Check TERM environment variable for known kitty-capable terminals
+  const char *term = getenv("TERM");
+  if (term) {
+    std::string term_str(term);
+    // Known terminals that support kitty graphics protocol
+    if (term_str.find("kitty") != std::string::npos ||
+        term_str.find("xterm-kitty") != std::string::npos) {
+      return true;
+    }
+  }
+
+  // Check TERM_PROGRAM for ghostty and wezterm
+  const char *term_program = getenv("TERM_PROGRAM");
+  if (term_program) {
+    std::string program(term_program);
+    if (program.find("ghostty") != std::string::npos ||
+        program.find("WezTerm") != std::string::npos) {
+      return true;
+    }
+  }
+
+  // Try to query kitty graphics protocol support
+  struct termios old_tio, new_tio;
+  if (tcgetattr(STDIN_FILENO, &old_tio) != 0) {
+    return false;
+  }
+
+  new_tio = old_tio;
+  new_tio.c_lflag &= ~(ICANON | ECHO);
+  tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);
+
+  // Send a query action with a small 1x1 image to test support
+  printf("\033_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\033\\");
+  fflush(stdout);
+
+  char response[512] = {0};
+  fd_set fds;
+  struct timeval tv;
+  FD_ZERO(&fds);
+  FD_SET(STDIN_FILENO, &fds);
+  tv.tv_sec = 0;
+  tv.tv_usec = 300000; // 300ms timeout
+
+  bool has_graphics_response = false;
+  ssize_t got = 0;
+
+  // Read response with multiple attempts
+  for (int attempt = 0; attempt < 3 && !has_graphics_response; attempt++) {
+    if (select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv) > 0) {
+      ssize_t n = read(STDIN_FILENO, response + got, sizeof(response) - got - 1);
+      if (n > 0) {
+        got += n;
+        // Check for kitty graphics protocol response (OK or error)
+        if (strstr(response, "\033_Gi=31") != NULL || 
+            strstr(response, "_Gi=31") != NULL) {
+          has_graphics_response = true;
+        }
+      }
+    }
+    // Reset for next read
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds);
+    tv.tv_sec = 0;
+    tv.tv_usec = 100000;
+  }
+
+  tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
+  tcflush(STDIN_FILENO, TCIFLUSH);
+
+  return has_graphics_response;
 }
 
 void TerminalDetector::querySixelGeometry(int &width, int &height) {
