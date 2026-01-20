@@ -82,7 +82,9 @@ include_directories(
 set(SOURCES
     src/main.cpp
     src/browser_client.cpp
+    src/image_renderer.cpp
     src/sixel_renderer.cpp
+    src/kitty_renderer.cpp
     src/terminal_detector.cpp
     src/input_handler.cpp
     src/status_bar.cpp
@@ -95,7 +97,9 @@ set(SOURCES
 set(HEADERS
     src/browser_app.h
     src/browser_client.h
+    src/image_renderer.h
     src/sixel_renderer.h
+    src/kitty_renderer.h
     src/terminal_detector.h
     src/input_handler.h
     src/status_bar.h
@@ -118,6 +122,7 @@ target_link_libraries(${PROJECT_NAME}
     ${CEF_STANDARD_LIBS}
     ${SIXEL_LIBRARIES}
     pthread
+    z
 )
 
 # Copy CEF binary files
@@ -130,6 +135,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/hint_mode.js ${CMAKE_CURRENT_BINA
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/mouse_emu.js ${CMAKE_CURRENT_BINARY_DIR}/mouse_emu.js COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/inspect_mode.js ${CMAKE_CURRENT_BINARY_DIR}/inspect_mode.js COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/visual_mode.js ${CMAKE_CURRENT_BINARY_DIR}/visual_mode.js COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/tutorial.html ${CMAKE_CURRENT_BINARY_DIR}/tutorial.html COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/run_brow6el.sh ${CMAKE_CURRENT_BINARY_DIR}/run_brow6el.sh COPYONLY)
 
 # Copy bundled scripts directory

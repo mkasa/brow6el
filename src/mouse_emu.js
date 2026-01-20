@@ -248,6 +248,11 @@
             this.y = cell.centerY;
             this.updatePosition();
             
+            // Suspend MutationObserver during grid rebuild to avoid flicker
+            if (window.__brow6el_mutation_observer) {
+                window.__brow6el_mutation_observer.disconnect();
+            }
+            
             // Clear current grid
             this.hideGrid();
             
@@ -259,6 +264,21 @@
             
             // Show sub-grid automatically (will handle 1x1 case inside showGrid)
             this.showGrid();
+            
+            // Reconnect MutationObserver after grid rebuild
+            // Use requestAnimationFrame to ensure DOM changes are processed first
+            if (window.__brow6el_mutation_observer) {
+                requestAnimationFrame(function() {
+                    window.__brow6el_mutation_observer.observe(document.body, {
+                        attributes: true,
+                        childList: true,
+                        subtree: true,
+                        attributeFilter: ['style']
+                    });
+                    // Trigger repaint after browser processes DOM changes
+                    console.log('[Brow6el] DOM_CHANGED');
+                });
+            }
             
             console.log('[Brow6el] MOUSE_EMU_GRID_JUMP:' + label);
             return true;
@@ -755,6 +775,13 @@
             }
             this.inspectMode = false;
             this.lastInspectedElement = null;
+            
+            // Disconnect MutationObserver to stop watching DOM changes
+            if (window.__brow6el_mutation_observer) {
+                window.__brow6el_mutation_observer.disconnect();
+                window.__brow6el_mutation_observer = null;
+            }
+            
             console.log('[Brow6el] MOUSE_EMU_CLOSED');
         }
     };
@@ -763,4 +790,24 @@
     mouseEmu.show();
     // Show grid by default when entering mouse emulation mode
     mouseEmu.showGrid();
+    
+    // For Kitty: Watch for DOM changes to trigger repaint
+    // Overlays change CSS (style attribute) which CEF may not immediately detect
+    if (!window.__brow6el_mutation_observer) {
+        window.__brow6el_mutation_observer = new MutationObserver(function(mutations) {
+            // Signal DOM changed for Kitty renderer
+            console.log('[Brow6el] DOM_CHANGED');
+        });
+        window.__brow6el_mutation_observer.observe(document.body, {
+            attributes: true,
+            childList: true,
+            subtree: true,
+            attributeFilter: ['style'] // Watch for style changes (overlay positioning)
+        });
+        
+        // Trigger initial repaint for overlay visibility (using requestAnimationFrame to let browser process DOM)
+        requestAnimationFrame(function() {
+            console.log('[Brow6el] DOM_CHANGED');
+        });
+    }
 })();

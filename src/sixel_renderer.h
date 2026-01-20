@@ -1,24 +1,25 @@
 #pragma once
 
+#include "image_renderer.h"
 #include "include/internal/cef_types_wrappers.h"
 #include <cstdint>
 #include <mutex>
 #include <sixel.h>
 #include <vector>
 
-class SixelRenderer {
+class SixelRenderer : public ImageRenderer {
 public:
   SixelRenderer(int width, int height, int cell_width, int cell_height);
   ~SixelRenderer();
 
   void render(const void *buffer, int width, int height, bool hasAlpha,
-              const std::vector<CefRect> &dirtyRects = {});
-  void clear();
-  void setTiledRenderingEnabled(bool enabled) {
+              const std::vector<CefRect> &dirtyRects = {}) override;
+  void clear() override;
+  void setTiledRenderingEnabled(bool enabled) override {
     tiled_rendering_enabled_ = enabled;
   }
-  void forceFullRender() { force_full_render_ = true; }
-  void resetFrameCache() {
+  void forceFullRender() override { force_full_render_ = true; }
+  void resetFrameCache() override {
     prev_buffer_.clear();
   } // Force next render to be full
 

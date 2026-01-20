@@ -1,6 +1,6 @@
-# Brow6el - Terminal Web Browser with Sixel Support
+# Brow6el - Terminal Web Browser with Graphics Support
 
-A full-featured web browser for the terminal using Chromium (CEF) and libsixel for graphics rendering.
+A full-featured web browser for the terminal using Chromium (CEF) with support for Sixel and Kitty graphics protocols.
 
 > **WARNING**: Because of downgrade of CEF, it is needed to delete ~/.brow6el/profile folder when using permament profile and upgrading from versions prior 0.3.2. Otherwise CEF fails with SIGTRAP.
 
@@ -25,8 +25,8 @@ A full-featured web browser for the terminal using Chromium (CEF) and libsixel f
 
 ## Features
 
-- **Sixel Graphics** - Full page rendering with automatic resolution detection
-- **Tiled Rendering** - Optional tile-based rendering for improved responsiveness at cost of some colour artefacts
+- **Graphics Protocols** - Supports both Sixel and Kitty graphics protocols with automatic detection
+- **Tiled Rendering** - Optional tile-based Sixel rendering for improved responsiveness (Sixel only)
 - **Mouse Support** - Click, scroll, and interact with web pages
 - **Vim-Style Modal Control** - Efficient keyboard navigation with three modes (STANDARD, INSERT, MOUSE, VISUAL)
 - **Grid Jump Mode** - Fast mouse positioning with recursive grid navigation (3-4 keystrokes to almost any element)
@@ -64,8 +64,8 @@ Vim-like navigation with single-key commands (no Ctrl required):
 - `f` - Hint mode (keyboard link navigation)
 - `s` - User scripts menu
 - `y` - Toggle auto-inject user scripts
-- `z` - Toggle tiled rendering (reduces flicker)
-- `Z` - Force next frame to render monolithically
+- `z` - Toggle tiled rendering (Sixel only, reduces flicker)
+- `Z` - Force full redraw (Sixel: monolithic render, Kitty: full refresh)
 - `m` - Open downloads manager
 - `x` - Exit browser
 
@@ -274,6 +274,13 @@ default_url=https://example.com
 # Alternative: abcdefghi (alphabetical)
 grid_keys=qweasdzxc
 
+# Graphics Protocol Selection
+# Choose graphics protocol: auto, sixel, or kitty
+# auto: Detect terminal capabilities (default)
+# sixel: Force Sixel protocol (recommended, faster)
+# kitty: Force Kitty graphics protocol
+graphics_protocol=auto
+
 # DNS-over-HTTPS (DoH) Configuration
 # Enable secure DNS to encrypt DNS queries
 doh_enabled=false
@@ -288,10 +295,11 @@ doh_mode=secure
 #   Google: https://dns.google/dns-query
 #   Quad9: https://dns.quad9.net/dns-query
 
-# Tiled Rendering
+# Tiled Rendering (Sixel only)
 # Enable tile-based sixel rendering (reduces flicker on updates)
 # When enabled, only changed screen regions are redrawn
 # When disabled, the entire screen is redrawn on every update
+# Note: Kitty protocol always uses monolithic rendering
 tiled_rendering=true
 
 # Terminal Cell Dimensions (optional override)
@@ -331,43 +339,55 @@ doh_mode=secure
 
 **Note:** When using `secure` mode, ensure your DoH server resolves `google.com` (used by CEF for connectivity checks) or allows all domains, otherwise DoH may fail to initialize.
 
-### Tiled Rendering
+### Graphics Protocols
 
-Brow6el supports two rendering modes that can be toggled on-the-fly:
+Brow6el supports both Sixel and Kitty graphics protocols with automatic terminal detection.
 
-**Tiled Rendering (default: disabled):**
-- Only redraws changed screen regions
-- Significantly reduces flicker during page updates, scrolling, and video playback
-- More efficient for incremental updates
-- Tile size automatically adapts to your terminal resolution and cell size
+**Sixel Protocol (recommended):**
+- Default and most widely supported
+- Supports both tiled and monolithic rendering
+- Tiled rendering reduces flicker significantly
+- Generally faster for typing-heavy workflows
+- Supported terminals: mlterm, xterm, wezterm, foot, etc.
 
-**Monolithic Rendering:**
-- Redraws the entire screen on every update
-- Simple and reliable
-- May show more flicker on dynamic content
+**Kitty Protocol:**
+- Alternative graphics protocol for Kitty-compatible terminals
+- Always uses monolithic rendering (entire screen redrawn)
+- Double buffering prevents flicker
+- 30 FPS frame rate for smooth animations
+- Supported terminals: kitty, ghostty, wezterm, etc.
 
 **Configuration** (`~/.brow6el/browser.conf`):
 ```ini
-# Enable/disable tiled rendering at startup
+# Graphics protocol selection
+graphics_protocol=auto  # auto, sixel, or kitty
+
+# Tiled rendering (Sixel only)
 tiled_rendering=true
 
 # Optional: Override auto-detected terminal cell dimensions
-# Only needed if auto-detection is incorrect
 #cell_width=11
 #cell_height=25
 ```
 
-**Runtime Toggle:**
-- Press `z` (in STANDARD mode) to toggle between tiled and monolithic rendering
-- Press `Z` (in STANDARD mode) to force the next frame to render monolithically (useful for forcing a full screen refresh)
-- Current mode shown in status bar: `[S][T]` (tiled) or `[S][M]` (monolithic)
-- Useful for comparing rendering quality or troubleshooting display issues
+**Runtime Controls:**
+- Press `z` (in STANDARD mode) to toggle tiled/monolithic rendering (Sixel only)
+- Press `Z` (in STANDARD mode) to force full redraw
+- Current mode shown in status bar: `[S][T]` (Sixel tiled), `[S][M]` (Sixel monolithic), `[S]` (Kitty)
 
 **How It Works:**
-- Tiles are dynamically sized based on your terminal resolution (typically ~30-40 tiles per screen)
-- CEF provides dirty rectangles indicating what changed
+
+*Sixel Tiled Rendering:*
+- Tiles dynamically sized based on terminal resolution (~30-40 tiles per screen)
+- CEF dirty rectangles indicate changed regions
 - Only tiles intersecting dirty regions are redrawn
-- Tiles are aligned to terminal cell boundaries and sixel band height (6 pixels) for artifact-free rendering
+- Tiles aligned to terminal cell boundaries for artifact-free rendering
+
+*Kitty Monolithic Rendering:*
+- Entire screen encoded as RGBA and transmitted via base64
+- Double buffering (alternating image IDs) prevents flicker
+- Uncompressed for optimal typing performance
+- Images placed below text layer (z=-1) so dialogs appear on top
 
 ### JavaScript Console
 - Press `c` (in STANDARD mode) to open/close the console
@@ -424,9 +444,11 @@ You can run multiple browser instances simultaneously:
 
 ## Requirements
 
-**Sixel-capable terminal**: Any terminal emulator that supports Sixel graphics (e.g. mlterm, xterm -ti vt340, foot, wezterm, yaft, etc.)
+**Graphics-capable terminal**: Terminal emulator supporting Sixel or Kitty graphics protocols:
+- **Sixel** (recommended): mlterm, xterm, foot, wezterm, yaft, etc.
+- **Kitty**: kitty, ghostty, wezterm, etc.
 
-The browser automatically detects Sixel support via terminal capability queries - no manual configuration needed.
+The browser automatically detects graphics support - no manual configuration needed. If both protocols are supported, Sixel is preferred by default.
 
 **Build Dependencies**:
 ```bash
@@ -452,9 +474,12 @@ sudo pacman -S base-devel cmake git pkg-config curl \
 
 ## How It Works
 
-CEF renders web pages offscreen → libsixel converts to sixel graphics → Output to terminal
+CEF renders web pages offscreen → Graphics conversion (Sixel or Kitty protocol) → Output to terminal
 
-The browser continuously renders frames as pages update, with synchronized input handling for mouse and keyboard events.
+**Sixel pipeline:** CEF BGRA buffer → libsixel conversion → Sixel escape sequences  
+**Kitty pipeline:** CEF BGRA buffer → RGBA conversion → base64 encoding → Kitty escape sequences
+
+The browser continuously renders at 30 FPS, with synchronized input handling for mouse and keyboard events.
 
 ## Distributions packages (community)
 

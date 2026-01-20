@@ -150,10 +150,37 @@
             this.overlays.forEach(overlay => overlay.remove());
             this.overlays = [];
             this.elements = [];
+            
+            // Disconnect MutationObserver to stop watching DOM changes
+            if (window.__brow6el_mutation_observer) {
+                window.__brow6el_mutation_observer.disconnect();
+                window.__brow6el_mutation_observer = null;
+            }
+            
             console.log('[Brow6el] HINT_MODE_CLOSED');
         }
     };
     
     window.__brow6el_hints = hints;
     hints.show();
+    
+    // For Kitty: Watch for DOM changes to trigger repaint
+    // Overlays change CSS (style attribute) which CEF may not immediately detect
+    if (!window.__brow6el_mutation_observer) {
+        window.__brow6el_mutation_observer = new MutationObserver(function(mutations) {
+            // Signal DOM changed for Kitty renderer
+            console.log('[Brow6el] DOM_CHANGED');
+        });
+        window.__brow6el_mutation_observer.observe(document.body, {
+            attributes: true,
+            childList: true,
+            subtree: true,
+            attributeFilter: ['style'] // Watch for style changes (overlay positioning)
+        });
+        
+        // Trigger initial repaint for overlay visibility (using requestAnimationFrame to let browser process DOM)
+        requestAnimationFrame(function() {
+            console.log('[Brow6el] DOM_CHANGED');
+        });
+    }
 })();

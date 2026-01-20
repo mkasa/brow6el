@@ -1,6 +1,8 @@
 #pragma once
 
 #include "bookmarks.h"
+#include "image_renderer.h"
+#include "kitty_renderer.h"
 #include "include/cef_client.h"
 #include "include/cef_dialog_handler.h"
 #include "include/cef_display_handler.h"
@@ -8,7 +10,6 @@
 #include "include/cef_jsdialog_handler.h"
 #include "include/cef_render_handler.h"
 #include "include/cef_request_handler.h"
-#include "sixel_renderer.h"
 #include "status_bar.h"
 #include "user_scripts.h"
 #include <atomic>
@@ -39,7 +40,8 @@ public:
     bool is_in_progress;
   };
 
-  BrowserClient(int width, int height, int cell_width, int cell_height);
+  BrowserClient(int width, int height, int cell_width, int cell_height,
+                bool supports_sixel, bool supports_kitty);
 
   CefRefPtr<CefRenderHandler> GetRenderHandler() override;
   CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override;
@@ -115,14 +117,30 @@ public:
   CefRefPtr<CefBrowser> GetBrowser() { return browser_; }
   bool IsClosing() const { return is_closing_; }
   StatusBar *GetStatusBar() { return status_bar_.get(); }
+  bool IsKittyRenderer() const;
   void Resize(int width, int height);
   void SetTiledRenderingEnabled(bool enabled) {
     if (renderer_)
       renderer_->setTiledRenderingEnabled(enabled);
   }
   void ForceFullRedraw() {
-    if (renderer_)
-      renderer_->forceFullRender();
+    FILE* log = fopen("/tmp/kitty_render.log", "a");
+    if (log) {
+      fprintf(log, "[BrowserClient::ForceFullRedraw] Called!\n");
+      fclose(log);
+    }
+    if (renderer_) {
+      // For Kitty: Don't force clear - use double buffering instead
+      // Forcing clear deletes both buffers causing flicker
+      if (dynamic_cast<KittyRenderer*>(renderer_.get())) {
+        // Just invalidate, don't force clear
+        if (browser_ && browser_->GetHost()) {
+          browser_->GetHost()->Invalidate(PET_VIEW);
+        }
+      } else {
+        renderer_->forceFullRender();
+      }
+    }
   }
   bool HandleSelectNavigation(int direction); // Returns true if handled
   bool HandleSelectConfirm();                 // Returns true if handled
@@ -134,6 +152,7 @@ public:
     return console_logs_;
   }
   void ClearConsoleLogs() { console_logs_.clear(); }
+  void SetShowInternalConsoleLogs(bool show) { show_internal_console_logs_ = show; }
   void ExecuteJavaScript(const std::string &code);
   void SetPopupConfirmActive(bool active, const std::string &url = "");
   bool IsPopupConfirmActive() const { return popup_confirm_active_; }
@@ -256,8 +275,10 @@ private:
   int height_;
   int cell_width_;
   int cell_height_;
+  bool supports_sixel_;
+  bool supports_kitty_;
   CefRefPtr<CefBrowser> browser_;
-  std::unique_ptr<SixelRenderer> renderer_;
+  std::unique_ptr<ImageRenderer> renderer_;
   std::unique_ptr<StatusBar> status_bar_;
   std::atomic<bool> is_closing_;
   std::mutex render_mutex_; // Synchronize rendering and status updates
@@ -269,6 +290,7 @@ private:
   bool console_active_ = false;
   std::vector<std::string> console_logs_;
   std::mutex console_mutex_;
+  bool show_internal_console_logs_ = false;
 
   // Popup window confirmation
   bool popup_confirm_active_ = false;

@@ -57,10 +57,19 @@ const char *InputHandler::getModeName() const {
     break;
   }
 
-  // Add rendering mode indicator: [T]iled or [M]onolithic
-  const char *render_mode = tiled_rendering_enabled_ ? "T" : "M";
-  snprintf(mode_buffer, sizeof(mode_buffer), "%s][%s", mode_letter,
-           render_mode);
+  // Add rendering mode indicator only for sixel (Kitty doesn't support tiled)
+  bool show_render_mode = true;
+  if (browser_client_ && browser_client_->IsKittyRenderer()) {
+    show_render_mode = false; // Kitty is always monolithic
+  }
+
+  if (show_render_mode) {
+    const char *render_mode = tiled_rendering_enabled_ ? "T" : "M";
+    snprintf(mode_buffer, sizeof(mode_buffer), "%s][%s", mode_letter,
+             render_mode);
+  } else {
+    snprintf(mode_buffer, sizeof(mode_buffer), "%s", mode_letter);
+  }
 
   return mode_buffer;
 }
@@ -1351,8 +1360,8 @@ void InputHandler::readLoop() {
                   browser_client_->ToggleAutoInjectUserScripts();
                 }
               } else if (c == 'z') {
-                // Toggle tiled rendering (z)
-                if (browser_client_) {
+                // Toggle tiled rendering (z) - only for sixel
+                if (browser_client_ && !browser_client_->IsKittyRenderer()) {
                   // Toggle the state
                   tiled_rendering_enabled_ = !tiled_rendering_enabled_;
                   browser_client_->SetTiledRenderingEnabled(
@@ -1367,7 +1376,7 @@ void InputHandler::readLoop() {
                   }
                 }
               } else if (c == 'Z') {
-                // Force next frame to render monolithically (Z)
+                // Force full redraw (Z) - useful for both sixel and kitty
                 if (browser_client_) {
                   browser_client_->ForceFullRedraw();
                   if (browser_) {
@@ -1378,6 +1387,24 @@ void InputHandler::readLoop() {
                 // Copy current URL to clipboard (uppercase U)
                 if (browser_client_) {
                   browser_client_->CopyCurrentURL();
+                }
+              } else if (c == '?') {
+                // Show tutorial help
+                if (browser_) {
+                  // Get executable directory
+                  char exe_path[1024];
+                  ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+                  if (len != -1) {
+                    exe_path[len] = '\0';
+                    std::string exe_dir = exe_path;
+                    size_t last_slash = exe_dir.find_last_of('/');
+                    if (last_slash != std::string::npos) {
+                      exe_dir = exe_dir.substr(0, last_slash);
+                    }
+                    std::string tutorial_path = exe_dir + "/../src/tutorial.html";
+                    std::string url = "file://" + tutorial_path;
+                    browser_->GetMainFrame()->LoadURL(url);
+                  }
                 }
               } else if (c == 'v' || c == 'V') {
                 // Enter visual mode (text selection)

@@ -32,6 +32,8 @@ public:
   bool isTiledRenderingEnabled() const { return tiled_rendering_enabled_; }
   int getCellWidth() const { return cell_width_override_; }
   int getCellHeight() const { return cell_height_override_; }
+  std::string getGraphicsProtocol() const { return graphics_protocol_; }
+  bool showInternalConsoleLogs() const { return show_internal_console_logs_; }
 
   // Profile management
   std::string createProfileDirectory();
@@ -41,6 +43,11 @@ public:
   void setMode(ProfileMode mode) { mode_ = mode; }
   void setCustomPath(const std::string &path) { custom_path_ = path; }
   void overrideMode(const std::string &mode_str);
+  void overrideGraphicsProtocol(const std::string &protocol) { 
+    if (protocol == "sixel" || protocol == "kitty") {
+      graphics_protocol_ = protocol;
+    }
+  }
 
 private:
   ProfileConfig();
@@ -59,6 +66,8 @@ private:
   bool tiled_rendering_enabled_ = false;
   int cell_width_override_ = 0;  // 0 means auto-detect
   int cell_height_override_ = 0; // 0 means auto-detect
+  std::string graphics_protocol_ = "sixel"; // "sixel" or "kitty"
+  bool show_internal_console_logs_ = false; // Hide Brow6el internal messages
 
   std::string expandPath(const std::string &path) const;
   std::string trim(const std::string &str);

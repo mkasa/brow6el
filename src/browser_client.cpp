@@ -1,9 +1,14 @@
 #include "browser_client.h"
 #include "clipboard.h"
+#include "kitty_renderer.h"
 #include "profile_config.h"
+#include "sixel_renderer.h"
+#include "include/wrapper/cef_closure_task.h"
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <thread>
+#include <chrono>
 #include <unistd.h>
 
 #define LOGB(msg)                                                              \
@@ -11,6 +16,10 @@
     std::ofstream log("/tmp/brow6el_debug.log", std::ios::app);                \
     log << msg << std::endl;                                                   \
   } while (0)
+
+bool BrowserClient::IsKittyRenderer() const {
+  return dynamic_cast<KittyRenderer*>(renderer_.get()) != nullptr;
+}
 
 CefRefPtr<CefRenderHandler> BrowserClient::GetRenderHandler() {
   return this;
@@ -38,9 +47,11 @@ CefRefPtr<CefRequestHandler> BrowserClient::GetRequestHandler() {
 }
 
 BrowserClient::BrowserClient(int width, int height, int cell_width,
-                             int cell_height)
+                             int cell_height, bool supports_sixel,
+                             bool supports_kitty)
     : width_(width), height_(height), cell_width_(cell_width),
-      cell_height_(cell_height), is_closing_(false),
+      cell_height_(cell_height), supports_sixel_(supports_sixel),
+      supports_kitty_(supports_kitty), is_closing_(false),
       current_selected_index_(-1) {
 
   // Log cell dimensions using direct file write
@@ -51,8 +62,27 @@ BrowserClient::BrowserClient(int width, int height, int cell_width,
     log.close();
   }
 
-  renderer_ =
-      std::make_unique<SixelRenderer>(width, height, cell_width, cell_height);
+  // Select renderer based on config AND terminal support
+  auto &config = ProfileConfig::getInstance();
+  std::string graphics_protocol = config.getGraphicsProtocol();
+  
+  if (graphics_protocol == "kitty" && supports_kitty) {
+    renderer_ = std::make_unique<KittyRenderer>(width, height, cell_width, cell_height);
+  } else if (graphics_protocol == "kitty" && !supports_kitty && supports_sixel) {
+    // Fallback to sixel if kitty not supported
+    std::cerr << "Warning: Kitty protocol not supported, falling back to Sixel" << std::endl;
+    renderer_ = std::make_unique<SixelRenderer>(width, height, cell_width, cell_height);
+  } else if (graphics_protocol == "sixel" && supports_sixel) {
+    renderer_ = std::make_unique<SixelRenderer>(width, height, cell_width, cell_height);
+  } else if (graphics_protocol == "sixel" && !supports_sixel && supports_kitty) {
+    // Fallback to kitty if sixel not supported
+    std::cerr << "Warning: Sixel not supported, falling back to Kitty protocol" << std::endl;
+    renderer_ = std::make_unique<KittyRenderer>(width, height, cell_width, cell_height);
+  } else {
+    // Last resort: try sixel (will fail later if not supported)
+    renderer_ = std::make_unique<SixelRenderer>(width, height, cell_width, cell_height);
+  }
+  
   status_bar_ = std::make_unique<StatusBar>();
 }
 
@@ -68,9 +98,22 @@ void BrowserClient::Resize(int width, int height) {
   width_ = width;
   height_ = height;
 
-  // Recreate the sixel renderer with new dimensions
-  renderer_ =
-      std::make_unique<SixelRenderer>(width, height, cell_width_, cell_height_);
+  // Recreate the renderer with new dimensions AND respect terminal support
+  auto &config = ProfileConfig::getInstance();
+  std::string graphics_protocol = config.getGraphicsProtocol();
+  
+  if (graphics_protocol == "kitty" && supports_kitty_) {
+    renderer_ = std::make_unique<KittyRenderer>(width, height, cell_width_, cell_height_);
+  } else if (graphics_protocol == "kitty" && !supports_kitty_ && supports_sixel_) {
+    renderer_ = std::make_unique<SixelRenderer>(width, height, cell_width_, cell_height_);
+  } else if (graphics_protocol == "sixel" && supports_sixel_) {
+    renderer_ = std::make_unique<SixelRenderer>(width, height, cell_width_, cell_height_);
+  } else if (graphics_protocol == "sixel" && !supports_sixel_ && supports_kitty_) {
+    renderer_ = std::make_unique<KittyRenderer>(width, height, cell_width_, cell_height_);
+  } else {
+    renderer_ = std::make_unique<SixelRenderer>(width, height, cell_width_, cell_height_);
+  }
+  
   LOGB("Browser resized to " << width << "x" << height);
 }
 
@@ -109,9 +152,20 @@ void BrowserClient::OnPaint(CefRefPtr<CefBrowser> browser,
       if (status_bar_ && status_bar_->IsRedrawRequested()) {
         status_bar_->ClearRedrawRequest();
         force_render = true;
+        
+        FILE* log = fopen("/tmp/kitty_render.log", "a");
+        if (log) {
+          fprintf(log, "[CPP] ForceFullRender triggered by status_bar redraw request\n");
+          fclose(log);
+        }
       }
 
       if (force_render) {
+        FILE* log = fopen("/tmp/kitty_render.log", "a");
+        if (log) {
+          fprintf(log, "[CPP] Calling forceFullRender (paint_count=%d)\n", paint_count_);
+          fclose(log);
+        }
         renderer_->forceFullRender();
       }
 
@@ -204,6 +258,9 @@ void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser> browser,
     std::string url = frame->GetURL().ToString();
     LOGB("OnLoadEnd: url=" << url << " status=" << httpStatusCode);
 
+    // Reset paint count to force first 3 paints (important for Kitty renderer)
+    paint_count_ = 0;
+    
     // Force full render on next paint (including first load to avoid race
     // conditions)
     force_next_paint_ = true;
@@ -267,42 +324,77 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
   {
     std::lock_guard<std::mutex> lock(console_mutex_);
 
-    // Format message with severity
-    std::string level_str;
-    switch (level) {
-    case LOGSEVERITY_DEBUG:
-      level_str = "[DEBUG] ";
-      break;
-    case LOGSEVERITY_INFO:
-      level_str = "[INFO] ";
-      break;
-    case LOGSEVERITY_WARNING:
-      level_str = "[WARN] ";
-      break;
-    case LOGSEVERITY_ERROR:
-      level_str = "[ERROR] ";
-      break;
-    default:
-      level_str = "[LOG] ";
-      break;
-    }
+    // Skip internal messages if configured to hide them
+    bool is_internal = msg.find("[Brow6el]") == 0;
+    bool should_show = !is_internal || show_internal_console_logs_;
 
-    console_logs_.push_back(level_str + msg);
+    if (should_show) {
+      // Format message with severity
+      std::string level_str;
+      switch (level) {
+      case LOGSEVERITY_DEBUG:
+        level_str = "[DEBUG] ";
+        break;
+      case LOGSEVERITY_INFO:
+        level_str = "[INFO] ";
+        break;
+      case LOGSEVERITY_WARNING:
+        level_str = "[WARN] ";
+        break;
+      case LOGSEVERITY_ERROR:
+        level_str = "[ERROR] ";
+        break;
+      default:
+        level_str = "[LOG] ";
+        break;
+      }
 
-    // Keep only last 1000 messages
-    if (console_logs_.size() > 1000) {
-      console_logs_.erase(console_logs_.begin(), console_logs_.begin() + 100);
-    }
+      console_logs_.push_back(level_str + msg);
 
-    // Trigger status bar redraw if console is active
-    if (console_active_ && status_bar_) {
-      status_bar_->RequestRedraw();
+      // Keep only last 1000 messages
+      if (console_logs_.size() > 1000) {
+        console_logs_.erase(console_logs_.begin(), console_logs_.begin() + 100);
+      }
+
+      // Trigger status bar redraw if console is active
+      if (console_active_ && status_bar_) {
+        status_bar_->RequestRedraw();
+      }
     }
   }
 
   // Check for our custom messages
   if (msg.find("BROW6EL_SELECT_") == 0) {
     parseSelectMessage(msg);
+    return true; // Suppress console output
+  }
+
+  // For Kitty: handle DOM change notifications from MutationObserver
+  if (msg.find("[Brow6el] DOM_CHANGED") == 0) {
+    if (IsKittyRenderer() && browser_ && browser_->GetHost()) {
+      // Add small delay to let CEF finish rendering DOM changes into paint buffer
+      CefRefPtr<CefBrowser> browser = browser_;
+      std::thread([browser]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(16)); // ~1 frame at 60fps
+        if (browser && browser->GetHost()) {
+          browser->GetHost()->Invalidate(PET_VIEW);
+        }
+      }).detach();
+    }
+    return true; // Suppress console output
+  }
+
+  // For Kitty: handle userscript completion notification
+  if (msg.find("[Brow6el] USERSCRIPT_COMPLETE") == 0) {
+    if (IsKittyRenderer() && browser_ && browser_->GetHost()) {
+      CefRefPtr<CefBrowser> browser = browser_;
+      std::thread([browser]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        if (browser && browser->GetHost()) {
+          browser->GetHost()->Invalidate(PET_VIEW);
+        }
+      }).detach();
+    }
     return true; // Suppress console output
   }
 
@@ -320,6 +412,7 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
     }
     return true;
   }
+  
   if (msg.find("[Brow6el] HINT_") == 0) {
     // Suppress hint mode debug messages
     return true;
@@ -503,6 +596,7 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
   if (msg.find("[Brow6el] MOUSE_EMU_GRID_ACTIVE:") == 0) {
     // Grid mode activated
     grid_mode_active_ = true;
+    // MutationObserver will trigger Invalidate via DOM_CHANGED
     return true;
   }
   if (msg.find("[Brow6el] MOUSE_EMU_GRID_CLOSED") == 0) {
@@ -866,6 +960,14 @@ void BrowserClient::HandleJSDialogResponse(bool success,
     callback = js_dialog_callback_;
     js_dialog_callback_ = nullptr;
     js_dialog_active_ = false;
+  }
+
+  // Clear the dialog from status bar
+  {
+    std::lock_guard<std::mutex> lock(render_mutex_);
+    if (status_bar_) {
+      status_bar_->clear();
+    }
   }
 
   // Call the callback outside the mutex to avoid potential deadlocks
@@ -1327,11 +1429,17 @@ bool BrowserClient::HandleUserScriptConfirm() {
   if (!script_content.empty() && browser_) {
     CefRefPtr<CefFrame> frame = browser_->GetMainFrame();
     if (frame) {
-      frame->ExecuteJavaScript(script_content, frame->GetURL(), 0);
+      // For Kitty: append signal when script completes DOM transformation
+      std::string wrapped_script = script_content;
+      if (IsKittyRenderer()) {
+        wrapped_script += "\nconsole.log('[Brow6el] USERSCRIPT_COMPLETE');";
+      }
+      
+      frame->ExecuteJavaScript(wrapped_script, frame->GetURL(), 0);
 
       // Show confirmation
       std::lock_guard<std::mutex> lock(render_mutex_);
-      status_bar_->showMessage("📜 Script injected: " + script_name);
+      status_bar_->showMessage("📜 Script injected: " + script_name + " (reload 'r' to exit)");
     }
   }
 
@@ -1607,6 +1715,8 @@ void BrowserClient::HandleMouseEmuPosition(int x, int y) {
     // Send mouse move while dragging
     browser_->GetHost()->SendMouseMoveEvent(mouse_event, false);
   }
+  
+  // MutationObserver in mouse_emu.js will trigger Invalidate via DOM_CHANGED message
 }
 
 void BrowserClient::ToggleInspectMode() {
