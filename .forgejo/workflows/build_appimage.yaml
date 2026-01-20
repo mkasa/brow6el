@@ -149,7 +149,7 @@ jobs:
           cp *.dat "$APP_DIR/usr" 2>/dev/null || true
           cp *.json "$APP_DIR/usr" 2>/dev/null || true
           cp *.js "$APP_DIR/usr" 2>/dev/null || true
-          cp *.html "$APP_DIR/usr" 2>/dev/null || true
+          cp *.html "$APP_DIR/usr/bin" 2>/dev/null || true
           # Copy libsixel library
           cp /lib/x86_64-linux-gnu/libsixel.so.1 "$APP_DIR/usr" 2>/dev/null || \
             cp /usr/lib/x86_64-linux-gnu/libsixel.so.1 "$APP_DIR/usr" 2>/dev/null || \
@@ -354,7 +354,7 @@ jobs:
           cp *.dat "$APP_DIR/usr" 2>/dev/null || true
           cp *.json "$APP_DIR/usr" 2>/dev/null || true
           cp *.js "$APP_DIR/usr" 2>/dev/null || true
-          cp *.html "$APP_DIR/usr" 2>/dev/null || true 
+          cp *.html "$APP_DIR/usr/bin" 2>/dev/null || true 
           # Copy libsixel library
           cp /lib/aarch64-linux-gnu/libsixel.so.1 "$APP_DIR/usr" 2>/dev/null || \
             cp /usr/lib/aarch64-linux-gnu/libsixel.so.1 "$APP_DIR/usr" 2>/dev/null || \
