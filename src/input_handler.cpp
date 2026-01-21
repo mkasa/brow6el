@@ -1312,23 +1312,23 @@ void InputHandler::readLoop() {
                   browser_->GoForward();
                 }
               } else if (c == 't' || c == 'T') {
-                // Scroll up (was Ctrl+T)
+                // Scroll up by 2/3 of window height
                 if (browser_) {
                   CefMouseEvent mouse_event;
                   mouse_event.x = 0;
                   mouse_event.y = 0;
                   mouse_event.modifiers = 0;
-                  browser_->GetHost()->SendMouseWheelEvent(mouse_event, 0, 120);
+                  browser_->GetHost()->SendMouseWheelEvent(mouse_event, 0, getScrollAmount());
                 }
               } else if (c == 'g' || c == 'G') {
-                // Scroll down (was Ctrl+G)
+                // Scroll down by 2/3 of window height
                 if (browser_) {
                   CefMouseEvent mouse_event;
                   mouse_event.x = 0;
                   mouse_event.y = 0;
                   mouse_event.modifiers = 0;
                   browser_->GetHost()->SendMouseWheelEvent(mouse_event, 0,
-                                                           -120);
+                                                           -getScrollAmount());
                 }
               } else if (c == 'e' || c == 'E') {
                 // Enter mouse emulation mode

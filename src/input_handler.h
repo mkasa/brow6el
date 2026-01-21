@@ -77,6 +77,16 @@ private:
   bool console_input_active_ = false;
   std::string console_input_buffer_;
   int console_scroll_offset_ = 0;
+  
+  // Calculate scroll amount (2/3 of window height)
+  int getScrollAmount() const {
+    // Use terminal rows (not pixels) for more accurate calculation
+    // Subtract 1 for status bar to get actual viewport height
+    int viewport_rows = term_height_ - 1;
+    int scroll_rows = (viewport_rows * 2) / 3;
+    // 30 units per line gives good 2/3 viewport scrolling
+    return scroll_rows * 30;
+  }
 
   // JS prompt input
   std::string js_prompt_input_;
