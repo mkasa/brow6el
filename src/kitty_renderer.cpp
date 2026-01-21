@@ -231,27 +231,24 @@ void KittyRenderer::transmitImage(const unsigned char *buffer, int buffer_width,
   if (width <= 0 || height <= 0)
     return;
 
-  // Convert BGRA to RGBA in-place for better cache performance
-  size_t img_size = width * height * 4;
-  std::vector<unsigned char> rgba_buffer(img_size);
+  // Convert BGRA to RGB (skip alpha channel to reduce bandwidth by 25%)
+  size_t rgb_size = width * height * 3;
+  std::vector<unsigned char> rgb_buffer(rgb_size);
   
   const unsigned char* src = buffer;
-  unsigned char* dst = rgba_buffer.data();
-  const unsigned char* end = src + img_size;
+  unsigned char* dst = rgb_buffer.data();
   
-  // Optimized BGRA->RGBA conversion (4-byte chunks)
-  while (src < end) {
-    dst[0] = src[2]; // R
-    dst[1] = src[1]; // G
-    dst[2] = src[0]; // B
-    dst[3] = src[3]; // A
-    src += 4;
-    dst += 4;
+  // Optimized BGRA->RGB conversion
+  for (int i = 0; i < width * height; i++) {
+    dst[i * 3 + 0] = src[i * 4 + 2]; // R
+    dst[i * 3 + 1] = src[i * 4 + 1]; // G
+    dst[i * 3 + 2] = src[i * 4 + 0]; // B
+    // Skip alpha channel (src[i * 4 + 3])
   }
 
   // Skip compression - send uncompressed for better performance during typing
-  // Base64 encode the raw RGBA data
-  std::string encoded = base64_encode(rgba_buffer.data(), img_size);
+  // Base64 encode the raw RGB data
+  std::string encoded = base64_encode(rgb_buffer.data(), rgb_size);
 
   // Calculate number of columns and rows
   int cols = (width + cell_width_ - 1) / cell_width_;
@@ -271,14 +268,14 @@ void KittyRenderer::transmitImage(const unsigned char *buffer, int buffer_width,
     if (first_chunk) {
       // First chunk - NO compression for speed
       // a=T: transmit and display (replaces existing image with same ID)
-      // f=32: RGBA format
+      // f=24: RGB format (no alpha channel = 25% less bandwidth)
       // s=width, v=height: image dimensions
       // c=cols, r=rows: display size in cells
       // i=image_id: image identifier (reused to replace atomically)
       // z=-1: below text layer (dialogs appear on top)
       // m=1/0: more chunks follow
       // q=2: quiet mode (no responses)
-      printf("\033_Ga=T,f=32,s=%d,v=%d,c=%d,r=%d,i=%u,z=-1,m=%d,q=2;%s\033\\",
+      printf("\033_Ga=T,f=24,s=%d,v=%d,c=%d,r=%d,i=%u,z=-1,m=%d,q=2;%s\033\\",
              width, height, cols, rows, image_id, last_chunk ? 0 : 1,
              chunk.c_str());
       first_chunk = false;
@@ -294,18 +291,16 @@ void KittyRenderer::transmitImage(const unsigned char *buffer, int buffer_width,
 
 // Draw an overlay rectangle at specified z-index for dialogs
 void KittyRenderer::drawOverlay(int x, int y, int width, int height, uint32_t rgba_color, int z_index) {
-  // Create a solid color image buffer
-  std::vector<unsigned char> overlay_buf(width * height * 4);
+  // Create a solid color image buffer (RGB format)
+  std::vector<unsigned char> overlay_buf(width * height * 3);
   unsigned char r = (rgba_color >> 24) & 0xFF;
   unsigned char g = (rgba_color >> 16) & 0xFF;
   unsigned char b = (rgba_color >> 8) & 0xFF;
-  unsigned char a = rgba_color & 0xFF;
   
   for (int i = 0; i < width * height; i++) {
-    overlay_buf[i * 4 + 0] = r;
-    overlay_buf[i * 4 + 1] = g;
-    overlay_buf[i * 4 + 2] = b;
-    overlay_buf[i * 4 + 3] = a;
+    overlay_buf[i * 3 + 0] = r;
+    overlay_buf[i * 3 + 1] = g;
+    overlay_buf[i * 3 + 2] = b;
   }
   
   // Transmit overlay with specified z-index
@@ -383,7 +378,7 @@ void KittyRenderer::drawDialogOverlay(int start_row, int num_rows, uint32_t rgba
     
     if (first_chunk) {
       // First chunk: include all metadata and z=2 for above webpage (NO compression)
-      printf("\033_Ga=T,f=32,s=%d,v=%d,c=%d,r=%d,i=%u,z=2,m=%d,q=2;%s\033\\",
+      printf("\033_Ga=T,f=24,s=%d,v=%d,c=%d,r=%d,i=%u,z=2,m=%d,q=2;%s\033\\",
              overlay_width, overlay_height, cols, rows, overlay_id++, last_chunk ? 0 : 1, chunk.c_str());
       first_chunk = false;
     } else {
