@@ -2,13 +2,9 @@
 
 A full-featured web browser for the terminal using Chromium (CEF) with support for Sixel and Kitty graphics protocols.
 
-> **WARNING**: Because of downgrade of CEF, it is needed to delete ~/.brow6el/profile folder when using permament profile and upgrading from versions prior 0.3.2. Otherwise CEF fails with SIGTRAP.
+> **WARNING**: Kitty image support (currently only in main branch builds) by its design nature is barelly usable in SSH when brow6el runs on remote host, this feature is usable when brow6el is executed on localhost. On ssh the responsivenes of browser is significantly affected, due to massive data transfers on each frame rendered
 
-> **INFO**: UTF-8 input is now supported, tested with Czech and Estonian accented characters.
-
-> **WARNING**: Breaking change - keyboard control was switched to vim-like modal control. All in previous versions ctrl+[KEY] shortcuts are not working anymore, please follow reading this document.
-
-> **WARNING**: this is POC code quality. Build process tested in Ubuntu 25.10, Debian 13, Arch Linux. The browser itself was tested in foot terminal, yaft framebuffer terminal and Windows 11 Terminal with sixel support using WSL2.
+> **WARNING**: this is POC code quality. Build process tested in Ubuntu 25.10, Debian 13, Arch Linux. The browser itself was tested in foot terminal, wezterm, kitty, ghostty, yaft framebuffer terminal and Windows 11 Terminal with sixel support using WSL2.
 
 
 
