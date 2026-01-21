@@ -147,12 +147,18 @@ void KittyRenderer::render(const void *buffer, int width, int height,
 }
 
 void KittyRenderer::renderCropped(int exclude_bottom_rows) {
-  if (prev_buffer_.empty() || exclude_bottom_rows <= 0) {
-    return; // Nothing to render or no cropping needed
+  if (prev_buffer_.empty()) {
+    return; // Nothing to render
   }
   
   // NOTE: Do NOT lock here - caller already holds the lock!
   // std::lock_guard<std::mutex> lock(g_terminal_mutex);
+  
+  // If exclude_bottom_rows is 0, render full frame
+  if (exclude_bottom_rows <= 0) {
+    renderMonolithic(prev_buffer_.data(), width_, height_);
+    return;
+  }
   
   // Calculate cropped height in pixels
   struct winsize w;
