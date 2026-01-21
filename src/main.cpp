@@ -295,8 +295,10 @@ int main(int argc, char *argv[]) {
     has_graphics_support = true;
     if (graphics_protocol == "kitty" && !termInfo.supports_kitty && termInfo.supports_sixel) {
       std::cout << "Warning: Kitty protocol not supported, falling back to Sixel" << std::endl;
+      profile_config.overrideGraphicsProtocol("sixel");
     } else if (graphics_protocol == "sixel" && !termInfo.supports_sixel && termInfo.supports_kitty) {
       std::cout << "Warning: Sixel not supported, falling back to Kitty protocol" << std::endl;
+      profile_config.overrideGraphicsProtocol("kitty");
     }
   }
   
