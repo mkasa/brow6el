@@ -397,6 +397,18 @@ void InputHandler::readLoop() {
                 browser_->GetHost()->Invalidate(PET_VIEW);
               }
             }
+          } else if (search_input_active_) {
+            search_input_active_ = false;
+            search_input_buffer_.clear();
+            search_started_ = false;
+            if (browser_client_) {
+              browser_client_->SetSearchActive(false);
+              browser_client_->GetStatusBar()->clear();
+              if (browser_) {
+                browser_->GetHost()->StopFinding(true); // Clear highlights
+                browser_->GetHost()->Invalidate(PET_VIEW);
+              }
+            }
           } else if (auth_dialog_active_) {
             auth_dialog_active_ = false;
             auth_username_buffer_.clear();
@@ -517,6 +529,18 @@ void InputHandler::readLoop() {
               browser_client_->GetStatusBar()->clear();
               // Invalidate to trigger immediate repaint
               if (browser_) {
+                browser_->GetHost()->Invalidate(PET_VIEW);
+              }
+            }
+          } else if (search_input_active_) {
+            search_input_active_ = false;
+            search_input_buffer_.clear();
+            search_started_ = false;
+            if (browser_client_) {
+              browser_client_->SetSearchActive(false);
+              browser_client_->GetStatusBar()->clear();
+              if (browser_) {
+                browser_->GetHost()->StopFinding(true); // Clear highlights
                 browser_->GetHost()->Invalidate(PET_VIEW);
               }
             }
@@ -645,6 +669,12 @@ void InputHandler::readLoop() {
                   browser_client_->GetStatusBar()->showURLInput(
                       url_input_buffer_);
                 }
+              } else if (search_input_active_) {
+                search_input_buffer_ += utf8_char;
+                if (browser_client_) {
+                  browser_client_->GetStatusBar()->showSearchInput(
+                      search_input_buffer_);
+                }
               } else if (file_input_active_) {
                 file_input_buffer_ += utf8_char;
                 if (browser_client_) {
@@ -766,6 +796,20 @@ void InputHandler::readLoop() {
             url_input_buffer_.clear();
             continue;
           }
+          // Check if search input is active - Enter performs search
+          if (search_input_active_) {
+            FILE *log = fopen("/tmp/brow6el_search.log", "a");
+            if (log) {
+              fprintf(log, "Enter pressed in search, buffer='%s'\n", search_input_buffer_.c_str());
+              fclose(log);
+            }
+            if (!search_input_buffer_.empty() && browser_) {
+              // Perform search with CEF Find API
+              browser_->GetHost()->Find(search_input_buffer_, true, false, false);
+              search_started_ = true; // Mark that search has been initiated
+            }
+            continue;
+          }
           // Check if auth dialog is active
           if (auth_dialog_active_) {
             if (!auth_password_mode_) {
@@ -872,6 +916,14 @@ void InputHandler::readLoop() {
               if (browser_client_) {
                 browser_client_->GetStatusBar()->showURLInput(
                     url_input_buffer_);
+              }
+            }
+          } else if (search_input_active_) {
+            if (!search_input_buffer_.empty()) {
+              removeLastUTF8Char(search_input_buffer_);
+              if (browser_client_) {
+                browser_client_->GetStatusBar()->showSearchInput(
+                    search_input_buffer_);
               }
             }
           } else if (file_input_active_) {
@@ -1035,6 +1087,28 @@ void InputHandler::readLoop() {
             url_input_buffer_ += c;
             if (browser_client_) {
               browser_client_->GetStatusBar()->showURLInput(url_input_buffer_);
+            }
+          } else if (search_input_active_) {
+            // Handle 'n' and 'p' for search navigation - only AFTER Enter was pressed
+            if (search_started_ && c == 'n') {
+              // Find next
+              if (!search_input_buffer_.empty() && browser_) {
+                browser_->GetHost()->Find(search_input_buffer_, true, false, true);
+                // Don't Invalidate here - OnFindResult will trigger it when ready
+              }
+            } else if (search_started_ && c == 'p') {
+              // Find previous
+              if (!search_input_buffer_.empty() && browser_) {
+                browser_->GetHost()->Find(search_input_buffer_, false, false, true);
+                // Don't Invalidate here - OnFindResult will trigger it when ready
+              }
+            } else {
+              // Regular character - add to search buffer
+              search_input_buffer_ += c;
+              search_started_ = false; // Reset since query changed
+              if (browser_client_) {
+                browser_client_->GetStatusBar()->showSearchInput(search_input_buffer_);
+              }
             }
           } else if (file_input_active_) {
             file_input_buffer_ += c;
@@ -1243,6 +1317,15 @@ void InputHandler::readLoop() {
                   browser_client_->SetUrlInputActive(true);
                   usleep(50000);
                   browser_client_->GetStatusBar()->showURLInput("");
+                }
+              } else if (c == '/') {
+                // Open search input
+                search_input_active_ = true;
+                search_input_buffer_.clear();
+                if (browser_client_) {
+                  browser_client_->SetSearchActive(true);
+                  usleep(50000);
+                  browser_client_->GetStatusBar()->showSearchInput("");
                 }
               } else if (c == 'c' || c == 'C') {
                 // Toggle console (was Ctrl+K)
@@ -1453,6 +1536,12 @@ void InputHandler::readLoop() {
               if (browser_client_) {
                 browser_client_->GetStatusBar()->showURLInput(
                     url_input_buffer_);
+              }
+            } else if (search_input_active_) {
+              search_input_buffer_ += utf8_char;
+              if (browser_client_) {
+                browser_client_->GetStatusBar()->showSearchInput(
+                    search_input_buffer_);
               }
             } else if (file_input_active_) {
               file_input_buffer_ += utf8_char;

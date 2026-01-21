@@ -461,6 +461,7 @@ int main(int argc, char *argv[]) {
       termInfo.height / termInfo.cell_height, termInfo.cell_width,
       termInfo.cell_height, termInfo.width, termInfo.height);
   input_handler.setBrowserClient(client.get()); // Link for select navigation
+  client->setInputHandler(&input_handler);
   input_handler.setTiledRenderingEnabled(
       profile_config.isTiledRenderingEnabled()); // Set from config
   client->SetInputMode(

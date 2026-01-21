@@ -7,6 +7,7 @@
 #include "include/cef_dialog_handler.h"
 #include "include/cef_display_handler.h"
 #include "include/cef_download_handler.h"
+#include "include/cef_find_handler.h"
 #include "include/cef_jsdialog_handler.h"
 #include "include/cef_render_handler.h"
 #include "include/cef_request_handler.h"
@@ -16,6 +17,8 @@
 #include <memory>
 #include <mutex>
 
+class InputHandler; // Forward declaration
+
 class BrowserClient : public CefClient,
                       public CefRenderHandler,
                       public CefLifeSpanHandler,
@@ -24,7 +27,8 @@ class BrowserClient : public CefClient,
                       public CefJSDialogHandler,
                       public CefDownloadHandler,
                       public CefDialogHandler,
-                      public CefRequestHandler {
+                      public CefRequestHandler,
+                      public CefFindHandler {
 public:
   struct DownloadEntry {
     int32_t id;
@@ -51,6 +55,7 @@ public:
   CefRefPtr<CefDownloadHandler> GetDownloadHandler() override;
   CefRefPtr<CefDialogHandler> GetDialogHandler() override;
   CefRefPtr<CefRequestHandler> GetRequestHandler() override;
+  CefRefPtr<CefFindHandler> GetFindHandler() override { return this; }
 
   virtual void GetViewRect(CefRefPtr<CefBrowser> browser,
                            CefRect &rect) override;
@@ -114,6 +119,14 @@ public:
                                   const CefString &scheme,
                                   CefRefPtr<CefAuthCallback> callback) override;
 
+  // CefFindHandler methods
+  void OnFindResult(CefRefPtr<CefBrowser> browser,
+                    int identifier,
+                    int count,
+                    const CefRect& selectionRect,
+                    int activeMatchOrdinal,
+                    bool finalUpdate) override;
+
   CefRefPtr<CefBrowser> GetBrowser() { return browser_; }
   bool IsClosing() const { return is_closing_; }
   StatusBar *GetStatusBar() { return status_bar_.get(); }
@@ -147,6 +160,8 @@ public:
   bool IsSelectOptionsActive() const { return !current_options_.empty(); }
   void SetUrlInputActive(bool active) { url_input_active_ = active; }
   void SetConsoleActive(bool active) { console_active_ = active; }
+  void SetSearchActive(bool active) { search_active_ = active; }
+  void setInputHandler(InputHandler* handler) { input_handler_ = handler; }
   bool IsConsoleActive() const { return console_active_; }
   const std::vector<std::string> &GetConsoleLogs() const {
     return console_logs_;
@@ -280,6 +295,7 @@ private:
   CefRefPtr<CefBrowser> browser_;
   std::unique_ptr<ImageRenderer> renderer_;
   std::unique_ptr<StatusBar> status_bar_;
+  InputHandler* input_handler_ = nullptr;
   std::atomic<bool> is_closing_;
   std::mutex render_mutex_; // Synchronize rendering and status updates
 
@@ -288,6 +304,9 @@ private:
   int current_selected_index_;
   bool url_input_active_ = false;
   bool console_active_ = false;
+  bool search_active_ = false;
+  int search_match_count_ = 0;
+  int search_active_match_ = 0;
   std::vector<std::string> console_logs_;
   std::mutex console_mutex_;
   bool show_internal_console_logs_ = false;

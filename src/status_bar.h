@@ -10,7 +10,9 @@ public:
 
   void showComboboxOptions(const std::vector<std::string> &options,
                            int selected_index);
+  void showTitle(const std::string &title, const std::string &mode);
   void showURLInput(const std::string &current_url);
+  void showSearchInput(const std::string &query, int current = 0, int total = 0);
   void showFileInput(const std::string &default_path);
   void showAuthDialog(const std::string &host, const std::string &realm);
   void showConsole(const std::vector<std::string> &logs,

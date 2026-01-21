@@ -115,28 +115,50 @@ void KittyRenderer::render(const void *buffer, int width, int height,
     force_render_next_ = false;
   }
 
-  // Check if CEF says there are dirty regions
-  bool cef_says_dirty = !dirtyRects.empty();
-
-  // Just trust CEF's dirty rects - render every update
-  if (force_this_render || cef_says_dirty || prev_buffer_.empty()) {
-    renderMonolithic(src_buffer, width, height);
+  // Decide whether to render
+  bool should_render = false;
+  
+  if (force_this_render || prev_buffer_.empty()) {
+    // Always render on force or first frame
+    should_render = true;
+  } else if (!dirtyRects.empty()) {
+    // CEF provided specific dirty rects - trust them
+    should_render = true;
+  } else {
+    // CEF provided no dirty rects - do our own dirty detection
+    // Compare entire buffer to detect actual changes
+    // Note: In practice CEF always provides dirtyRects, but keep as defensive fallback
+    bool buffer_changed = memcmp(src_buffer, prev_buffer_.data(), buffer_size) != 0;
+    if (buffer_changed) {
+      should_render = true;
+    }
   }
   
-  // Always store buffer
-  if (prev_buffer_.size() != buffer_size) {
-    prev_buffer_.resize(buffer_size);
+  if (should_render) {
+    renderMonolithic(src_buffer, width, height);
+    
+    // Store buffer ONLY when we actually rendered
+    // This ensures we compare against the last RENDERED frame, not last received
+    if (prev_buffer_.size() != buffer_size) {
+      prev_buffer_.resize(buffer_size);
+    }
+    memcpy(prev_buffer_.data(), src_buffer, buffer_size);
   }
-  memcpy(prev_buffer_.data(), src_buffer, buffer_size);
 }
 
 void KittyRenderer::renderCropped(int exclude_bottom_rows) {
-  if (prev_buffer_.empty() || exclude_bottom_rows <= 0) {
-    return; // Nothing to render or no cropping needed
+  if (prev_buffer_.empty()) {
+    return; // Nothing to render
   }
   
   // NOTE: Do NOT lock here - caller already holds the lock!
   // std::lock_guard<std::mutex> lock(g_terminal_mutex);
+  
+  // If exclude_bottom_rows is 0, render full frame
+  if (exclude_bottom_rows <= 0) {
+    renderMonolithic(prev_buffer_.data(), width_, height_);
+    return;
+  }
   
   // Calculate cropped height in pixels
   struct winsize w;

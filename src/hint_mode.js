@@ -26,17 +26,51 @@
             return label;
         },
         
-        // Find all links
+        // Find all clickable elements
         findElements: function() {
-            // Only target links with href for now
-            const selector = 'a[href]';
-            const visible = [];
+            // Comprehensive selector for interactive elements
+            const selector = [
+                'a[href]',                              // Links
+                'button',                                // Buttons
+                'input[type="button"]',                  // Button inputs
+                'input[type="submit"]',                  // Submit inputs
+                'input[type="reset"]',                   // Reset inputs
+                'input[type="image"]',                   // Image inputs
+                '[role="button"]',                       // ARIA buttons
+                '[role="link"]',                         // ARIA links
+                '[onclick]',                             // Elements with onclick
+                'summary',                               // Details/summary
+                '[tabindex]:not([tabindex="-1"])',      // Focusable elements (but not tabindex=-1)
+                'label[for]',                            // Labels (clickable)
+            ].join(', ');
+            
+            // Use Set to automatically deduplicate elements
+            const visibleSet = new Set();
+            
+            // Helper to check if element is clickable via cursor style
+            const hasPointerCursor = (el) => {
+                const style = window.getComputedStyle(el);
+                return style.cursor === 'pointer' || style.cursor === 'grab';
+            };
+            
+            // Helper to check if element is already covered by a parent in the set
+            const hasClickableParent = (el, set) => {
+                let parent = el.parentElement;
+                while (parent) {
+                    if (set.has(parent)) return true;
+                    parent = parent.parentElement;
+                }
+                return false;
+            };
             
             // Helper to find elements in a document
             const findInDocument = (doc) => {
                 try {
                     const all = doc.querySelectorAll(selector);
                     all.forEach((el) => {
+                        // Skip if already in set (handles multiple selector matches)
+                        if (visibleSet.has(el)) return;
+                        
                         const rect = el.getBoundingClientRect();
                         const style = window.getComputedStyle(el);
                         
@@ -58,7 +92,44 @@
                         
                         // Element is visible if we hit it or one of its descendants
                         if (elementAtPoint && (elementAtPoint === el || el.contains(elementAtPoint))) {
-                            visible.push(el);
+                            visibleSet.add(el);
+                        }
+                    });
+                    
+                    // Also find elements with cursor: pointer that aren't in selector
+                    // Common for SPAs with click handlers on divs/spans
+                    const allElements = doc.querySelectorAll('div, span, li, td, th');
+                    allElements.forEach((el) => {
+                        // Skip if already found
+                        if (visibleSet.has(el)) return;
+                        
+                        // Skip if has clickable parent (avoid nested duplicates)
+                        if (hasClickableParent(el, visibleSet)) return;
+                        
+                        const rect = el.getBoundingClientRect();
+                        const style = window.getComputedStyle(el);
+                        
+                        // Must have pointer cursor
+                        if (!hasPointerCursor(el)) return;
+                        
+                        // Skip if too small
+                        if (rect.width < 10 || rect.height < 10) return;
+                        
+                        // Check visibility
+                        if (style.visibility === 'hidden' || style.display === 'none') return;
+                        if (style.opacity === '0') return;
+                        
+                        // Check viewport visibility
+                        if (rect.bottom < 0 || rect.top > window.innerHeight) return;
+                        if (rect.right < 0 || rect.left > window.innerWidth) return;
+                        
+                        // Check if element is actually visible
+                        const centerX = rect.left + rect.width / 2;
+                        const centerY = rect.top + rect.height / 2;
+                        const elementAtPoint = document.elementFromPoint(centerX, centerY);
+                        
+                        if (elementAtPoint && (elementAtPoint === el || el.contains(elementAtPoint))) {
+                            visibleSet.add(el);
                         }
                     });
                 } catch (e) {
@@ -70,12 +141,37 @@
             // Note: Iframes are skipped because their coordinates don't align with main window
             findInDocument(document);
             
-            return visible;
+            // Convert Set to Array
+            return Array.from(visibleSet);
         },
         
         // Create overlay labels
         show: function() {
             this.elements = this.findElements();
+            
+            // Create a dedicated container for all hints at the root level
+            // This ensures hints are above all page content and stacking contexts
+            let container = document.getElementById('__brow6el_hint_container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = '__brow6el_hint_container';
+                container.style.cssText = `
+                    position: fixed !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                    width: 100% !important;
+                    height: 100% !important;
+                    z-index: 2147483647 !important;
+                    pointer-events: none !important;
+                    transform: translateZ(0) !important;
+                    isolation: isolate !important;
+                `;
+                // Always append to documentElement (html), not body
+                // This avoids stacking context issues from body styles
+                (document.documentElement || document.body).appendChild(container);
+            }
+            
+            this.overlays.push(container); // Track for cleanup
             
             // If no elements found and we're in a frameset, try the main frame
             if (this.elements.length === 0 && window.frames.length > 0) {
@@ -126,15 +222,11 @@
                 if (this.generateLabel(i) === label) {
                     const el = this.elements[i];
                     
-                    // For links with href, navigate directly for better history tracking
-                    if (el.tagName === 'A' && el.href) {
-                        window.location.href = el.href;
-                        console.log('[Brow6el] HINT_NAVIGATE:' + label + ' to ' + el.href);
-                    } else {
-                        // For other clickable elements, use click()
-                        el.click();
-                        console.log('[Brow6el] HINT_CLICKED:' + label);
-                    }
+                    // Always use click() to simulate real mouse click
+                    // This ensures all event listeners fire (onclick, addEventListener)
+                    // and allows preventDefault() to work properly
+                    el.click();
+                    console.log('[Brow6el] HINT_CLICKED:' + label + ' on ' + el.tagName);
                     
                     this.cleanup();
                     return true;
