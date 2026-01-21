@@ -29,6 +29,8 @@ public:
   }
   InputMode getCurrentMode() const { return current_mode_; }
   const char *getModeName() const;
+  bool IsSearchActive() const { return search_input_active_; }
+  std::string GetSearchQuery() const { return search_input_buffer_; }
   void updateDimensions(int cols, int rows, int cell_w, int cell_h, int pixel_w,
                         int pixel_h);
 
@@ -66,6 +68,11 @@ private:
   // File input mode
   bool file_input_active_ = false;
   std::string file_input_buffer_;
+
+  // Search input mode
+  bool search_input_active_ = false;
+  std::string search_input_buffer_;
+  bool search_started_ = false; // true after Enter pressed
 
   // Auth dialog mode
   bool auth_dialog_active_ = false;

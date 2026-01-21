@@ -1,5 +1,6 @@
 #include "browser_client.h"
 #include "clipboard.h"
+#include "input_handler.h"
 #include "kitty_renderer.h"
 #include "profile_config.h"
 #include "sixel_renderer.h"
@@ -178,10 +179,11 @@ void BrowserClient::OnPaint(CefRefPtr<CefBrowser> browser,
       renderer_->render(buffer, width, height, false, rects);
 
       // Redraw status bar after sixel render (so it stays visible)
-      // Skip only for hint mode (which has its own yellow status bar)
+      // Skip for hint mode (which has its own yellow status bar)
+      // Skip for search mode (which has its own search bar)
       // Allow for mouse emu mode since it doesn't use status bar after initial
       // activation
-      if (status_bar_ && !hint_mode_active_) {
+      if (status_bar_ && !hint_mode_active_ && !search_active_) {
         status_bar_->redraw();
       }
     } catch (const std::exception &e) {
@@ -369,10 +371,12 @@ bool BrowserClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
     return true; // Suppress console output
   }
 
-  // For Kitty: handle DOM change notifications from MutationObserver
+  // Handle DOM change notifications from MutationObserver
+  // Used by hint mode and mouse emulation to trigger re-render after overlay changes
   if (msg.find("[Brow6el] DOM_CHANGED") == 0) {
-    if (IsKittyRenderer() && browser_ && browser_->GetHost()) {
+    if (browser_ && browser_->GetHost()) {
       // Add small delay to let CEF finish rendering DOM changes into paint buffer
+      // This ensures overlays are included in the frame
       CefRefPtr<CefBrowser> browser = browser_;
       std::thread([browser]() {
         std::this_thread::sleep_for(std::chrono::milliseconds(16)); // ~1 frame at 60fps
@@ -1519,6 +1523,16 @@ void BrowserClient::ActivateHintMode() {
   CefRefPtr<CefFrame> frame = browser_->GetMainFrame();
   if (frame) {
     frame->ExecuteJavaScript(hint_js, "", 0);
+    
+    // Trigger render after delay to ensure overlay is visible
+    // JavaScript sends DOM_CHANGED, but add this as safety/fallback
+    CefRefPtr<CefBrowser> browser = browser_;
+    std::thread([browser]() {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      if (browser && browser->GetHost()) {
+        browser->GetHost()->Invalidate(PET_VIEW);
+      }
+    }).detach();
   }
 
   // Show hint input in status bar
@@ -1915,4 +1929,31 @@ void BrowserClient::HandleVisualModeKey(const std::string &key) {
                    "window.__brow6el_visual_mode.handleKey('" +
                    key + "'); }";
   browser_->GetMainFrame()->ExecuteJavaScript(js, "", 0);
+}
+
+void BrowserClient::OnFindResult(CefRefPtr<CefBrowser> browser,
+                                  int identifier,
+                                  int count,
+                                  const CefRect& selectionRect,
+                                  int activeMatchOrdinal,
+                                  bool finalUpdate) {
+  search_match_count_ = count;
+  search_active_match_ = activeMatchOrdinal;
+  
+  // Update status bar with match count
+  if (status_bar_ && search_active_ && input_handler_) {
+    std::string query = input_handler_->GetSearchQuery();
+    status_bar_->showSearchInput(query, activeMatchOrdinal, count);
+  }
+  
+  // Trigger render now that Find() is complete and buffer is updated
+  // This ensures we render the frame WITH highlights, not before
+  if (finalUpdate && browser_) {
+    // For kitty renderer, add delay to let CEF finish preparing scrolled content
+    // Scrolling during search navigation needs time to populate buffer
+    if (IsKittyRenderer()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    browser_->GetHost()->Invalidate(PET_VIEW);
+  }
 }
