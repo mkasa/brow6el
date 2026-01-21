@@ -68,7 +68,7 @@ private:
   Config() {}
 
   // Current config version - increment when making breaking changes
-  static constexpr int CONFIG_VERSION = 3;
+  static constexpr int CONFIG_VERSION = 4;
 
   std::vector<std::string> cef_flags_;
   std::map<std::string, std::string> cef_flags_with_value_;
@@ -186,10 +186,6 @@ private:
       file << "disable-chrome-login-prompt\n";
       file << "\n";
       file << "# Process Model\n";
-      file << "# Multi-process mode with in-process GPU (fixes SIGTRAP in CEF "
-              "138+)\n";
-      file << "# single-process mode had deadlock issues, use in-process-gpu "
-              "instead\n";
       file << "in-process-gpu\n";
       file << "no-zygote\n";
       file << "\n";
@@ -217,13 +213,6 @@ private:
       file << "\n";
       file << "# Disable web security (use with caution!)\n";
       file << "# disable-web-security\n";
-      file << "\n";
-      file << "# Force dark/light mode\n";
-      file << "# force-dark-mode\n";
-      file << "# force-light-mode\n";
-      file << "\n";
-      file << "# Custom user agent\n";
-      file << "# user-agent=Mozilla/5.0 (X11; Linux x86_64) Brow6el/1.0\n";
       file << "\n";
       file.close();
     }

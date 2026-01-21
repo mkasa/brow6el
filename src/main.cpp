@@ -434,14 +434,11 @@ int main(int argc, char *argv[]) {
   CefBrowserSettings browser_settings;
   browser_settings.windowless_frame_rate = 30;
 
-  // Create request context with light color scheme and proper cache path
+  // Create request context with proper cache path
   CefRequestContextSettings context_settings;
   CefString(&context_settings.cache_path).FromASCII(cache_path.c_str());
   CefRefPtr<CefRequestContext> request_context =
       CefRequestContext::CreateContext(context_settings, nullptr);
-
-  // Set light color scheme to avoid forced dark mode
-  request_context->SetChromeColorScheme(CEF_COLOR_VARIANT_LIGHT, 0);
 
   CefBrowserHost::CreateBrowser(window_info, client.get(), url,
                                 browser_settings, nullptr, request_context);

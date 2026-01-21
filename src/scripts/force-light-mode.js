@@ -23,37 +23,58 @@
             color-scheme: light !important;
         }
         
-        /* Override common dark mode classes */
-        body, html {
+        /* Override body-level dark backgrounds only */
+        html {
             background-color: white !important;
             color: black !important;
         }
         
-        /* Prevent dark backgrounds on common containers */
-        div, section, article, main, header, footer, nav, aside {
-            background-color: transparent !important;
+        body {
+            background-color: white !important;
+            color: black !important;
         }
         
-        /* Ensure text is readable */
-        p, span, a, li, td, th, h1, h2, h3, h4, h5, h6 {
-            color: inherit !important;
+        /* Don't override container backgrounds - let site styles work */
+        /* Only target dark backgrounds specifically */
+        [style*="background-color: rgb(0, 0, 0)"],
+        [style*="background-color: black"],
+        [style*="background: rgb(0, 0, 0)"],
+        [style*="background: black"] {
+            background-color: white !important;
         }
         
-        /* Fix links */
-        a {
-            color: #0066cc !important;
+        /* Fix text colors only if they're white/light on dark */
+        [style*="color: rgb(255, 255, 255)"],
+        [style*="color: white"] {
+            color: black !important;
         }
         
-        a:visited {
-            color: #551a8b !important;
+        /* Override dark mode media query at CSS level */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                color-scheme: light !important;
+            }
         }
     `;
     
     document.head.appendChild(style);
     
-    // Force reflow
-    document.body.style.display = 'none';
-    document.body.offsetHeight;
-    document.body.style.display = '';
+    // Override matchMedia to report light mode
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = function(query) {
+        if (query && query.includes('prefers-color-scheme')) {
+            return {
+                matches: query.includes('light'),
+                media: query,
+                onchange: null,
+                addListener: function() {},
+                removeListener: function() {},
+                addEventListener: function() {},
+                removeEventListener: function() {},
+                dispatchEvent: function() { return true; }
+            };
+        }
+        return originalMatchMedia.call(this, query);
+    };
     
 })();
