@@ -3,7 +3,13 @@ project(brow6el C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# RPATH configuration for AppImage and portable builds
+# $ORIGIN is relative to the executable location
 set(CMAKE_BUILD_RPATH ".")
+set(CMAKE_INSTALL_RPATH "$ORIGIN:$ORIGIN/../lib:$ORIGIN/..")
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
 
 # Get version from git
 execute_process(
