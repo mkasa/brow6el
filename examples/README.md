@@ -4,19 +4,6 @@ This directory contains example files to help you get started with brow6el.
 
 ## Contents
 
-### test_dialogs.html
-A comprehensive test page for all brow6el features:
-- JavaScript dialogs (alert, confirm, prompt)
-- Download handling
-- Bookmarks testing
-- Console testing
-- User scripts testing
-
-**Usage:**
-```bash
-cd build && ./run_brow6el.sh file://$PWD/../examples/test_dialogs.html
-```
-
 ### userscripts/
 Example user scripts that demonstrate the custom JavaScript injection system.
 
@@ -43,9 +30,8 @@ cp examples/userscripts/userscripts.conf.example ~/.brow6el/userscripts.conf
 - Changes background color to light blue
 
 **test-page.js**
-- Adds a purple gradient banner to test_dialogs.html
-- Auto-injects on `*test_dialogs.html*`
-- Useful for testing auto-injection
+- Example script demonstrating auto-injection
+- Useful for testing auto-injection patterns
 
 **userscripts.conf.example**
 - Example configuration file
@@ -54,21 +40,14 @@ cp examples/userscripts/userscripts.conf.example ~/.brow6el/userscripts.conf
 
 ## Quick Start
 
-1. **Test the browser:**
-   ```bash
-   cd build
-   ./run_brow6el.sh file://$PWD/../examples/test_dialogs.html
-   ```
-
-2. **Install example user scripts:**
+1. **Install example user scripts:**
    ```bash
    mkdir -p ~/.brow6el/userscripts
    cp examples/userscripts/*.js ~/.brow6el/userscripts/
    cp examples/userscripts/userscripts.conf.example ~/.brow6el/userscripts.conf
    ```
 
-3. **Test user scripts:**
-   - Open test page (shows purple banner if auto-inject enabled)
+2. **Test user scripts:**
    - Press `Ctrl+U` to manually inject dark-mode.js
    - Press `Ctrl+Y` to toggle auto-injection
    - Visit Google to see the custom script in action

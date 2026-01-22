@@ -176,9 +176,6 @@ Press `e` to activate a yellow mouse cursor overlay. Use hjkl or arrow keys to m
 # 3. Run
 ./build/run_brow6el.sh https://example.com
 
-# Try the test page with all features
-./build/run_brow6el.sh file://$PWD/../examples/test_dialogs.html
-
 # Multiple instances supported!
 # Open additional terminals and run more instances
 ```
@@ -186,7 +183,6 @@ Press `e` to activate a yellow mouse cursor overlay. Use hjkl or arrow keys to m
 ## Examples
 
 The `examples/` directory contains:
-- **test_dialogs.html** - Comprehensive test page for all features
 - **userscripts/** - Example user scripts (dark mode, Google customization, etc.)
 
 See [examples/README.md](examples/README.md) for details.
