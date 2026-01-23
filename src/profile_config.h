@@ -34,6 +34,11 @@ public:
   int getCellHeight() const { return cell_height_override_; }
   std::string getGraphicsProtocol() const { return graphics_protocol_; }
   bool showInternalConsoleLogs() const { return show_internal_console_logs_; }
+  bool isProxyEnabled() const { return proxy_enabled_; }
+  std::string getProxyServer() const { return proxy_server_; }
+  std::string getProxyBypassList() const { return proxy_bypass_list_; }
+  std::string getProxyUsername() const { return proxy_username_; }
+  std::string getProxyPassword() const { return proxy_password_; }
 
   // Profile management
   std::string createProfileDirectory();
@@ -68,6 +73,11 @@ private:
   int cell_height_override_ = 0; // 0 means auto-detect
   std::string graphics_protocol_ = "sixel"; // "sixel" or "kitty"
   bool show_internal_console_logs_ = false; // Hide Brow6el internal messages
+  bool proxy_enabled_ = false;
+  std::string proxy_server_ = "";
+  std::string proxy_bypass_list_ = "localhost,127.0.0.1";
+  std::string proxy_username_ = "";
+  std::string proxy_password_ = "";
 
   std::string expandPath(const std::string &path) const;
   std::string trim(const std::string &str);

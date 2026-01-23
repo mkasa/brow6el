@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config.h"
+#include "profile_config.h"
 #include "include/cef_app.h"
 #include "include/cef_command_line.h"
 
@@ -33,8 +34,19 @@ public:
     for (const auto &pair : flags_with_value) {
       command_line->AppendSwitchWithValue(pair.first, pair.second);
     }
+
+    // Apply proxy settings from browser.conf
+    ProfileConfig &profile_config = ProfileConfig::getInstance();
+    if (profile_config.isProxyEnabled() && !profile_config.getProxyServer().empty()) {
+      command_line->AppendSwitchWithValue("proxy-server", profile_config.getProxyServer());
+      
+      if (!profile_config.getProxyBypassList().empty()) {
+        command_line->AppendSwitchWithValue("proxy-bypass-list", profile_config.getProxyBypassList());
+      }
+    }
   }
 
 private:
   IMPLEMENT_REFCOUNTING(BrowserApp);
 };
+
