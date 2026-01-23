@@ -99,6 +99,10 @@ void ProfileConfig::load() {
       proxy_server_ = value;
     } else if (key == "proxy_bypass_list") {
       proxy_bypass_list_ = value;
+    } else if (key == "proxy_username") {
+      proxy_username_ = value;
+    } else if (key == "proxy_password") {
+      proxy_password_ = value;
     }
   }
   file.close();
@@ -245,13 +249,18 @@ void ProfileConfig::writeConfig(std::ofstream &file, bool use_defaults,
   file << "# Route browser traffic through HTTP/HTTPS/SOCKS proxy\n";
   file << "proxy_enabled="
        << (use_defaults ? "false" : (proxy_enabled_ ? "true" : "false")) << "\n";
-  file << "# Proxy server format: scheme://host:port\n";
+  file << "# Proxy server format: scheme://host:port (NO credentials in URL)\n";
   file << "# Supported schemes: http://, https://, socks4://, socks5://\n";
   file << "# Examples:\n";
   file << "#   proxy_server=socks5://127.0.0.1:1080\n";
   file << "#   proxy_server=http://proxy.example.com:8080\n";
   file << "#   proxy_server=https://secure-proxy.example.com:443\n";
   file << "proxy_server=" << (use_defaults ? "" : proxy_server_) << "\n";
+  file << "# Proxy authentication (optional)\n";
+  file << "# If proxy requires authentication, provide credentials here\n";
+  file << "# Leave empty for no authentication or interactive prompt\n";
+  file << "proxy_username=" << (use_defaults ? "" : proxy_username_) << "\n";
+  file << "proxy_password=" << (use_defaults ? "" : proxy_password_) << "\n";
   file << "# Bypass proxy for these hosts (comma-separated)\n";
   file << "proxy_bypass_list="
        << (use_defaults ? "localhost,127.0.0.1" : proxy_bypass_list_) << "\n";

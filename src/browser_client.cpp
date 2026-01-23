@@ -1052,6 +1052,20 @@ bool BrowserClient::GetAuthCredentials(
     const CefString &host, int port, const CefString &realm,
     const CefString &scheme, CefRefPtr<CefAuthCallback> callback) {
   
+  // If this is a proxy authentication request, check for configured credentials
+  if (isProxy) {
+    ProfileConfig &config = ProfileConfig::getInstance();
+    std::string proxy_username = config.getProxyUsername();
+    std::string proxy_password = config.getProxyPassword();
+    
+    // If proxy credentials are configured, use them automatically
+    if (!proxy_username.empty()) {
+      callback->Continue(proxy_username, proxy_password);
+      return true;
+    }
+    // Otherwise fall through to show interactive dialog
+  }
+  
   std::lock_guard<std::mutex> lock(auth_mutex_);
 
   auth_dialog_active_ = true;

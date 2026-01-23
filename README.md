@@ -304,6 +304,8 @@ tiled_rendering=true
 # Route browser traffic through HTTP/HTTPS/SOCKS proxy
 proxy_enabled=false
 proxy_server=
+proxy_username=
+proxy_password=
 proxy_bypass_list=localhost,127.0.0.1
 ```
 
@@ -313,7 +315,7 @@ proxy_bypass_list=localhost,127.0.0.1
 - Multiple profiles: `profile_mode=custom` with different paths
 - Semi-private: `persistent` with `clear_cookies_on_exit=true`
 - Secure DNS with blocking: `doh_enabled=true` with `doh_mode=secure`
-- SOCKS5 proxy: `proxy_enabled=true` with `proxy_server=socks5://127.0.0.1:1080`
+- HTTP proxy with auth: `proxy_enabled=true`, `proxy_server=http://proxy.local:8080`, `proxy_username=user`
 
 ### DNS-over-HTTPS (DoH)
 
@@ -340,16 +342,21 @@ doh_mode=secure
 
 ### Proxy Configuration
 
-Brow6el supports routing browser traffic through HTTP, HTTPS, and SOCKS proxies.
+Brow6el supports routing browser traffic through HTTP, HTTPS, and SOCKS proxies with optional authentication.
 
 **Configuration** (`~/.brow6el/browser.conf`):
 ```ini
 # Enable proxy
 proxy_enabled=true
 
-# Proxy server (format: scheme://host:port)
+# Proxy server (format: scheme://host:port - NO credentials in URL)
 # Supported: http://, https://, socks4://, socks5://
-proxy_server=socks5://127.0.0.1:1080
+proxy_server=http://127.0.0.1:8080
+
+# Proxy authentication (optional)
+# Leave empty if proxy doesn't require authentication
+proxy_username=myuser
+proxy_password=mypass
 
 # Bypass proxy for these hosts (comma-separated)
 proxy_bypass_list=localhost,127.0.0.1,*.local
@@ -361,8 +368,14 @@ proxy_bypass_list=localhost,127.0.0.1,*.local
 - `socks4://` - SOCKS v4 proxy
 - `socks5://` - SOCKS v5 proxy
 
+**Authentication:**
+- **HTTP/HTTPS proxies**: Full authentication support via `proxy_username` and `proxy_password`
+- **SOCKS proxies**: Authentication not supported by Chromium's proxy implementation
+- If credentials are configured, authentication happens automatically (no dialog)
+- If credentials are empty and proxy requires auth, interactive dialog will appear
+
 **Examples:**
-- SOCKS5 proxy: `proxy_server=socks5://127.0.0.1:1080`
+- SOCKS5 proxy (no auth): `proxy_server=socks5://127.0.0.1:1080`
 - HTTP proxy: `proxy_server=http://proxy.example.com:8080`
 - HTTPS proxy: `proxy_server=https://secure-proxy.example.com:443`
 - Corporate proxy: `proxy_server=http://proxy.corp.local:3128`

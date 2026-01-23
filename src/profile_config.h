@@ -37,6 +37,8 @@ public:
   bool isProxyEnabled() const { return proxy_enabled_; }
   std::string getProxyServer() const { return proxy_server_; }
   std::string getProxyBypassList() const { return proxy_bypass_list_; }
+  std::string getProxyUsername() const { return proxy_username_; }
+  std::string getProxyPassword() const { return proxy_password_; }
 
   // Profile management
   std::string createProfileDirectory();
@@ -74,6 +76,8 @@ private:
   bool proxy_enabled_ = false;
   std::string proxy_server_ = "";
   std::string proxy_bypass_list_ = "localhost,127.0.0.1";
+  std::string proxy_username_ = "";
+  std::string proxy_password_ = "";
 
   std::string expandPath(const std::string &path) const;
   std::string trim(const std::string &str);
