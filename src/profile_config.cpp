@@ -93,6 +93,12 @@ void ProfileConfig::load() {
       }
     } else if (key == "show_internal_console_logs") {
       show_internal_console_logs_ = (value == "true");
+    } else if (key == "proxy_enabled") {
+      proxy_enabled_ = (value == "true");
+    } else if (key == "proxy_server") {
+      proxy_server_ = value;
+    } else if (key == "proxy_bypass_list") {
+      proxy_bypass_list_ = value;
     }
   }
   file.close();
@@ -234,6 +240,21 @@ void ProfileConfig::writeConfig(std::ofstream &file, bool use_defaults,
   file << "show_internal_console_logs="
        << (use_defaults ? "false" : (show_internal_console_logs_ ? "true" : "false"))
        << "\n";
+  file << "\n";
+  file << "# Proxy Configuration\n";
+  file << "# Route browser traffic through HTTP/HTTPS/SOCKS proxy\n";
+  file << "proxy_enabled="
+       << (use_defaults ? "false" : (proxy_enabled_ ? "true" : "false")) << "\n";
+  file << "# Proxy server format: scheme://host:port\n";
+  file << "# Supported schemes: http://, https://, socks4://, socks5://\n";
+  file << "# Examples:\n";
+  file << "#   proxy_server=socks5://127.0.0.1:1080\n";
+  file << "#   proxy_server=http://proxy.example.com:8080\n";
+  file << "#   proxy_server=https://secure-proxy.example.com:443\n";
+  file << "proxy_server=" << (use_defaults ? "" : proxy_server_) << "\n";
+  file << "# Bypass proxy for these hosts (comma-separated)\n";
+  file << "proxy_bypass_list="
+       << (use_defaults ? "localhost,127.0.0.1" : proxy_bypass_list_) << "\n";
 }
 
 std::string ProfileConfig::getProfilePath() const {

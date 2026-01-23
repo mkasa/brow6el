@@ -299,6 +299,12 @@ tiled_rendering=true
 # Only override if auto-detection produces incorrect results
 #cell_width=0
 #cell_height=0
+
+# Proxy Configuration
+# Route browser traffic through HTTP/HTTPS/SOCKS proxy
+proxy_enabled=false
+proxy_server=
+proxy_bypass_list=localhost,127.0.0.1
 ```
 
 **Examples:**
@@ -307,6 +313,7 @@ tiled_rendering=true
 - Multiple profiles: `profile_mode=custom` with different paths
 - Semi-private: `persistent` with `clear_cookies_on_exit=true`
 - Secure DNS with blocking: `doh_enabled=true` with `doh_mode=secure`
+- SOCKS5 proxy: `proxy_enabled=true` with `proxy_server=socks5://127.0.0.1:1080`
 
 ### DNS-over-HTTPS (DoH)
 
@@ -330,6 +337,37 @@ doh_mode=secure
 - **Quad9:** `https://dns.quad9.net/dns-query` (security-focused, blocks malicious domains)
 
 **Note:** When using `secure` mode, ensure your DoH server resolves `google.com` (used by CEF for connectivity checks) or allows all domains, otherwise DoH may fail to initialize.
+
+### Proxy Configuration
+
+Brow6el supports routing browser traffic through HTTP, HTTPS, and SOCKS proxies.
+
+**Configuration** (`~/.brow6el/browser.conf`):
+```ini
+# Enable proxy
+proxy_enabled=true
+
+# Proxy server (format: scheme://host:port)
+# Supported: http://, https://, socks4://, socks5://
+proxy_server=socks5://127.0.0.1:1080
+
+# Bypass proxy for these hosts (comma-separated)
+proxy_bypass_list=localhost,127.0.0.1,*.local
+```
+
+**Proxy Schemes:**
+- `http://` - HTTP proxy
+- `https://` - HTTPS proxy (connects to proxy via HTTPS)
+- `socks4://` - SOCKS v4 proxy
+- `socks5://` - SOCKS v5 proxy
+
+**Examples:**
+- SOCKS5 proxy: `proxy_server=socks5://127.0.0.1:1080`
+- HTTP proxy: `proxy_server=http://proxy.example.com:8080`
+- HTTPS proxy: `proxy_server=https://secure-proxy.example.com:443`
+- Corporate proxy: `proxy_server=http://proxy.corp.local:3128`
+
+**Note:** Set `proxy_enabled=false` or leave `proxy_server` empty to disable proxy.
 
 ### Graphics Protocols
 
