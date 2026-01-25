@@ -432,27 +432,61 @@
         
         // Simulate click at current position
         click: function() {
-            // This is now handled by C++ using CEF mouse events
-            const info = this.getElementType();
+            // Convert CSS pixels to device pixels (account for zoom/devicePixelRatio)
+            // JavaScript uses CSS pixels, but CEF expects device pixels
+            const devicePixelRatio = window.devicePixelRatio || 1.0;
+            const intX = Math.round(this.x * devicePixelRatio);
+            const intY = Math.round(this.y * devicePixelRatio);
             
-            if (info) {
-                // Check if this is a text-like input that should only be focused
-                const textInputTypes = ['text', 'password', 'email', 'search', 'tel', 'url', 'number', 'date', 'time', 'datetime-local', 'month', 'week'];
-                const isTextInput = info.isInput && textInputTypes.includes(info.type.toLowerCase());
-                
-                if ((info.isSelect || isTextInput) && !info.isCheckboxOrRadio) {
-                    // For select/text input elements, just focus them - don't click
-                    // Send element info so C++ can switch to appropriate mode
-                    info.element.focus();
-                    console.log('[Brow6el] MOUSE_EMU_FOCUS:' + info.tagName + ':' + info.type + ':' + info.isSelect + ':' + info.isInput + ':' + info.isCheckboxOrRadio);
-                    this.flashClick();
-                } else {
-                    // For other elements (including checkbox, radio, buttons), tell C++ to send real click via CEF
-                    // Include element info so C++ knows not to switch modes for checkbox/radio
-                    console.log('[Brow6el] MOUSE_EMU_CLICK:' + info.tagName + ':' + info.type + ':' + info.isSelect + ':' + info.isInput + ':' + info.isCheckboxOrRadio);
-                    this.flashClick();
-                }
+            console.log('[Brow6el] MOUSE_EMU_POS:' + intX + ',' + intY);
+            
+            // Check if we need special handling for form elements
+            // Temporarily hide cursor to detect element
+            if (this.cursor) {
+                this.cursor.style.display = 'none';
             }
+            
+            const el = document.elementFromPoint(this.x, this.y);
+            
+            if (this.cursor) {
+                this.cursor.style.display = '';
+            }
+            
+            // Only handle SELECT and text INPUT specially - everything else gets a physical click
+            if (el && el.tagName === 'SELECT') {
+                // SELECT elements need to be focused, not clicked
+                el.focus();
+                console.log('[Brow6el] MOUSE_EMU_FOCUS:SELECT::true:false:false');
+                this.flashClick();
+                return;
+            }
+            
+            if (el && el.tagName === 'INPUT') {
+                const type = (el.type || '').toLowerCase();
+                const textInputTypes = ['text', 'password', 'email', 'search', 'tel', 'url', 'number', 'date', 'time', 'datetime-local', 'month', 'week'];
+                
+                if (textInputTypes.includes(type)) {
+                    // Text input - focus it
+                    el.focus();
+                    console.log('[Brow6el] MOUSE_EMU_FOCUS:INPUT:' + type + ':false:true:false');
+                    this.flashClick();
+                    return;
+                }
+                // For checkbox, radio, button, submit, etc. - fall through to physical click
+            }
+            
+            if (el && el.tagName === 'TEXTAREA') {
+                // Textarea - focus it  
+                el.focus();
+                console.log('[Brow6el] MOUSE_EMU_FOCUS:TEXTAREA::false:true:false');
+                this.flashClick();
+                return;
+            }
+            
+            // For everything else, send a physical click via C++ CEF events
+            // Don't send element info - just let CEF click at the coordinates
+            console.log('[Brow6el] MOUSE_EMU_CLICK:::false:false:false');
+            this.flashClick();
         },
         
         // Start drag

@@ -1816,21 +1816,27 @@ void BrowserClient::HandleMouseEmuClick() {
   mouse_event.y = mouse_emu_y_;
   mouse_event.modifiers = 0;
 
-  LOGB("Mouse emu click at " << mouse_emu_x_ << "," << mouse_emu_y_);
+  LOGB("Mouse emu click at (" << mouse_emu_x_ << "," << mouse_emu_y_ << ")");
 
   // Send mouse move first
   browser_->GetHost()->SendMouseMoveEvent(mouse_event, false);
 
+  // Small delay to let the browser process the move
+  usleep(10000); // 10ms
+
   // Send mouse down
   browser_->GetHost()->SendMouseClickEvent(mouse_event, MBT_LEFT, false, 1);
 
-  // Send mouse up immediately (no delay needed)
+  // Small delay between down and up (like physical clicks)
+  usleep(10000); // 10ms
+
+  // Send mouse up
   browser_->GetHost()->SendMouseClickEvent(mouse_event, MBT_LEFT, true, 1);
 
-  // Still trigger JS visual feedback
-  std::string js_flash = "if (window.__brow6el_mouse_emu) { "
-                         "window.__brow6el_mouse_emu.flashClick(); }";
-  frame->ExecuteJavaScript(js_flash, "", 0);
+  // Set focus after click (like physical mouse does)
+  browser_->GetHost()->SetFocus(true);
+
+  LOGB("Mouse emu click completed");
 }
 
 void BrowserClient::HandleMouseEmuDragStart() {
