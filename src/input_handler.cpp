@@ -1309,6 +1309,35 @@ void InputHandler::readLoop() {
                 // Reload
                 if (browser_)
                   browser_->Reload();
+              } else if (c == '+' || c == '=') {
+                // Zoom in (+ requires Shift, = doesn't)
+                if (browser_) {
+                  double step = ProfileConfig::getInstance().getZoomStep();
+                  current_zoom_level_ += step;
+                  if (current_zoom_level_ > 6.0) {
+                    current_zoom_level_ = 6.0;
+                  }
+                  browser_->GetHost()->SetZoomLevel(current_zoom_level_);
+                  browser_->GetHost()->Invalidate(PET_VIEW);
+                }
+              } else if (c == '-') {
+                // Zoom out
+                if (browser_) {
+                  double step = ProfileConfig::getInstance().getZoomStep();
+                  current_zoom_level_ -= step;
+                  if (current_zoom_level_ < -6.0) {
+                    current_zoom_level_ = -6.0;
+                  }
+                  browser_->GetHost()->SetZoomLevel(current_zoom_level_);
+                  browser_->GetHost()->Invalidate(PET_VIEW);
+                }
+              } else if (c == '0') {
+                // Reset zoom
+                if (browser_) {
+                  current_zoom_level_ = 0.0;
+                  browser_->GetHost()->SetZoomLevel(current_zoom_level_);
+                  browser_->GetHost()->Invalidate(PET_VIEW);
+                }
               } else if (c == 'u') {
                 // Navigate to URL (was Ctrl+L) - lowercase u only
                 url_input_active_ = true;

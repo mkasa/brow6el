@@ -27,6 +27,8 @@ public:
   void setTiledRenderingEnabled(bool enabled) {
     tiled_rendering_enabled_ = enabled;
   }
+  void setZoomLevel(double level) { current_zoom_level_ = level; }
+  double getZoomLevel() const { return current_zoom_level_; }
   InputMode getCurrentMode() const { return current_mode_; }
   const char *getModeName() const;
   bool IsSearchActive() const { return search_input_active_; }
@@ -120,4 +122,7 @@ private:
 
   // Tiled rendering state (toggled with 'z' key)
   bool tiled_rendering_enabled_ = false;
+  
+  // Zoom level tracking
+  double current_zoom_level_ = 0.0;
 };

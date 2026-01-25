@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <map>
 
 enum class ProfileMode {
   Temporary,  // /tmp/brow6el_PID_RANDOM - deleted on exit
@@ -78,6 +79,12 @@ private:
   std::string proxy_bypass_list_ = "localhost,127.0.0.1";
   std::string proxy_username_ = "";
   std::string proxy_password_ = "";
+  
+  // Zoom settings
+  double zoom_level_ = 1.0;
+  double zoom_step_ = 0.5;
+  std::string default_zoom_behavior_ = "none"; // "auto", "fixed", or "none"
+  std::map<std::string, double> site_zoom_levels_; // domain -> zoom level
 
   std::string expandPath(const std::string &path) const;
   std::string trim(const std::string &str);
@@ -86,4 +93,12 @@ private:
                    bool include_examples);
   std::string getConfigDir();
   std::string getConfigPath();
+  void loadSiteZoomLevels();
+  
+public:
+  // Zoom getters
+  double getZoomLevel() const { return zoom_level_; }
+  double getZoomStep() const { return zoom_step_; }
+  std::string getDefaultZoomBehavior() const { return default_zoom_behavior_; }
+  double getSiteZoomLevel(const std::string &domain) const;
 };

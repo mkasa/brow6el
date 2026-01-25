@@ -131,7 +131,7 @@ public:
   bool IsClosing() const { return is_closing_; }
   StatusBar *GetStatusBar() { return status_bar_.get(); }
   bool IsKittyRenderer() const;
-  void Resize(int width, int height);
+  void Resize(int width, int height, int cell_width, int cell_height);
   void SetTiledRenderingEnabled(bool enabled) {
     if (renderer_)
       renderer_->setTiledRenderingEnabled(enabled);

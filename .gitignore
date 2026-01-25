@@ -29,3 +29,4 @@ core.*
 
 # AppImage
 *.AppImage
+create_lib_list.sh

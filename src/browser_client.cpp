@@ -11,6 +11,7 @@
 #include <thread>
 #include <chrono>
 #include <unistd.h>
+#include <cmath>
 
 #define LOGB(msg)                                                              \
   do {                                                                         \
@@ -94,13 +95,76 @@ void BrowserClient::GetViewRect(CefRefPtr<CefBrowser> browser, CefRect &rect) {
   rect.height = height_;
 }
 
-void BrowserClient::Resize(int width, int height) {
+void BrowserClient::Resize(int width, int height, int cell_width, int cell_height) {
   std::lock_guard<std::mutex> lock(render_mutex_);
+  
   width_ = width;
   height_ = height;
+  cell_width_ = cell_width;
+  cell_height_ = cell_height;
+
+  // Recalculate auto zoom if enabled
+  ProfileConfig &config = ProfileConfig::getInstance();
+  std::string behavior = config.getDefaultZoomBehavior();
+  
+  if (behavior == "auto" && browser_) {
+    // Auto-calculate zoom based on:
+    // 1. Terminal cell size (DPI adaptation)
+    // 2. Rendering resolution (window size adaptation)
+    
+    const double reference_cell_height = 20.0;
+    const double reference_cell_width = 10.0;
+    const double reference_width = 1600.0; // Reference resolution
+    const double reference_height = 900.0;
+    
+    // Factor 1: Cell size ratio (DPI)
+    double height_ratio = cell_height_ / reference_cell_height;
+    double width_ratio = cell_width_ / reference_cell_width;
+    double cell_zoom = (height_ratio * 0.7) + (width_ratio * 0.3);
+    
+    // Factor 2: Resolution ratio (window size)
+    double res_height_ratio = height / reference_height;
+    double res_width_ratio = width / reference_width;
+    double res_zoom = (res_height_ratio * 0.5) + (res_width_ratio * 0.5);
+    
+    // Combine both factors: 60% cell size, 40% resolution
+    double zoom_level = (cell_zoom * 0.6) + (res_zoom * 0.4);
+    
+    // Apply bounds (0.25x to 3.0x)
+    if (zoom_level < 0.25) zoom_level = 0.25;
+    if (zoom_level > 3.0) zoom_level = 3.0;
+    
+    // Check for site-specific override
+    std::string url = browser_->GetMainFrame()->GetURL().ToString();
+    std::string domain;
+    size_t proto = url.find("://");
+    if (proto != std::string::npos) {
+      size_t start = proto + 3;
+      size_t end = url.find("/", start);
+      domain = (end != std::string::npos) ? url.substr(start, end - start) : url.substr(start);
+      size_t colon = domain.find(":");
+      if (colon != std::string::npos) {
+        domain = domain.substr(0, colon);
+      }
+    }
+    
+    // Site-specific zoom overrides auto-calculated zoom
+    if (!domain.empty()) {
+      double site_zoom = config.getSiteZoomLevel(domain);
+      if (site_zoom != config.getZoomLevel()) {
+        zoom_level = site_zoom;
+      }
+    }
+    
+    // Apply zoom
+    double cef_zoom = std::log2(zoom_level);
+    browser_->GetHost()->SetZoomLevel(cef_zoom);
+    if (input_handler_) {
+      input_handler_->setZoomLevel(cef_zoom);
+    }
+  }
 
   // Recreate the renderer with new dimensions AND respect terminal support
-  auto &config = ProfileConfig::getInstance();
   std::string graphics_protocol = config.getGraphicsProtocol();
   
   if (graphics_protocol == "kitty" && supports_kitty_) {
@@ -115,7 +179,7 @@ void BrowserClient::Resize(int width, int height) {
     renderer_ = std::make_unique<SixelRenderer>(width, height, cell_width_, cell_height_);
   }
   
-  LOGB("Browser resized to " << width << "x" << height);
+  LOGB("Browser resized to " << width << "x" << height << ", cells=" << cell_width << "x" << cell_height);
 }
 
 void BrowserClient::OnPaint(CefRefPtr<CefBrowser> browser,
@@ -267,6 +331,94 @@ void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser> browser,
     // conditions)
     force_next_paint_ = true;
     first_load_complete_ = true;
+
+    // Apply zoom based on config
+    ProfileConfig &config = ProfileConfig::getInstance();
+    std::string behavior = config.getDefaultZoomBehavior();
+    double zoom_level = 0.0; // Default to 1.0 (no zoom)
+    
+    if (behavior == "auto") {
+      // Auto-calculate zoom based on:
+      // 1. Terminal cell size (DPI adaptation)
+      // 2. Rendering resolution (window size adaptation)
+      const double reference_cell_height = 20.0;
+      const double reference_cell_width = 10.0;
+      const double reference_width = 1600.0;
+      const double reference_height = 900.0;
+      
+      // Factor 1: Cell size ratio (DPI)
+      double height_ratio = cell_height_ / reference_cell_height;
+      double width_ratio = cell_width_ / reference_cell_width;
+      double cell_zoom = (height_ratio * 0.7) + (width_ratio * 0.3);
+      
+      // Factor 2: Resolution ratio (window size)
+      double res_height_ratio = height_ / reference_height;
+      double res_width_ratio = width_ / reference_width;
+      double res_zoom = (res_height_ratio * 0.5) + (res_width_ratio * 0.5);
+      
+      // Combine both factors: 60% cell size, 40% resolution
+      zoom_level = (cell_zoom * 0.6) + (res_zoom * 0.4);
+      
+      // Apply bounds (0.25x to 3.0x)
+      if (zoom_level < 0.25) zoom_level = 0.25;
+      if (zoom_level > 3.0) zoom_level = 3.0;
+      
+      // Check for site-specific override
+      std::string domain;
+      size_t proto = url.find("://");
+      if (proto != std::string::npos) {
+        size_t start = proto + 3;
+        size_t end = url.find("/", start);
+        domain = (end != std::string::npos) ? url.substr(start, end - start) : url.substr(start);
+        size_t colon = domain.find(":");
+        if (colon != std::string::npos) {
+          domain = domain.substr(0, colon);
+        }
+      }
+      
+      // Site-specific zoom overrides auto-calculated zoom
+      if (!domain.empty()) {
+        double site_zoom = config.getSiteZoomLevel(domain);
+        if (site_zoom != config.getZoomLevel()) {
+          // Site has custom zoom, use it instead
+          zoom_level = site_zoom;
+        }
+      }
+      
+    } else if (behavior == "fixed") {
+      // Check for site-specific zoom first
+      std::string domain;
+      size_t proto = url.find("://");
+      if (proto != std::string::npos) {
+        size_t start = proto + 3;
+        size_t end = url.find("/", start);
+        domain = (end != std::string::npos) ? url.substr(start, end - start) : url.substr(start);
+        // Remove port if present
+        size_t colon = domain.find(":");
+        if (colon != std::string::npos) {
+          domain = domain.substr(0, colon);
+        }
+      }
+      
+      if (!domain.empty()) {
+        zoom_level = config.getSiteZoomLevel(domain);
+      } else {
+        zoom_level = config.getZoomLevel();
+      }
+    }
+    // else behavior == "none", zoom_level stays 0.0 (no zoom applied)
+    
+    // Apply zoom if needed
+    if (zoom_level > 0.0 && behavior != "none") {
+      // Convert from multiplier to CEF zoom level
+      // CEF uses log scale: level = log2(zoom_multiplier)
+      double cef_zoom = std::log2(zoom_level);
+      browser_->GetHost()->SetZoomLevel(cef_zoom);
+      // Update InputHandler's tracked zoom level
+      if (input_handler_) {
+        input_handler_->setZoomLevel(cef_zoom);
+      }
+    }
 
     // Invalidate to trigger redraw
     if (browser_) {
@@ -1664,21 +1816,27 @@ void BrowserClient::HandleMouseEmuClick() {
   mouse_event.y = mouse_emu_y_;
   mouse_event.modifiers = 0;
 
-  LOGB("Mouse emu click at " << mouse_emu_x_ << "," << mouse_emu_y_);
+  LOGB("Mouse emu click at (" << mouse_emu_x_ << "," << mouse_emu_y_ << ")");
 
   // Send mouse move first
   browser_->GetHost()->SendMouseMoveEvent(mouse_event, false);
 
+  // Small delay to let the browser process the move
+  usleep(10000); // 10ms
+
   // Send mouse down
   browser_->GetHost()->SendMouseClickEvent(mouse_event, MBT_LEFT, false, 1);
 
-  // Send mouse up immediately (no delay needed)
+  // Small delay between down and up (like physical clicks)
+  usleep(10000); // 10ms
+
+  // Send mouse up
   browser_->GetHost()->SendMouseClickEvent(mouse_event, MBT_LEFT, true, 1);
 
-  // Still trigger JS visual feedback
-  std::string js_flash = "if (window.__brow6el_mouse_emu) { "
-                         "window.__brow6el_mouse_emu.flashClick(); }";
-  frame->ExecuteJavaScript(js_flash, "", 0);
+  // Set focus after click (like physical mouse does)
+  browser_->GetHost()->SetFocus(true);
+
+  LOGB("Mouse emu click completed");
 }
 
 void BrowserClient::HandleMouseEmuDragStart() {
