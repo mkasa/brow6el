@@ -518,7 +518,7 @@ int main(int argc, char *argv[]) {
     }
 
     CefDoMessageLoopWork();
-    usleep(33333);
+    usleep(16666); // ~60 FPS (was 33333 for 30 FPS)
   }
 
   // Stop input handler before closing

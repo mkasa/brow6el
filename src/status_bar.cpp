@@ -154,7 +154,7 @@ void StatusBar::showTitle(const std::string &title, const char *mode_prefix) {
 
   std::string display_title = title;
   if ((int)display_title.length() > max_title_length) {
-    display_title = display_title.substr(0, max_title_length) + "...";
+    display_title = display_title.substr(0, max_title_length - 7) + "...";
   }
 
   // Calculate padding to right-align mode
@@ -163,12 +163,25 @@ void StatusBar::showTitle(const std::string &title, const char *mode_prefix) {
     padding = 1;
 
   // Move to bottom line
+  // Only clear line above for xterm (has double-height rendering issues)
+  const char* term = getenv("TERM");
+  bool is_xterm = (term && strstr(term, "xterm") != NULL);
+  
+  if (is_xterm) {
+    std::cout << "\033[" << (rows - 1) << ";1H";
+    std::cout << "\033#5"; // Force single-width on line above
+    std::cout << "\033[2K"; // Clear line above
+  }
+  
   std::cout << "\033[" << rows << ";1H";
+  std::cout << "\033#5"; // Force single-width line (DECSWL)
+  std::cout << "\033[2K"; // Clear status line
+  std::cout << "\033[" << rows << ";1H"; // Reposition
   std::cout << "\033[44m\033[97m"; // Blue background, white text
   std::cout << " " << display_title;
   std::cout << std::string(padding, ' '); // Padding
   std::cout << mode_str << " ";
-  std::cout << "\033[K";  // Clear to end of line
+  std::cout << "\033[K";  // Clear to end of line (with current background)
   std::cout << "\033[0m"; // Reset colors
   std::cout << std::flush;
 
