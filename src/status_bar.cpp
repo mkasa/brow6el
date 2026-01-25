@@ -163,18 +163,26 @@ void StatusBar::showTitle(const std::string &title, const char *mode_prefix) {
     padding = 1;
 
   // Move to bottom line
-  // Only clear line above for xterm (has double-height rendering issues)
+  // Only clear line above and force single-width for real xterm (has double-height rendering issues)
+  // Don't apply to kitty/wezterm which report as xterm-256color but don't need it
   const char* term = getenv("TERM");
-  bool is_xterm = (term && strstr(term, "xterm") != NULL);
+  const char* term_program = getenv("TERM_PROGRAM");
+  bool is_real_xterm = (term && strstr(term, "xterm") != NULL) &&
+                       (!term_program || 
+                        (strstr(term_program, "WezTerm") == NULL &&
+                         strstr(term_program, "kitty") == NULL &&
+                         strstr(term_program, "ghostty") == NULL));
   
-  if (is_xterm) {
+  if (is_real_xterm) {
     std::cout << "\033[" << (rows - 1) << ";1H";
     std::cout << "\033#5"; // Force single-width on line above
     std::cout << "\033[2K"; // Clear line above
   }
   
   std::cout << "\033[" << rows << ";1H";
-  std::cout << "\033#5"; // Force single-width line (DECSWL)
+  if (is_real_xterm) {
+    std::cout << "\033#5"; // Force single-width line (DECSWL) - xterm only
+  }
   std::cout << "\033[2K"; // Clear status line
   std::cout << "\033[" << rows << ";1H"; // Reposition
   std::cout << "\033[44m\033[97m"; // Blue background, white text
