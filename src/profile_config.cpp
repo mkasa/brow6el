@@ -103,9 +103,26 @@ void ProfileConfig::load() {
       proxy_username_ = value;
     } else if (key == "proxy_password") {
       proxy_password_ = value;
+    } else if (key == "zoom_level") {
+      try {
+        zoom_level_ = std::stod(value);
+      } catch (...) {
+      }
+    } else if (key == "zoom_step") {
+      try {
+        zoom_step_ = std::stod(value);
+      } catch (...) {
+      }
+    } else if (key == "default_zoom_behavior") {
+      if (value == "auto" || value == "fixed" || value == "none") {
+        default_zoom_behavior_ = value;
+      }
     }
   }
   file.close();
+  
+  // Load site-specific zoom levels from zoom.conf
+  loadSiteZoomLevels();
 }
 
 void ProfileConfig::save() {
@@ -264,6 +281,22 @@ void ProfileConfig::writeConfig(std::ofstream &file, bool use_defaults,
   file << "# Bypass proxy for these hosts (comma-separated)\n";
   file << "proxy_bypass_list="
        << (use_defaults ? "localhost,127.0.0.1" : proxy_bypass_list_) << "\n";
+  
+  file << "\n";
+  file << "# Zoom Configuration\n";
+  file << "# Default zoom level (1.0 = 100%, 2.0 = 200%)\n";
+  file << "zoom_level=" << (use_defaults ? "1.0" : std::to_string(zoom_level_)) << "\n";
+  file << "# Zoom step size for +/- adjustments\n";
+  file << "zoom_step=" << (use_defaults ? "0.5" : std::to_string(zoom_step_)) << "\n";
+  file << "# Default zoom behavior: auto, fixed, or none\n";
+  file << "# - auto: Automatically adjust zoom based on terminal cell size/DPI\n";
+  file << "#         (larger cells = zoom in, smaller cells = zoom out)\n";
+  file << "# - fixed: Use zoom_level setting at startup\n";
+  file << "# - none: Start at 1.0 (100%), manual adjustment only\n";
+  file << "default_zoom_behavior=" << (use_defaults ? "none" : default_zoom_behavior_) << "\n";
+  file << "#\n";
+  file << "# Per-site zoom levels are configured in ~/.brow6el/zoom.conf\n";
+  file << "# (Site-specific settings override auto/fixed behavior)\n";
 }
 
 std::string ProfileConfig::getProfilePath() const {
@@ -461,4 +494,62 @@ std::string ProfileConfig::trim(const std::string &str) {
   }
   size_t last = str.find_last_not_of(" \t\r\n");
   return str.substr(first, last - first + 1);
+}
+
+double ProfileConfig::getSiteZoomLevel(const std::string &domain) const {
+  auto it = site_zoom_levels_.find(domain);
+  if (it != site_zoom_levels_.end()) {
+    return it->second;
+  }
+  // Check for subdomain match (e.g., www.github.com matches github.com)
+  for (const auto &entry : site_zoom_levels_) {
+    if (domain.find(entry.first) != std::string::npos) {
+      return entry.second;
+    }
+  }
+  return zoom_level_; // Return default zoom level
+}
+
+void ProfileConfig::loadSiteZoomLevels() {
+  site_zoom_levels_.clear();
+  
+  std::string zoom_conf_path = getConfigDir() + "/zoom.conf";
+  std::ifstream file(zoom_conf_path);
+  
+  if (!file.good()) {
+    // Create default zoom.conf with examples
+    std::ofstream out(zoom_conf_path);
+    if (out.is_open()) {
+      out << "# Site-specific zoom levels\n";
+      out << "# Format: domain=zoom_level\n";
+      out << "# zoom_level is a multiplier: 1.0 = 100%, 2.0 = 200%, 0.5 = 50%\n";
+      out << "#\n";
+      out << "# Examples:\n";
+      out << "# github.com=1.5\n";
+      out << "# wikipedia.org=1.25\n";
+      out << "# reddit.com=2.0\n";
+      out.close();
+    }
+    return;
+  }
+  
+  std::string line;
+  while (std::getline(file, line)) {
+    if (line.empty() || line[0] == '#')
+      continue;
+      
+    size_t eq = line.find('=');
+    if (eq == std::string::npos)
+      continue;
+      
+    std::string domain = trim(line.substr(0, eq));
+    std::string value = trim(line.substr(eq + 1));
+    
+    try {
+      site_zoom_levels_[domain] = std::stod(value);
+    } catch (...) {
+      // Ignore invalid lines
+    }
+  }
+  file.close();
 }

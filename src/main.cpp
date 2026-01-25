@@ -126,6 +126,9 @@ int main(int argc, char *argv[]) {
       std::cout << "    t/g               Scroll up/down\n";
       std::cout << "    p/n               Back/forward in history\n";
       std::cout << "    r                 Reload page\n";
+      std::cout << "    +/=               Zoom in\n";
+      std::cout << "    -                 Zoom out\n";
+      std::cout << "    0                 Reset zoom to default\n";
       std::cout << "    u                 Navigate to URL\n";
       std::cout << "    c                 Toggle console\n";
       std::cout << "    d                 Add bookmark\n";
@@ -490,8 +493,8 @@ int main(int argc, char *argv[]) {
       TerminalInfo newInfo = TerminalDetector::detect();
 
       if ((newInfo.supports_sixel || newInfo.supports_kitty) && newInfo.width > 0 && newInfo.height > 0) {
-        // Update browser client dimensions
-        client->Resize(newInfo.width, newInfo.height);
+        // Update browser client dimensions (will recalculate auto zoom if enabled)
+        client->Resize(newInfo.width, newInfo.height, newInfo.cell_width, newInfo.cell_height);
 
         // Update input handler dimensions
         input_handler.updateDimensions(newInfo.width / newInfo.cell_width,

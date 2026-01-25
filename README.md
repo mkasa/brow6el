@@ -65,6 +65,11 @@ Vim-like navigation with single-key commands (no Ctrl required):
 - `m` - Open downloads manager
 - `x` - Exit browser
 
+**Zoom Controls:**
+- `+` or `=` - Zoom in
+- `-` or `_` - Zoom out
+- `0` - Reset zoom to 1.0x
+
 **Mode Switch:**
 - `i` - Enter INSERT mode
 - `e` - Enter MOUSE mode
@@ -300,6 +305,17 @@ tiled_rendering=true
 #cell_width=0
 #cell_height=0
 
+# Zoom settings
+# Default zoom level (1.0 = no zoom, 2.0 = 2x zoom)
+zoom_level=2.5
+# Zoom step size for +/- keyboard shortcuts
+zoom_step=0.25
+# Default zoom behavior: auto, fixed, or none
+# auto: Automatically adjust zoom based on terminal DPI and window size
+# fixed: Use fixed zoom level from zoom_level setting
+# none: No automatic zoom (start at 1.0x, manual control only)
+default_zoom_behavior=fixed
+
 # Proxy Configuration
 # Route browser traffic through HTTP/HTTPS/SOCKS proxy
 proxy_enabled=false
@@ -431,6 +447,68 @@ tiled_rendering=true
 - Double buffering (alternating image IDs) prevents flicker
 - Uncompressed for optimal typing performance
 - Images placed below text layer (z=-1) so dialogs appear on top
+
+### Zoom Control
+
+Brow6el provides intelligent zoom control with three modes and per-site customization.
+
+**Keyboard Controls (STANDARD mode):**
+- `+` or `=` - Zoom in
+- `-` or `_` - Zoom out  
+- `0` - Reset zoom to 1.0x
+
+**Zoom Modes:**
+
+*Auto Mode (default_zoom_behavior=auto):*
+- Automatically calculates optimal zoom based on:
+  - Terminal cell size (DPI adaptation) - 60% weight
+  - Window resolution - 40% weight
+- Larger windows get bigger text, smaller windows get compact text
+- Adapts to high-DPI displays and large fonts
+- Recalculates on window resize
+- Range: 0.5x to 3.0x
+
+*Fixed Mode (default_zoom_behavior=fixed):*
+- Uses zoom level from `zoom_level` setting
+- Consistent zoom across all pages
+- Ideal for high-DPI displays that need constant scaling
+
+*None Mode (default_zoom_behavior=none):*
+- Starts at 1.0x zoom
+- Manual control only via keyboard shortcuts
+- No automatic adjustments
+
+**Per-Site Zoom:**
+
+Create `~/.brow6el/zoom.conf` for site-specific zoom levels that override auto/fixed modes:
+```
+# Format: domain=zoom_multiplier
+github.com=2.5
+wikipedia.org=2.75
+google.com=2.0
+```
+
+Site-specific zoom works with subdomains (e.g., `github.com` matches `www.github.com`).
+
+**Configuration** (`~/.brow6el/browser.conf`):
+```ini
+# Default zoom level for fixed mode
+zoom_level=2.5
+
+# Zoom step for +/- keyboard shortcuts
+zoom_step=0.25
+
+# Zoom behavior: auto, fixed, or none
+default_zoom_behavior=auto
+```
+
+**Auto Zoom Formula:**
+- Reference: 1600x900 resolution, 10x20 pixel cells
+- Cell zoom = (cell_height/20 × 0.7) + (cell_width/10 × 0.3)
+- Resolution zoom = (window_height/900 × 0.5) + (window_width/1600 × 0.5)
+- Final zoom = (cell_zoom × 0.6) + (resolution_zoom × 0.4)
+
+This ensures text is readable on both high-DPI laptops and large desktop monitors.
 
 ### JavaScript Console
 - Press `c` (in STANDARD mode) to open/close the console
