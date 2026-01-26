@@ -6,6 +6,28 @@
 #include <iostream>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <wchar.h>
+#include <cstring>
+
+// Helper to calculate visual display width of a UTF-8 string
+static int getVisualWidth(const std::string &str) {
+  // Convert UTF-8 to wide string
+  size_t len = mbstowcs(nullptr, str.c_str(), 0);
+  if (len == (size_t)-1) {
+    // Invalid UTF-8, fall back to byte length
+    return str.length();
+  }
+  
+  wchar_t* wstr = new wchar_t[len + 1];
+  mbstowcs(wstr, str.c_str(), len + 1);
+  
+  // Calculate visual width
+  int width = wcswidth(wstr, len);
+  delete[] wstr;
+  
+  // If wcswidth fails (returns -1), fall back to byte length
+  return (width >= 0) ? width : str.length();
+}
 
 // Helper to prepare for showing dialogs (crop renderer if using Kitty)
 static void prepareDialogArea(int dialog_rows) {
@@ -125,6 +147,16 @@ void StatusBar::showTitle(const std::string &title, const char *mode_prefix) {
     return; // Don't update during shutdown
 
   std::lock_guard<std::mutex> lock(SixelRenderer::getTerminalMutex());
+  
+  // Don't overwrite active dialogs - they take priority over title updates
+  if (is_showing_) {
+    // Still update the cached title so it's available when dialog closes
+    current_title_ = title;
+    if (mode_prefix) {
+      current_mode_prefix_ = mode_prefix;
+    }
+    return;
+  }
 
   current_title_ = title;
   if (mode_prefix) {
@@ -146,19 +178,37 @@ void StatusBar::showTitle(const std::string &title, const char *mode_prefix) {
     mode_str += "]";
   }
 
-  // Calculate available space for title
-  int mode_length = mode_str.length();
-  int max_title_length = cols - mode_length - 5; // 5 for padding
-  if (max_title_length < 10)
-    max_title_length = 10;
+  // Calculate available space for title using visual width
+  int mode_width = getVisualWidth(mode_str);
+  int max_title_width = cols - mode_width - 5; // 5 for padding
+  if (max_title_width < 10)
+    max_title_width = 10;
 
+  // Truncate title if it's too long (based on visual width)
   std::string display_title = title;
-  if ((int)display_title.length() > max_title_length) {
-    display_title = display_title.substr(0, max_title_length - 7) + "...";
+  int title_width = getVisualWidth(display_title);
+  if (title_width > max_title_width) {
+    // Truncate by removing characters until we fit
+    // Simple approach: remove characters from end until width fits
+    while (title_width > max_title_width - 3 && !display_title.empty()) {
+      // Remove last character (handle UTF-8 multi-byte)
+      size_t len = display_title.length();
+      if (len > 0) {
+        // Find start of last UTF-8 character
+        size_t pos = len - 1;
+        while (pos > 0 && (display_title[pos] & 0xC0) == 0x80) {
+          pos--;
+        }
+        display_title.erase(pos);
+        title_width = getVisualWidth(display_title);
+      }
+    }
+    display_title += "...";
+    title_width = getVisualWidth(display_title);
   }
 
-  // Calculate padding to right-align mode
-  int padding = cols - display_title.length() - mode_length - 2; // 2 for spaces
+  // Calculate padding to right-align mode using visual widths
+  int padding = cols - title_width - mode_width - 2; // 2 for spaces
   if (padding < 1)
     padding = 1;
 

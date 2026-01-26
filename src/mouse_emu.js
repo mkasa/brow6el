@@ -149,6 +149,46 @@
                 return;
             }
             
+            // Always remove and recreate container to ensure it's last in DOM order
+            // This is crucial for beating cookie dialogs that also use max z-index
+            let oldContainer = document.getElementById('__brow6el_grid_container');
+            if (oldContainer) {
+                oldContainer.remove();
+            }
+            
+            // Create a dedicated container for all grid elements at the root level
+            // This ensures grid is above all page content and stacking contexts
+            const container = document.createElement('div');
+            container.id = '__brow6el_grid_container';
+            container.style.cssText = `
+                all: initial !important;
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                z-index: 2147483647 !important;
+                pointer-events: none !important;
+                transform: translateZ(999999px) !important;
+                isolation: isolate !important;
+                mix-blend-mode: normal !important;
+                filter: none !important;
+                backdrop-filter: none !important;
+                clip-path: none !important;
+                mask: none !important;
+                contain: none !important;
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+            `;
+            // Always append to documentElement (html), not body
+            // This avoids stacking context issues from body styles
+            (document.documentElement || document.body).appendChild(container);
+            
+            this.gridOverlays.push(container); // Track for cleanup
+            
             const cellWidth = width / cols;
             const cellHeight = height / rows;
             
@@ -190,10 +230,9 @@
                         height: ${cellHeight}px !important;
                         border: 2px solid ${gridColor} !important;
                         box-sizing: border-box !important;
-                        z-index: 2147483646 !important;
                         pointer-events: none !important;
                     `;
-                    document.body.appendChild(cellOverlay);
+                    container.appendChild(cellOverlay);
                     this.gridOverlays.push(cellOverlay);
                     
                     // Create label overlay
@@ -215,10 +254,9 @@
                         font-family: monospace !important;
                         font-size: 16px !important;
                         font-weight: bold !important;
-                        z-index: 2147483647 !important;
                         pointer-events: none !important;
                     `;
-                    document.body.appendChild(labelOverlay);
+                    container.appendChild(labelOverlay);
                     this.gridOverlays.push(labelOverlay);
                     
                     index++;
@@ -806,6 +844,11 @@
             if (this.inspectHighlight) {
                 this.inspectHighlight.remove();
                 this.inspectHighlight = null;
+            }
+            // Remove inspect container
+            const inspectContainer = document.getElementById('__brow6el_inspect_container');
+            if (inspectContainer) {
+                inspectContainer.remove();
             }
             this.inspectMode = false;
             this.lastInspectedElement = null;
