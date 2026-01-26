@@ -19,6 +19,23 @@
     log << msg << std::endl;                                                   \
   } while (0)
 
+// Helper function to get JS file path relative to executable
+static std::string GetJsFilePath(const std::string& filename) {
+  char exe_path[1024];
+  ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+  if (len != -1) {
+    exe_path[len] = '\0';
+    std::string exe_dir = std::string(exe_path);
+    size_t last_slash = exe_dir.find_last_of('/');
+    if (last_slash != std::string::npos) {
+      exe_dir = exe_dir.substr(0, last_slash);
+      return exe_dir + "/" + filename;
+    }
+  }
+  // Fallback to current directory
+  return filename;
+}
+
 bool BrowserClient::IsKittyRenderer() const {
   return dynamic_cast<KittyRenderer*>(renderer_.get()) != nullptr;
 }
@@ -810,10 +827,11 @@ void BrowserClient::injectSelectDetector() {
   if (!browser_)
     return;
 
-  // Read JavaScript file from build directory
-  std::ifstream js_file("select_detector.js");
+  // Read JavaScript file from executable directory
+  std::string js_path = GetJsFilePath("select_detector.js");
+  std::ifstream js_file(js_path);
   if (!js_file.is_open()) {
-    LOGB("Warning: Could not load select_detector.js from current directory");
+    LOGB("Warning: Could not load select_detector.js from " << js_path);
     return;
   }
 
@@ -1661,14 +1679,10 @@ void BrowserClient::ActivateHintMode() {
   }
 
   // Read hint mode JavaScript
-  std::ifstream file("hint_mode.js");
+  std::string js_path = GetJsFilePath("hint_mode.js");
+  std::ifstream file(js_path);
   if (!file.is_open()) {
-    LOGB("Failed to load hint_mode.js - file not found or can't open");
-    // Try with full debug info
-    char cwd[1024];
-    if (getcwd(cwd, sizeof(cwd)) != NULL) {
-      LOGB("Current working directory: " << cwd);
-    }
+    LOGB("Failed to load hint_mode.js from " << js_path);
     return;
   }
 
@@ -1743,9 +1757,10 @@ void BrowserClient::ActivateMouseEmuMode() {
   }
 
   // Read mouse emulation JavaScript
-  std::ifstream file("mouse_emu.js");
+  std::string js_path = GetJsFilePath("mouse_emu.js");
+  std::ifstream file(js_path);
   if (!file.is_open()) {
-    LOGB("Failed to load mouse_emu.js");
+    LOGB("Failed to load mouse_emu.js from " << js_path);
     return;
   }
 
@@ -1912,9 +1927,10 @@ void BrowserClient::ToggleInspectMode() {
   }
 
   // Read inspect mode JavaScript
-  std::ifstream file("inspect_mode.js");
+  std::string js_path = GetJsFilePath("inspect_mode.js");
+  std::ifstream file(js_path);
   if (!file.is_open()) {
-    LOGB("Failed to load inspect_mode.js");
+    LOGB("Failed to load inspect_mode.js from " << js_path);
     return;
   }
 
@@ -2068,9 +2084,10 @@ void BrowserClient::ActivateVisualMode() {
   visual_mode_active_ = true;
 
   // Load visual mode JavaScript
-  std::ifstream file("visual_mode.js");
+  std::string js_path = GetJsFilePath("visual_mode.js");
+  std::ifstream file(js_path);
   if (!file.is_open()) {
-    LOGB("Failed to load visual_mode.js");
+    LOGB("Failed to load visual_mode.js from " << js_path);
     return;
   }
 
