@@ -150,20 +150,6 @@ jobs:
           cp *.json "$APP_DIR/usr" 2>/dev/null || true
           cp *.js "$APP_DIR/usr" 2>/dev/null || true
           cp *.html "$APP_DIR/usr/bin" 2>/dev/null || true
-          # Copy libsixel library
-          cp /lib/x86_64-linux-gnu/libsixel.so.1 "$APP_DIR/usr" 2>/dev/null || \
-            cp /usr/lib/x86_64-linux-gnu/libsixel.so.1 "$APP_DIR/usr" 2>/dev/null || \
-            echo "Warning: libsixel.so.1 not found"
-          # Copy CEF system dependencies
-          mkdir -p "$APP_DIR/usr/lib"
-          for lib in libasound.so.2 libX11.so.6 libXcomposite.so.1 libXdamage.so.1 \
-                    libXext.so.6 libXfixes.so.3 libXrandr.so.2 libgbm.so.1 \
-                    libxcb.so.1 libxkbcommon.so.0 libnss3.so libnssutil3.so \
-                    libnspr4.so libsmime3.so libdbus-1.so.3 libcups.so.2 \
-                    libdrm.so.2 libexpat.so.1 libatk-1.0.so.0 libatk-bridge-2.0.so.0; do
-            cp /lib/x86_64-linux-gnu/$lib "$APP_DIR/usr/lib/" 2>/dev/null || \
-              cp /usr/lib/x86_64-linux-gnu/$lib "$APP_DIR/usr/lib/" 2>/dev/null || true
-          done
           # Minimal placeholder icon
           cat > "$APP_DIR/usr/share/icons/hicolor/scalable/apps/brow6el.svg" << 'EOF'
           <svg width="256" height="256" xmlns="http://www.w3.org/2000/svg">
@@ -354,21 +340,7 @@ jobs:
           cp *.dat "$APP_DIR/usr" 2>/dev/null || true
           cp *.json "$APP_DIR/usr" 2>/dev/null || true
           cp *.js "$APP_DIR/usr" 2>/dev/null || true
-          cp *.html "$APP_DIR/usr/bin" 2>/dev/null || true 
-          # Copy libsixel library
-          cp /lib/aarch64-linux-gnu/libsixel.so.1 "$APP_DIR/usr" 2>/dev/null || \
-            cp /usr/lib/aarch64-linux-gnu/libsixel.so.1 "$APP_DIR/usr" 2>/dev/null || \
-            echo "Warning: libsixel.so.1 not found"
-          # Copy CEF system dependencies
-          mkdir -p "$APP_DIR/usr/lib"
-          for lib in libasound.so.2 libX11.so.6 libXcomposite.so.1 libXdamage.so.1 \
-                    libXext.so.6 libXfixes.so.3 libXrandr.so.2 libgbm.so.1 \
-                    libxcb.so.1 libxkbcommon.so.0 libnss3.so libnssutil3.so \
-                    libnspr4.so libsmime3.so libdbus-1.so.3 libcups.so.2 \
-                    libdrm.so.2 libexpat.so.1 libatk-1.0.so.0 libatk-bridge-2.0.so.0; do
-            cp /lib/aarch64-linux-gnu/$lib "$APP_DIR/usr/lib/" 2>/dev/null || \
-              cp /usr/lib/aarch64-linux-gnu/$lib "$APP_DIR/usr/lib/" 2>/dev/null || true
-          done
+          cp *.html "$APP_DIR/usr/bin" 2>/dev/null || true  
           # Minimal placeholder icon
           cat > "$APP_DIR/usr/share/icons/hicolor/scalable/apps/brow6el.svg" << 'EOF'
           <svg width="256" height="256" xmlns="http://www.w3.org/2000/svg">
