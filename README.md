@@ -4,6 +4,8 @@ A full-featured web browser for the terminal using Chromium (CEF) with support f
 
 > **WARNING**: Kitty image support (currently only in main branch builds) by its design nature is barelly usable in SSH when brow6el runs on remote host, this feature is usable when brow6el is executed on localhost. On ssh the responsivenes of browser is significantly affected, due to massive data transfers on each frame rendered
 
+> **WARNING**: Kitty image support (currently only in main branch builds), Ubuntu 24.04 is shipped with very old Kitty version 0.32.2 which does not handle newer image protocol brow6el is using as BASE64 data are being printed instead rendered screen. however foot terminal works on Ubuntu perfectly fine
+
 > **WARNING**: this is POC code quality. Build process tested in Ubuntu 25.10, Debian 13, Arch Linux. The browser itself was tested in foot terminal, wezterm, kitty, ghostty, yaft framebuffer terminal and Windows 11 Terminal with sixel support using WSL2.
 
 
