@@ -77,8 +77,9 @@ bool TerminalDetector::checkSixelSupport() {
   bool supported = false;
   ssize_t got = 0;
   while (select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv) > 0) {
-    ssize_t n = read(STDIN_FILENO, response + got, sizeof(response) - got - 1);
-    if (n >= 0) { got += n; }
+    ssize_t n = read(STDIN_FILENO, &response[got], sizeof(response) - got - 1);
+    if (n < 0) { break; }
+    got += n;
     if (got > 0) {
       // Check for Sixel support in device attributes
       // DA1 response with ";4;" or ";4c" indicates Sixel support
@@ -193,9 +194,12 @@ void TerminalDetector::querySixelGeometry(int &width, int &height) {
   tv.tv_usec = 100000;
 
   bool got_response = false;
-  if (select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv) > 0) {
-    ssize_t n = read(STDIN_FILENO, response, sizeof(response) - 1);
-    if (n > 0 && sscanf(response, "\033[?2;0;%d;%dS", &width, &height) == 2) {
+  ssize_t got = 0;
+  while (select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv) > 0) {
+    ssize_t n = read(STDIN_FILENO, &response[got], sizeof(response) - got - 1);
+    if (n < 0) { break; }
+    got += n;
+    if (got > 0 && sscanf(response, "\033[?2;0;%d;%dS", &width, &height) == 2) {
       if (width > 0 && height > 0) {
         got_response = true;
       }
@@ -216,9 +220,12 @@ void TerminalDetector::querySixelGeometry(int &width, int &height) {
     tv.tv_sec = 0;
     tv.tv_usec = 100000;
 
-    if (select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv) > 0) {
-      ssize_t n = read(STDIN_FILENO, response, sizeof(response) - 1);
-      if (n > 0) {
+    ssize_t got = 0;
+    while (select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv) > 0) {
+      ssize_t n = read(STDIN_FILENO, &response[got], sizeof(response) - got - 1);
+      if (n < 0) { break; }
+      got += n;
+      if (got > 0) {
         int h = 0, w = 0;
         if (sscanf(response, "\033[4;%d;%dt", &h, &w) == 2) {
           if (w > 0 && h > 0) {
