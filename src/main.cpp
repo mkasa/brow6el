@@ -348,12 +348,15 @@ int main(int argc, char *argv[]) {
 
             // Check if process is still running
             if (kill(lock_pid, 0) == 0) {
+              // Restore stderr temporarily to show error message
+              dup2(stderr_backup, STDERR_FILENO);
               std::cerr << "Error: Profile is already in use by another "
                            "browser instance (PID: "
                         << lock_pid << ")" << std::endl;
               std::cerr << "       Close the other instance or use temporary "
                            "mode for multiple sessions"
                         << std::endl;
+              close(stderr_backup);
               return 1;
             } else {
               // Stale lock file - process is dead, remove it
