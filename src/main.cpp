@@ -106,6 +106,7 @@ int main(int argc, char *argv[]) {
   std::string url = config.getDefaultUrl();
   std::string profile_mode_override;
   std::string graphics_protocol_override;
+  bool force_graphics = false;
 
   for (int i = 1; i < argc; i++) {
     std::string arg = argv[i];
@@ -119,6 +120,8 @@ int main(int argc, char *argv[]) {
       std::cout << "  --custom            Use custom profile mode\n";
       std::cout << "  --sixel             Use sixel graphics protocol\n";
       std::cout << "  --kitty             Use kitty graphics protocol\n";
+      std::cout << "  --force-sixel       Force sixel graphics protocol (ignore detection)\n";
+      std::cout << "  --force-kitty       Force kitty graphics protocol (ignore detection)\n";
       std::cout << "  --version           Show version information\n\n";
       std::cout << "Vim-Style Modal Control:\n";
       std::cout << "  STANDARD mode (default) - Single-key commands:\n";
@@ -177,6 +180,12 @@ int main(int argc, char *argv[]) {
       graphics_protocol_override = "sixel";
     } else if (arg == "--kitty") {
       graphics_protocol_override = "kitty";
+    } else if (arg == "--force-sixel") {
+      graphics_protocol_override = "sixel";
+      force_graphics = true;
+    } else if (arg == "--force-kitty") {
+      graphics_protocol_override = "kitty";
+      force_graphics = true;
     } else if (arg[0] != '-') {
       url = arg;
     }
@@ -289,7 +298,14 @@ int main(int argc, char *argv[]) {
   std::string graphics_protocol = config.getGraphicsProtocol();
   bool has_graphics_support = false;
   
-  if (graphics_protocol == "kitty" && termInfo.supports_kitty) {
+  if (force_graphics) {
+    has_graphics_support = true;
+    if (graphics_protocol == "kitty") {
+      std::cout << "Forcing Kitty protocol (ignoring detection)" << std::endl;
+    } else {
+      std::cout << "Forcing Sixel protocol (ignoring detection)" << std::endl;
+    }
+  } else if (graphics_protocol == "kitty" && termInfo.supports_kitty) {
     has_graphics_support = true;
   } else if (graphics_protocol == "sixel" && termInfo.supports_sixel) {
     has_graphics_support = true;

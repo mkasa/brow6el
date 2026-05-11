@@ -12,11 +12,11 @@ TerminalInfo TerminalDetector::detect() {
   info.supports_sixel = checkSixelSupport();
   info.supports_kitty = checkKittySupport();
 
+  int cols, rows;
+  getTerminalSize(cols, rows);
+
   if (info.supports_sixel || info.supports_kitty) {
     querySixelGeometry(info.width, info.height);
-
-    int cols, rows;
-    getTerminalSize(cols, rows);
 
     if (cols > 0 && rows > 0 && info.width > 0 && info.height > 0) {
       info.cell_width = info.width / cols;
@@ -25,13 +25,15 @@ TerminalInfo TerminalDetector::detect() {
       // Reserve one row to prevent scrolling after sixel output
       // This prevents the blank line issue in Windows Terminal and others
       info.height = info.height - info.cell_height;
-    } else {
-      info.cell_width = 8;
-      info.cell_height = 16;
-      info.width = cols * info.cell_width;
-      info.height = rows * info.cell_height;
     }
   }
+
+  // Ensure we have sensible defaults to avoid division by zero in renderers
+  // especially when --force-sixel is used in a non-supporting terminal
+  if (info.cell_width <= 0) info.cell_width = 10;
+  if (info.cell_height <= 0) info.cell_height = 20;
+  if (info.width <= 0) info.width = cols * info.cell_width;
+  if (info.height <= 0) info.height = rows * info.cell_height;
 
   return info;
 }
