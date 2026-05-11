@@ -232,7 +232,7 @@ int main(int argc, char *argv[]) {
   CefRefPtr<BrowserApp> app(new BrowserApp);
 
   // Handle subprocess execution - RETURN EARLY if subprocess
-  int exit_code = CefExecuteProcess(main_args, app.get(), nullptr);
+  int exit_code = CefExecuteProcess(main_args, app, nullptr);
   if (exit_code >= 0) {
     return exit_code;
   }
@@ -390,7 +390,7 @@ int main(int argc, char *argv[]) {
   }
 
 
-  if (!CefInitialize(main_args, settings, app.get(), nullptr)) {
+  if (!CefInitialize(main_args, settings, app, nullptr)) {
     std::cerr << "Failed to initialize CEF" << std::endl;
     return 1;
   }
