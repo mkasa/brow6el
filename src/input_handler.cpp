@@ -122,6 +122,7 @@ void InputHandler::stop() {
     reader_thread_.join();
   }
   disableMouseTracking();
+  browser_ = nullptr;
 }
 
 void InputHandler::enableMouseTracking() {

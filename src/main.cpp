@@ -581,7 +581,8 @@ int main(int argc, char *argv[]) {
     usleep(10000);
   }
 
-  // Release browser reference before shutdown
+  // Release all CefRefPtr objects before shutdown
+  request_context = nullptr;
   client = nullptr;
   app = nullptr;
 
