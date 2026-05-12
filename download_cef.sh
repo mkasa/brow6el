@@ -2,8 +2,9 @@
 
 set -e
 
-#CEF_VERSION="138.0.55+g7acdb77+chromium-138.0.7204.300"
-CEF_VERSION="143.0.14+gdd46a37+chromium-143.0.7499.193"
+#CEF_VERSION="143.0.14+gdd46a37+chromium-143.0.7499.193"
+CEF_VERSION="148.0.7+g5b12d32+chromium-148.0.7778.96"
+CEF_CHANNEL="_beta"
 
 # Determine architecture
 ARCH=$(uname -m)
@@ -24,7 +25,7 @@ echo "Version: $CEF_VERSION"
 echo "Platform: $PLATFORM"
 echo "Architecture: $ARCH"
 
-CEF_TARBALL="cef_binary_${CEF_VERSION}_${PLATFORM}_minimal.tar.bz2"
+CEF_TARBALL="cef_binary_${CEF_VERSION}_${PLATFORM}${CEF_CHANNEL:-}_minimal.tar.bz2"
 CEF_URL="https://cef-builds.spotifycdn.com/${CEF_TARBALL}"
 
 if [ -d "cef_binary" ]; then
@@ -56,7 +57,7 @@ echo "Extracting..."
 tar xjf "$CEF_TARBALL"
 
 # Create symlink to extracted directory
-EXTRACTED_DIR="cef_binary_${CEF_VERSION}_${PLATFORM}_minimal"
+EXTRACTED_DIR="cef_binary_${CEF_VERSION}_${PLATFORM}${CEF_CHANNEL:-}_minimal"
 ln -sf "$EXTRACTED_DIR" cef_binary
 
 echo "Cleaning up tarball..."
