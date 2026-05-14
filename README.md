@@ -608,6 +608,7 @@ The browser continuously renders at 30 FPS, with synchronized input handling for
 
 * Artix Linux, in the Omniverse repository : https://wiki.artixlinux.org/Main/Repositories#Omniverse
 * Arch Linux, in the Arch User Repository (AUR) : https://aur.archlinux.org/packages/brow6el-git
+* Debian, in Vejeta's unofficial repository (includes brow6el and latest libcef releases) : https://debian.vejeta.com
 
 
 ## License
