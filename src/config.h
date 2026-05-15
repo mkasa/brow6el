@@ -154,17 +154,6 @@ private:
       file << "disable-gpu\n";
       file << "disable-gpu-compositing\n";
       file << "\n";
-      file << "# Use SwiftShader for software-based WebGL/GPU rendering\n";
-      file << "use-gl=swiftshader\n";
-      file << "use-angle=swiftshader\n";
-      file << "\n";
-      file << "# WebGL Support\n";
-      file << "# Enable WebGL via SwiftShader (software renderer)\n";
-      file << "enable-webgl\n";
-      file << "ignore-gpu-blacklist\n";
-      file << "# Required for SwiftShader WebGL (lower security for trusted "
-              "content)\n";
-      file << "enable-unsafe-swiftshader\n";
       file << "\n";
       file << "# Frame Scheduling\n";
       file << "enable-begin-frame-scheduling\n";
