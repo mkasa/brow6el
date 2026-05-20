@@ -68,7 +68,7 @@ private:
   Config() {}
 
   // Current config version - increment when making breaking changes
-  static constexpr int CONFIG_VERSION = 4;
+  static constexpr int CONFIG_VERSION = 5;
 
   std::vector<std::string> cef_flags_;
   std::map<std::string, std::string> cef_flags_with_value_;
