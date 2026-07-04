@@ -48,8 +48,10 @@ Brow6el uses a vim-inspired modal keyboard interface with three modes. The curre
 Vim-like navigation with single-key commands (no Ctrl required):
 
 **Navigation:**
-- `h/j/k/l` or arrow keys - Navigate (left/down/up/right)
-- `t/g` - Scroll up/down
+- `j/k` or `↓/↑` arrow keys - Scroll down/up (a few lines)
+- `g/t` - Scroll down/up (about 2/3 of a screen)
+- `Ctrl+↓ / Ctrl+↑` - Scroll down/up (mouse-wheel step)
+- `h/l` or `←/→` - Send left/right arrow key to the page
 - `p/n` - Back/forward in history
 
 **Actions:**

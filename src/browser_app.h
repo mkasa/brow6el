@@ -39,11 +39,21 @@ public:
     ProfileConfig &profile_config = ProfileConfig::getInstance();
     if (profile_config.isProxyEnabled() && !profile_config.getProxyServer().empty()) {
       command_line->AppendSwitchWithValue("proxy-server", profile_config.getProxyServer());
-      
+
       if (!profile_config.getProxyBypassList().empty()) {
         command_line->AppendSwitchWithValue("proxy-bypass-list", profile_config.getProxyBypassList());
       }
     }
+
+#ifdef __APPLE__
+    // On macOS, Chromium keeps its cookie/password encryption key in the login
+    // Keychain ("Chrome Safe Storage"). Because brow6el is ad-hoc code-signed
+    // (and re-signed on every rebuild), macOS treats each build as a new app
+    // and repeatedly prompts for the Keychain password on startup. Use an
+    // in-memory mock keychain so no OS Keychain access is required. brow6el
+    // defaults to a temporary profile, so nothing is lost by this in practice.
+    command_line->AppendSwitch("use-mock-keychain");
+#endif
   }
 
 private:

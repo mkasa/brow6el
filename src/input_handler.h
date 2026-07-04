@@ -97,6 +97,10 @@ private:
     return scroll_rows * 30;
   }
 
+  // Smaller, line-wise scroll step used by j/k and the arrow keys (30
+  // units per line, ~4 lines per key press).
+  int getLineScrollAmount() const { return 4 * 30; }
+
   // JS prompt input
   std::string js_prompt_input_;
 

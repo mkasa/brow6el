@@ -1302,9 +1302,27 @@ void InputHandler::readLoop() {
               if (c == 'h' || c == 'H') {
                 sendKeyEvent(VKEY_LEFT, 0, false);
               } else if (c == 'j' || c == 'J') {
-                sendKeyEvent(VKEY_DOWN, 0, false);
+                // Scroll down a few lines (vim-style). A mouse-wheel event is
+                // used instead of an arrow key because arrow keys alone do not
+                // scroll the page in offscreen rendering.
+                if (browser_) {
+                  CefMouseEvent mouse_event;
+                  mouse_event.x = 0;
+                  mouse_event.y = 0;
+                  mouse_event.modifiers = 0;
+                  browser_->GetHost()->SendMouseWheelEvent(
+                      mouse_event, 0, -getLineScrollAmount());
+                }
               } else if (c == 'k' || c == 'K') {
-                sendKeyEvent(VKEY_UP, 0, false);
+                // Scroll up a few lines (vim-style).
+                if (browser_) {
+                  CefMouseEvent mouse_event;
+                  mouse_event.x = 0;
+                  mouse_event.y = 0;
+                  mouse_event.modifiers = 0;
+                  browser_->GetHost()->SendMouseWheelEvent(
+                      mouse_event, 0, getLineScrollAmount());
+                }
               } else if (c == 'l' || c == 'L') {
                 sendKeyEvent(VKEY_RIGHT, 0, false);
               } else if (c == 'r' || c == 'R') {
@@ -2010,7 +2028,21 @@ void InputHandler::parseKeySequence(const char *seq, int len) {
                                                          : "ArrowDown");
         return;
       }
-      sendKeyEvent(seq[2] == 'A' ? VKEY_UP : VKEY_DOWN, 0, false);
+      // In STANDARD mode, Up/Down scroll the page via the mouse wheel. Arrow
+      // key events alone don't trigger page scrolling in offscreen rendering
+      // (they're delivered as if to an editable field), so use the wheel here.
+      // In other modes (e.g. INSERT) pass the arrow key through to the page.
+      if (current_mode_ == MODE_STANDARD && browser_) {
+        CefMouseEvent scroll_event;
+        scroll_event.x = 0;
+        scroll_event.y = 0;
+        scroll_event.modifiers = 0;
+        browser_->GetHost()->SendMouseWheelEvent(
+            scroll_event, 0,
+            seq[2] == 'A' ? getLineScrollAmount() : -getLineScrollAmount());
+      } else {
+        sendKeyEvent(seq[2] == 'A' ? VKEY_UP : VKEY_DOWN, 0, false);
+      }
       return;
     case 'C':
       // Check for status bar first (left/right might be used for something)

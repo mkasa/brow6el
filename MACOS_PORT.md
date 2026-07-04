@@ -99,6 +99,24 @@ Made the script OS-aware via `uname -s` / `uname -m`:
 - `README.md`: added macOS (Homebrew) build dependencies + notes.
 - Render test confirmed by the user on a real terminal (yahoo.co.jp rendered fine).
 
+### Step 4 — Keychain prompt + scroll fixes (DONE)
+- **macOS Keychain prompt** (`src/browser_app.h`): Chromium stores its cookie/password
+  encryption key in the login Keychain ("Chrome Safe Storage"). Because brow6el is
+  ad-hoc code-signed and **re-signed on every build**, macOS treats each build as a new
+  app and repeatedly prompts for the Keychain password on startup. Added
+  `command_line->AppendSwitch("use-mock-keychain")` under `#ifdef __APPLE__` so no OS
+  Keychain access is needed (brow6el defaults to a temporary profile anyway).
+  - **Important gotcha:** this password dialog also *blocks* `CefInitialize` in headless
+    / background runs — helpers stall at 1 and pages never load. If automated testing
+    ever hangs at startup again, suspect a blocking Keychain (or other GUI) prompt.
+- **Scrolling** (`src/input_handler.*`): `j`/`k` and the `↑`/`↓` arrows were sending
+  arrow key events to the page, which don't scroll in offscreen rendering (they arrive
+  as if to an editable field — `sendKeyEvent` hardcodes `focus_on_editable_field = 1`).
+  Changed `j`/`k` and STANDARD-mode arrows to `SendMouseWheelEvent` (via a new
+  `getLineScrollAmount()`), matching how `g`/`t` already scrolled. This is a shared
+  (non-macOS-guarded) fix — it improves Linux too. Verified: `g`, `t`, `j`, `k`, `↑`,
+  `↓` all repaint the viewport on a tall page.
+
 ## Remaining work
 
 The functional port is complete. Only distribution polish remains, and it is optional:
