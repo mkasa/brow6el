@@ -12,11 +12,15 @@ This work happens on the private fork `github.com/mkasa/brow6el`, branch **`maco
 | Piece | Status |
 |-------|--------|
 | `download_cef.sh` (fetch CEF + build wrapper) | ✅ Done, verified on Apple Silicon |
-| Source portability (X11, clipboard, terminal I/O) | ✅ Mostly portable — see below |
-| `/proc/self/exe` → macOS exe-path shim | ⬜ TODO (4 call sites) |
-| CMake macOS `.app` bundle + Helper processes | ⬜ TODO (the big one) |
-| Launch path (`run_brow6el.sh`) | ⬜ TODO |
-| End-to-end run in a Sixel/Kitty terminal | ⬜ Not yet attempted |
+| Source portability (X11, clipboard, terminal I/O) | ✅ Portable |
+| `/proc/self/exe` → macOS exe-path shim | ✅ Done (`src/platform_paths.h`, 4 call sites) |
+| `std::__gcd` → `std::gcd` (libc++ portability) | ✅ Done |
+| CMake macOS `.app` bundle + Helper processes | ✅ Done, builds `build/brow6el.app` |
+| Launch path (`run_brow6el.sh`) | ✅ Done (generated launcher) |
+| CEF init + helper subprocesses + page load | ✅ Verified (loads example.com, status 200) |
+| End-to-end render in a Sixel/Kitty terminal | ⬜ Needs a real graphics terminal (user) |
+| Cosmetic: Linux-flavored User-Agent string | ⬜ Optional follow-up |
+| Code signing / distributable .app | ⬜ Out of scope (dev build runs unsigned locally) |
 
 ## Why macOS is different from Linux (the core issue)
 
@@ -61,26 +65,50 @@ Made the script OS-aware via `uname -s` / `uname -m`:
 - Verified end-to-end on `arm64`: downloads ~121 MB, checksum OK, `libcef_dll_wrapper.a`
   builds cleanly.
 
-## Remaining work (next steps)
+### Step 2 — App code + CMake bundle (DONE)
+- **`src/platform_paths.h`** (new): `platform::executablePath()` / `executableDir()`
+  (`_NSGetExecutablePath` on macOS, `readlink` on Linux) and `resourceDir()`
+  (`Contents/Resources` on macOS, exe dir on Linux). Replaced the 4 `/proc/self/exe`
+  sites in `main.cpp`, `browser_client.cpp`, `input_handler.cpp`, `user_scripts.cpp`.
+- **`main.cpp`**: on macOS, load the framework at the top of `main()` via
+  `CefScopedLibraryLoader::LoadInMain()`; skip `browser_subprocess_path` /
+  `resources_dir_path` / `locales_dir_path` (macOS finds helpers + resources
+  automatically inside the bundle/framework).
+- **`src/process_helper_mac.mm`** (new): tiny helper entry point —
+  `LoadInHelper()` + `CefExecuteProcess(nullptr)`.
+- **`src/sixel_renderer.cpp`**: `std::__gcd` (libstdc++ internal) → `std::gcd`
+  (`<numeric>`, C++17) — libc++ has no `__gcd`.
+- **`CMakeLists.txt`**: `if(OS_MAC)` branch builds `brow6el.app` (MACOSX_BUNDLE),
+  links only the wrapper `.a` + `CEF_STANDARD_LIBS` (framework loaded at runtime),
+  runs `COPY_MAC_FRAMEWORK`, copies resources into `Contents/Resources`, and loops
+  over `CEF_HELPER_APP_SUFFIXES` to build + embed the 5 Helper `.app`s. Linux path
+  unchanged. `link_directories(${SIXEL_LIBRARY_DIRS})` so Homebrew libsixel is found.
+- **`mac/Info.plist.in`, `mac/helper-Info.plist.in`, `mac/run_brow6el_mac.sh.in`**
+  (new): plist templates + a launcher that execs the in-bundle binary directly (keeps
+  the tty attached — required for a terminal app; `open` would detach it).
+- **`build.sh`**: OS-aware (portable CPU count, skip Linux `libcef.so` strip,
+  pass `-DPROJECT_ARCH` on mac).
+- **Verified**: `build/brow6el.app` builds; `--version` loads the framework;
+  a forced-graphics run spawns Helper subprocesses, initializes CEF, and loads
+  `https://example.com` (status 200) with bundled JS injected.
 
-1. **Exe-path shim** — `/proc/self/exe` is Linux-only. Used in `main.cpp`,
-   `browser_client.cpp`, `input_handler.cpp`, `user_scripts.cpp`. Add one helper
-   (`_NSGetExecutablePath()` on macOS, `readlink` on Linux) and replace the 4 call sites.
-2. **CMake macOS branch** — build `brow6el.app`: link the framework, generate a small
-   helper `main()` and produce the Helper `.app` bundles, write Info.plists, copy the
-   framework into `Contents/Frameworks/`. Guard all of this behind `if(APPLE)` so Linux
-   stays on its current `libcef.so` path.
-3. **Launch** — on macOS run the app binary directly (no `LD_LIBRARY_PATH`); keep the
-   Linux `run_brow6el.sh` behavior intact.
-4. **Run test** — launch in a Sixel/Kitty-capable macOS terminal (iTerm2, WezTerm, kitty,
-   Ghostty) and iterate on runtime issues.
+## Remaining work
 
-## Build (once the port is further along)
+1. **Render test in a real terminal** — launch in a Sixel/Kitty-capable macOS terminal
+   (iTerm2, WezTerm, kitty, Ghostty) and confirm pixels actually draw / input works.
+   This is the one thing that can't be verified from a non-graphics shell.
+2. **User-Agent string** (cosmetic) — `src/version.h.in` hardcodes
+   `X11; Linux aarch64`; consider a macOS variant.
+3. **Distribution** (later) — code signing + bundling libsixel for a portable `.app`.
+   The current dev build links Homebrew's libsixel by absolute path and runs unsigned
+   locally, which is fine for development.
+
+## Build (macOS)
 
 ```bash
-./download_cef.sh    # now macOS-aware
-./build.sh           # macOS branch: TODO
-# run: TODO (app bundle)
+./download_cef.sh                       # OS-aware; fetches macOS CEF + builds wrapper
+./build.sh                              # produces build/brow6el.app
+./build/run_brow6el.sh https://example.com   # run in a Sixel/Kitty terminal
 ```
 
 ## Keeping in sync with upstream

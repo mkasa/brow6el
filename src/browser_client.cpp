@@ -2,6 +2,7 @@
 #include "clipboard.h"
 #include "input_handler.h"
 #include "kitty_renderer.h"
+#include "platform_paths.h"
 #include "profile_config.h"
 #include "sixel_renderer.h"
 #include "include/wrapper/cef_closure_task.h"
@@ -19,18 +20,11 @@
     log << msg << std::endl;                                                   \
   } while (0)
 
-// Helper function to get JS file path relative to executable
+// Helper function to get JS file path relative to the bundled resources
 static std::string GetJsFilePath(const std::string& filename) {
-  char exe_path[1024];
-  ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
-  if (len != -1) {
-    exe_path[len] = '\0';
-    std::string exe_dir = std::string(exe_path);
-    size_t last_slash = exe_dir.find_last_of('/');
-    if (last_slash != std::string::npos) {
-      exe_dir = exe_dir.substr(0, last_slash);
-      return exe_dir + "/" + filename;
-    }
+  std::string dir = platform::resourceDir();
+  if (!dir.empty()) {
+    return dir + "/" + filename;
   }
   // Fallback to current directory
   return filename;

@@ -1,6 +1,7 @@
 #include "input_handler.h"
 #include "browser_client.h"
 #include "include/internal/cef_types.h"
+#include "platform_paths.h"
 #include "profile_config.h"
 #include "status_bar.h"
 #include <cstring>
@@ -1504,16 +1505,9 @@ void InputHandler::readLoop() {
               } else if (c == '?') {
                 // Show tutorial help
                 if (browser_) {
-                  // Get executable directory
-                  char exe_path[1024];
-                  ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
-                  if (len != -1) {
-                    exe_path[len] = '\0';
-                    std::string exe_dir = exe_path;
-                    size_t last_slash = exe_dir.find_last_of('/');
-                    if (last_slash != std::string::npos) {
-                      exe_dir = exe_dir.substr(0, last_slash);
-                    }
+                  // Locate tutorial.html in the bundled resources directory
+                  std::string exe_dir = platform::resourceDir();
+                  if (!exe_dir.empty()) {
                     std::string tutorial_path = exe_dir + "/tutorial.html";
                     std::string url = "file://" + tutorial_path;
                     browser_->GetMainFrame()->LoadURL(url);

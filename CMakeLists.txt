@@ -4,12 +4,15 @@ project(brow6el C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# RPATH configuration for AppImage and portable builds
-# $ORIGIN is relative to the executable location
-set(CMAKE_BUILD_RPATH ".")
-set(CMAKE_INSTALL_RPATH "$ORIGIN:$ORIGIN/../lib:$ORIGIN/..")
-set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
+# RPATH configuration for AppImage and portable builds (Linux only).
+# $ORIGIN is relative to the executable location. On macOS the CEF framework is
+# loaded dynamically via CefScopedLibraryLoader, so no $ORIGIN rpath is needed.
+if(NOT APPLE)
+    set(CMAKE_BUILD_RPATH ".")
+    set(CMAKE_INSTALL_RPATH "$ORIGIN:$ORIGIN/../lib:$ORIGIN/..")
+    set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
+endif()
 
 # Get version from git
 execute_process(
@@ -113,40 +116,157 @@ set(HEADERS
     src/user_scripts.h
     src/profile_config.h
     src/clipboard.h
+    src/platform_paths.h
 )
 
-# Create executable
-add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
-
-# Link CEF
-ADD_LOGICAL_TARGET("libcef_lib" "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
-SET_CEF_TARGET_OUT_DIR()
-
-target_link_libraries(${PROJECT_NAME}
-    libcef_lib
-    ${CEF_ROOT}/build/libcef_dll_wrapper/libcef_dll_wrapper.a
-    ${CEF_STANDARD_LIBS}
-    ${SIXEL_LIBRARIES}
-    pthread
-    z
+# Bundled application resources (injected JS + tutorial page). Shared list used
+# by both the Linux path (copy next to the binary) and the macOS path (copy into
+# the .app bundle's Contents/Resources).
+set(BROW6EL_RESOURCE_FILES
+    select_detector.js
+    hint_mode.js
+    mouse_emu.js
+    inspect_mode.js
+    visual_mode.js
+    tutorial.html
 )
 
-# Copy CEF binary files
-COPY_FILES("${PROJECT_NAME}" "${CEF_BINARY_FILES}" "${CEF_BINARY_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
-COPY_FILES("${PROJECT_NAME}" "${CEF_RESOURCE_FILES}" "${CEF_RESOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
+if(OS_MAC)
+    # =======================================================================
+    # macOS: build brow6el.app plus the CEF Helper .app bundles.
+    #
+    # The CEF framework is loaded dynamically at runtime via
+    # CefScopedLibraryLoader, so it is NOT linked here — only the wrapper static
+    # library and the system frameworks in CEF_STANDARD_LIBS. Subprocesses are
+    # the separate Helper bundles (built below), not this executable.
+    # =======================================================================
+    set(CEF_APP "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.app")
 
-# Copy JS files and run script
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/select_detector.js ${CMAKE_CURRENT_BINARY_DIR}/select_detector.js COPYONLY)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/hint_mode.js ${CMAKE_CURRENT_BINARY_DIR}/hint_mode.js COPYONLY)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/mouse_emu.js ${CMAKE_CURRENT_BINARY_DIR}/mouse_emu.js COPYONLY)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/inspect_mode.js ${CMAKE_CURRENT_BINARY_DIR}/inspect_mode.js COPYONLY)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/visual_mode.js ${CMAKE_CURRENT_BINARY_DIR}/visual_mode.js COPYONLY)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/tutorial.html ${CMAKE_CURRENT_BINARY_DIR}/tutorial.html COPYONLY)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/run_brow6el.sh ${CMAKE_CURRENT_BINARY_DIR}/run_brow6el.sh COPYONLY)
+    # Generate the main app Info.plist.
+    set(BROW6EL_PRODUCT_NAME "${PROJECT_NAME}")
+    set(BROW6EL_BUNDLE_ID "org.brow6el.brow6el")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/mac/Info.plist.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/Info.plist"
+        @ONLY)
 
-# Copy bundled scripts directory
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/src/scripts DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+    # Homebrew's libsixel lives outside the default macOS linker search path.
+    link_directories(${SIXEL_LIBRARY_DIRS})
 
-# Make run script executable
-file(CHMOD ${CMAKE_CURRENT_BINARY_DIR}/run_brow6el.sh
-    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+    add_executable(${PROJECT_NAME} MACOSX_BUNDLE ${SOURCES} ${HEADERS})
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_BINARY_DIR}/Info.plist"
+        OUTPUT_NAME "${PROJECT_NAME}")
+    # pthread is part of libSystem on macOS (linking it explicitly only warns).
+    target_link_libraries(${PROJECT_NAME}
+        ${CEF_ROOT}/build/libcef_dll_wrapper/libcef_dll_wrapper.a
+        ${CEF_STANDARD_LIBS}
+        ${SIXEL_LIBRARIES}
+        z)
+
+    # Copy the CEF framework into brow6el.app/Contents/Frameworks.
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CEF_APP}/Contents/Frameworks"
+        VERBATIM)
+    COPY_MAC_FRAMEWORK(${PROJECT_NAME} "${CEF_ROOT}/Release" "${CEF_APP}")
+
+    # Copy bundled app resources into brow6el.app/Contents/Resources.
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CEF_APP}/Contents/Resources"
+        VERBATIM)
+    foreach(_res ${BROW6EL_RESOURCE_FILES})
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy
+                    "${CMAKE_CURRENT_SOURCE_DIR}/src/${_res}"
+                    "${CEF_APP}/Contents/Resources/${_res}"
+            VERBATIM)
+    endforeach()
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/src/scripts"
+                "${CEF_APP}/Contents/Resources/scripts"
+        VERBATIM)
+
+    # Build the CEF Helper .app bundles — one per suffix (default, Alerts, GPU,
+    # Plugin, Renderer). They share one tiny entry point and differ only by
+    # name/identifier in their generated Info.plist.
+    foreach(_suffix_list ${CEF_HELPER_APP_SUFFIXES})
+        # Format is "<name suffix>:<target suffix>:<plist suffix>".
+        string(REPLACE ":" ";" _suffix_list ${_suffix_list})
+        list(GET _suffix_list 0 _name_suffix)
+        list(GET _suffix_list 1 _target_suffix)
+        list(GET _suffix_list 2 _plist_suffix)
+
+        set(_helper_target "${PROJECT_NAME}_Helper${_target_suffix}")
+        set(_helper_output_name "${PROJECT_NAME} Helper${_name_suffix}")
+
+        # Generate this helper's Info.plist.
+        set(BROW6EL_HELPER_PRODUCT_NAME "${_helper_output_name}")
+        set(BROW6EL_HELPER_BUNDLE_ID "org.brow6el.brow6el.helper${_plist_suffix}")
+        set(_helper_info_plist "${CMAKE_CURRENT_BINARY_DIR}/helper-Info${_plist_suffix}.plist")
+        configure_file(
+            "${CMAKE_CURRENT_SOURCE_DIR}/mac/helper-Info.plist.in"
+            "${_helper_info_plist}"
+            @ONLY)
+
+        add_executable(${_helper_target} MACOSX_BUNDLE src/process_helper_mac.mm)
+        set_target_properties(${_helper_target} PROPERTIES
+            MACOSX_BUNDLE_INFO_PLIST "${_helper_info_plist}"
+            OUTPUT_NAME "${_helper_output_name}")
+        target_link_libraries(${_helper_target}
+            ${CEF_ROOT}/build/libcef_dll_wrapper/libcef_dll_wrapper.a
+            ${CEF_STANDARD_LIBS})
+
+        # Copy the finished helper bundle into the main app's Frameworks dir.
+        add_dependencies(${PROJECT_NAME} ${_helper_target})
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${CMAKE_CURRENT_BINARY_DIR}/${_helper_output_name}.app"
+                    "${CEF_APP}/Contents/Frameworks/${_helper_output_name}.app"
+            VERBATIM)
+    endforeach()
+
+    # Generate the terminal launcher (build/run_brow6el.sh).
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/mac/run_brow6el_mac.sh.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/run_brow6el.sh"
+        @ONLY)
+    file(CHMOD ${CMAKE_CURRENT_BINARY_DIR}/run_brow6el.sh
+        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+
+else()
+    # =======================================================================
+    # Linux: original behavior (link libcef.so, copy files next to the binary).
+    # =======================================================================
+    add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+
+    # Link CEF
+    ADD_LOGICAL_TARGET("libcef_lib" "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
+    SET_CEF_TARGET_OUT_DIR()
+
+    target_link_libraries(${PROJECT_NAME}
+        libcef_lib
+        ${CEF_ROOT}/build/libcef_dll_wrapper/libcef_dll_wrapper.a
+        ${CEF_STANDARD_LIBS}
+        ${SIXEL_LIBRARIES}
+        pthread
+        z
+    )
+
+    # Copy CEF binary files
+    COPY_FILES("${PROJECT_NAME}" "${CEF_BINARY_FILES}" "${CEF_BINARY_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
+    COPY_FILES("${PROJECT_NAME}" "${CEF_RESOURCE_FILES}" "${CEF_RESOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
+
+    # Copy JS files and run script
+    foreach(_res ${BROW6EL_RESOURCE_FILES})
+        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/${_res} ${CMAKE_CURRENT_BINARY_DIR}/${_res} COPYONLY)
+    endforeach()
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/run_brow6el.sh ${CMAKE_CURRENT_BINARY_DIR}/run_brow6el.sh COPYONLY)
+
+    # Copy bundled scripts directory
+    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/src/scripts DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
+    # Make run script executable
+    file(CHMOD ${CMAKE_CURRENT_BINARY_DIR}/run_brow6el.sh
+        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+endif()

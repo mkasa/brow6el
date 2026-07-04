@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Launcher for the macOS .app bundle. Runs the executable *inside* the bundle
+# directly (not via `open`) so brow6el stays attached to the current terminal —
+# it needs the tty for keyboard input and Sixel/Kitty graphics output.
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+exec "$DIR/brow6el.app/Contents/MacOS/brow6el" "$@"

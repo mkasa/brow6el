@@ -1,4 +1,5 @@
 #include "user_scripts.h"
+#include "platform_paths.h"
 #include <algorithm>
 #include <cstdlib>
 #include <dirent.h>
@@ -45,18 +46,11 @@ void UserScriptsManager::scanScriptsDirectory() {
   mkdir(user_scripts_dir.c_str(), 0755);
   dirs_to_scan.push_back(user_scripts_dir);
 
-  // Bundled scripts directory (relative to executable)
-  char exe_path[1024];
-  ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
-  if (len != -1) {
-    exe_path[len] = '\0';
-    std::string exe_dir = std::string(exe_path);
-    size_t last_slash = exe_dir.find_last_of('/');
-    if (last_slash != std::string::npos) {
-      exe_dir = exe_dir.substr(0, last_slash);
-      std::string bundled_scripts_dir = exe_dir + "/scripts";
-      dirs_to_scan.push_back(bundled_scripts_dir);
-    }
+  // Bundled scripts directory (relative to the bundled resources)
+  std::string exe_dir = platform::resourceDir();
+  if (!exe_dir.empty()) {
+    std::string bundled_scripts_dir = exe_dir + "/scripts";
+    dirs_to_scan.push_back(bundled_scripts_dir);
   }
 
   // Scan all directories

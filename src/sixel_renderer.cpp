@@ -4,6 +4,7 @@
 #include <cstring>
 #include <iostream>
 #include <mutex>
+#include <numeric>
 
 // Global terminal mutex (defined in image_renderer.cpp)
 extern std::mutex g_terminal_mutex;
@@ -45,7 +46,7 @@ SixelRenderer::SixelRenderer(int width, int height, int cell_width,
   }
 
   // For height: must be multiple of BOTH cell_height AND 6
-  int lcm_height = (cell_height_ * 6) / std::__gcd(cell_height_, 6);
+  int lcm_height = (cell_height_ * 6) / std::gcd(cell_height_, 6);
   int tiles_v = std::max(1, height / target_tile_pixels);
   tile_height_ = height / tiles_v;
   tile_height_ = (tile_height_ / lcm_height) * lcm_height;

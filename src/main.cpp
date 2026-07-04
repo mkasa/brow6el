@@ -8,6 +8,7 @@
 #include "include/cef_request_context.h"
 #include "include/cef_values.h"
 #include "input_handler.h"
+#include "platform_paths.h"
 #include "profile_config.h"
 #include "terminal_detector.h"
 #include "version.h"
@@ -17,6 +18,10 @@
 #include <iostream>
 #include <signal.h>
 #include <unistd.h>
+
+#ifdef __APPLE__
+#include "include/wrapper/cef_library_loader.h"
+#endif
 
 namespace fs = std::filesystem;
 
@@ -97,6 +102,17 @@ void continueHandler(int signum) {
 void requestShutdown() { g_running = false; }
 
 int main(int argc, char *argv[]) {
+#ifdef __APPLE__
+  // On macOS the CEF framework is loaded dynamically at runtime (it is not
+  // linked against the executable). This must happen before any other CEF API
+  // call, and the loader must stay in scope for the lifetime of the process.
+  CefScopedLibraryLoader library_loader;
+  if (!library_loader.LoadInMain()) {
+    std::cerr << "Failed to load the CEF framework" << std::endl;
+    return 1;
+  }
+#endif
+
   CefMainArgs main_args(argc, argv);
 
   // Load profile config first to get default URL
@@ -192,20 +208,6 @@ int main(int argc, char *argv[]) {
     // Don't reject unknown options here - CEF may use them for subprocesses
   }
 
-  // Get executable directory for resources (needed by both main and
-  // sub-processes)
-  char exe_path[1024];
-  std::string exe_dir;
-  ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
-  if (len != -1) {
-    exe_path[len] = '\0';
-    exe_dir = exe_path;
-    size_t pos = exe_dir.find_last_of("/");
-    if (pos != std::string::npos) {
-      exe_dir = exe_dir.substr(0, pos);
-    }
-  }
-
   // Set up settings for both main process and subprocesses
   CefSettings settings;
   settings.windowless_rendering_enabled = true;
@@ -213,8 +215,23 @@ int main(int argc, char *argv[]) {
   settings.multi_threaded_message_loop = false;
   settings.command_line_args_disabled = false;
 
-  // Disable sandbox-related features
-  CefString(&settings.browser_subprocess_path).FromASCII(exe_path);
+#ifndef __APPLE__
+  // On Linux the same executable is re-launched for CEF subprocesses, and the
+  // CEF resource/locale files sit next to it. On macOS the subprocesses are the
+  // separate Helper .app bundles (located automatically by CEF inside
+  // Contents/Frameworks) and the resource/locale files live inside the
+  // framework bundle, so none of these paths should be set explicitly.
+  {
+    std::string exe_path = platform::executablePath();
+    std::string exe_dir = platform::executableDir();
+    CefString(&settings.browser_subprocess_path).FromASCII(exe_path.c_str());
+    if (!exe_dir.empty()) {
+      CefString(&settings.resources_dir_path).FromASCII(exe_dir.c_str());
+      CefString(&settings.locales_dir_path)
+          .FromASCII((exe_dir + "/locales").c_str());
+    }
+  }
+#endif
 
   // Suppress CEF logging - only show fatal errors
   settings.log_severity = LOGSEVERITY_FATAL;
@@ -222,12 +239,6 @@ int main(int argc, char *argv[]) {
 
   // Set custom user agent
   CefString(&settings.user_agent).FromASCII(BROW6EL_USER_AGENT);
-
-  if (!exe_dir.empty()) {
-    CefString(&settings.resources_dir_path).FromASCII(exe_dir.c_str());
-    CefString(&settings.locales_dir_path)
-        .FromASCII((exe_dir + "/locales").c_str());
-  }
 
   CefRefPtr<BrowserApp> app(new BrowserApp);
 
