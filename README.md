@@ -2,6 +2,16 @@
 
 A full-featured web browser for the terminal using Chromium (CEF) with support for Sixel and Kitty graphics protocols.
 
+> **ℹ️ This is a macOS fork — not an original project.**
+> brow6el was created by its upstream author at
+> [janantos/brow6el](https://codeberg.org/janantos/brow6el) on Codeberg.
+> This repository is a **fork** that adds **macOS (Apple Silicon + Intel)**
+> support — the build system plus a handful of platform-specific runtime fixes.
+> All of the browser's features come from the upstream project. For exactly what
+> was changed for macOS and why, see **[MACOS_PORT.md](MACOS_PORT.md)**.
+>
+> Install on macOS with Homebrew: `brew install mkasa/brow6el/brow6el`
+
 > **WARNING**: Kitty image support (currently only in main branch builds) by its design nature is barelly usable in SSH when brow6el runs on remote host, this feature is usable when brow6el is executed on localhost. On ssh the responsivenes of browser is significantly affected, due to massive data transfers on each frame rendered
 
 > **WARNING**: Kitty image support (currently only in main branch builds), Ubuntu 24.04 is shipped with very old Kitty version 0.32.2 which does not handle newer image protocol brow6el is using as BASE64 data are being printed instead rendered screen. however foot terminal works on Ubuntu perfectly fine
