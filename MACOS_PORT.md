@@ -131,14 +131,41 @@ Made the script OS-aware via `uname -s` / `uname -m`:
   repairs Enter/Tab/Escape/Delete/arrow keys in forms on macOS. Character typing is
   unaffected (it uses CHAR events + the `character` field).
 
+### Step 6 — Distribution via Homebrew tap (DONE)
+Users install with:
+
+```sh
+brew install mkasa/brow6el/brow6el
+```
+
+- Tap repo: **`github.com/mkasa/homebrew-brow6el`** (`Formula/brow6el.rb`).
+- **Build-from-source** formula: declares `libsixel` (+ `cmake`, `pkg-config`) as
+  deps, downloads the arch-matched CEF as a checksummed `resource` (arm64 + Intel),
+  builds the wrapper + `brow6el.app`, installs a `brow6el` launcher on `PATH`.
+  Building locally means **no notarization** is needed (Gatekeeper doesn't quarantine
+  locally-built binaries).
+- The `mkasa/brow6el` repo was made **public** and tagged **`v0.4.0`** (the formula
+  pulls that tag tarball).
+- macOS packaging gotchas solved in the formula:
+  - Stage CEF under its real chromium-versioned dir name so CMake's
+    `cef_binary*chromium*` glob reports the right Chromium version (else the UA
+    falls back to `143`).
+  - `-DBROW6EL_VERSION_OVERRIDE=#{version}` (source tarballs have no `.git`).
+  - `preserve_rpath` + re-signing CEF's bundled dylibs (`libEGL`/`libGLESv2`/
+    `libcef_sandbox`): their install IDs are relative (`./libEGL.dylib`) and
+    Homebrew's linkage fixer can't rewrite them to the too-long opt path. We set
+    their IDs to `@rpath/...`, re-sign ad-hoc, and `preserve_rpath` tells Homebrew
+    to leave `@rpath` IDs alone.
+- Verified end-to-end from the published tap (fresh `brew untap`/`tap`/`install`):
+  exit 0, no linkage errors, renders pages.
+
 ## Remaining work
 
-The functional port is complete. Only distribution polish remains, and it is optional:
+The port and its distribution are complete. Optional polish only:
 
-1. **Distribution** (later) — code signing + bundling libsixel for a portable `.app`.
-   The current dev build links Homebrew's libsixel by absolute path and runs unsigned
-   locally, which is fine for development but won't run on a Mac without Homebrew.
-2. **Universal binary** (optional) — currently built for the host arch only.
+1. **Universal binary** — currently built for the host arch only.
+2. **Merge `macos-port` → `main`** so the public repo's default branch shows the
+   macOS support (currently the work lives on the `macos-port` branch + `v0.4.0` tag).
 
 ## Build (macOS)
 
