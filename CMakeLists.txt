@@ -14,18 +14,24 @@ if(NOT APPLE)
     set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
 endif()
 
-# Get version from git
-execute_process(
-    COMMAND git describe --tags --always --dirty
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE GIT_VERSION
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_QUIET
-)
+# Version: prefer an explicit override (for packagers building from a source
+# tarball with no .git, e.g. a Homebrew formula), then git describe, then a
+# fallback.
+if(BROW6EL_VERSION_OVERRIDE)
+    set(GIT_VERSION "${BROW6EL_VERSION_OVERRIDE}")
+else()
+    execute_process(
+        COMMAND git describe --tags --always --dirty
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_VERSION
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
 
-# Fallback version if git is not available
-if(NOT GIT_VERSION)
-    set(GIT_VERSION "0.0.999-dev")
+    # Fallback version if git is not available
+    if(NOT GIT_VERSION)
+        set(GIT_VERSION "0.0.999-dev")
+    endif()
 endif()
 
 # Clean up version string (remove 'v' prefix if present)
