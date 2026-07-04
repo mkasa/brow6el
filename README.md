@@ -590,6 +590,21 @@ sudo pacman -S base-devel cmake git pkg-config curl \
     libsixel \
     libx11 libxcomposite libxdamage libxfixes libxrandr \
     mesa pango atk cups alsa-lib nss nspr glib2
+
+# macOS (Homebrew) — Apple Silicon and Intel
+xcode-select --install                       # clang/make toolchain (if not present)
+brew install cmake pkg-config libsixel
+```
+
+On macOS the `download_cef.sh` and `build.sh` scripts auto-detect the platform:
+`download_cef.sh` fetches the matching macOS CEF build and `build.sh` produces a
+`build/brow6el.app` bundle (with the CEF framework and Helper processes embedded).
+The X11/NSS/GLib system libraries required on Linux are **not** needed on macOS —
+CEF ships as a self-contained framework. Run it from a Sixel- or Kitty-capable
+terminal (iTerm2, WezTerm, kitty, Ghostty):
+
+```bash
+./build/run_brow6el.sh https://example.com
 ```
 
 **Runtime Dependencies** (automatically satisfied on most systems):

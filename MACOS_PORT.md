@@ -18,8 +18,9 @@ This work happens on the private fork `github.com/mkasa/brow6el`, branch **`maco
 | CMake macOS `.app` bundle + Helper processes | ✅ Done, builds `build/brow6el.app` |
 | Launch path (`run_brow6el.sh`) | ✅ Done (generated launcher) |
 | CEF init + helper subprocesses + page load | ✅ Verified (loads example.com, status 200) |
-| End-to-end render in a Sixel/Kitty terminal | ⬜ Needs a real graphics terminal (user) |
-| Cosmetic: Linux-flavored User-Agent string | ⬜ Optional follow-up |
+| End-to-end render in a Sixel/Kitty terminal | ✅ Verified by user (yahoo.co.jp rendered as expected) |
+| macOS User-Agent string | ✅ Done (`Macintosh; Intel Mac OS X 10_15_7`) |
+| README macOS build instructions | ✅ Done |
 | Code signing / distributable .app | ⬜ Out of scope (dev build runs unsigned locally) |
 
 ## Why macOS is different from Linux (the core issue)
@@ -92,16 +93,20 @@ Made the script OS-aware via `uname -s` / `uname -m`:
   a forced-graphics run spawns Helper subprocesses, initializes CEF, and loads
   `https://example.com` (status 200) with bundled JS injected.
 
+### Step 3 — Polish (DONE)
+- `src/version.h.in`: macOS User-Agent (`Macintosh; Intel Mac OS X 10_15_7`, matching
+  Chrome's frozen platform token) behind `#ifdef __APPLE__`; Linux UA unchanged.
+- `README.md`: added macOS (Homebrew) build dependencies + notes.
+- Render test confirmed by the user on a real terminal (yahoo.co.jp rendered fine).
+
 ## Remaining work
 
-1. **Render test in a real terminal** — launch in a Sixel/Kitty-capable macOS terminal
-   (iTerm2, WezTerm, kitty, Ghostty) and confirm pixels actually draw / input works.
-   This is the one thing that can't be verified from a non-graphics shell.
-2. **User-Agent string** (cosmetic) — `src/version.h.in` hardcodes
-   `X11; Linux aarch64`; consider a macOS variant.
-3. **Distribution** (later) — code signing + bundling libsixel for a portable `.app`.
+The functional port is complete. Only distribution polish remains, and it is optional:
+
+1. **Distribution** (later) — code signing + bundling libsixel for a portable `.app`.
    The current dev build links Homebrew's libsixel by absolute path and runs unsigned
-   locally, which is fine for development.
+   locally, which is fine for development but won't run on a Mac without Homebrew.
+2. **Universal binary** (optional) — currently built for the host arch only.
 
 ## Build (macOS)
 
