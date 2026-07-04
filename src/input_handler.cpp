@@ -25,6 +25,32 @@ extern void requestShutdown();
 #define VKEY_DOWN 0x28
 #define VKEY_DELETE 0x2E
 
+#ifdef __APPLE__
+// Translate a Windows virtual-key code to the corresponding macOS virtual
+// keycode. On macOS, CefKeyEvent.native_key_code is interpreted as a macOS
+// (Carbon kVK_*) keycode. A synthesized special key must therefore carry the
+// right macOS code; otherwise Chromium maps it to the wrong physical key
+// (e.g. VK_BACK 0x08 lands on the 'C' key, kVK_ANSI_C == 8) and editing
+// commands such as delete-backward never fire.
+static int MacNativeKeyCode(int windows_key_code) {
+  switch (windows_key_code) {
+  case VKEY_BACK:   return 51;  // kVK_Delete (Backspace)
+  case VKEY_TAB:    return 48;  // kVK_Tab
+  case VKEY_RETURN: return 36;  // kVK_Return
+  case VKEY_ESCAPE: return 53;  // kVK_Escape
+  case VKEY_SPACE:  return 49;  // kVK_Space
+  case VKEY_END:    return 119; // kVK_End
+  case VKEY_HOME:   return 115; // kVK_Home
+  case VKEY_LEFT:   return 123; // kVK_LeftArrow
+  case VKEY_UP:     return 126; // kVK_UpArrow
+  case VKEY_RIGHT:  return 124; // kVK_RightArrow
+  case VKEY_DOWN:   return 125; // kVK_DownArrow
+  case VKEY_DELETE: return 117; // kVK_ForwardDelete
+  default:          return windows_key_code;
+  }
+}
+#endif
+
 InputHandler::InputHandler(CefRefPtr<CefBrowser> browser, int term_width,
                            int term_height, int cell_width, int cell_height,
                            int pixel_width, int pixel_height)
@@ -2133,6 +2159,10 @@ void InputHandler::sendKeyEvent(int key_code, char character,
     // For special keys: use key_code
     key_event.windows_key_code = key_code;
     key_event.native_key_code = key_code;
+#ifdef __APPLE__
+    // native_key_code is a macOS keycode on macOS, not a Windows VK code.
+    key_event.native_key_code = MacNativeKeyCode(key_code);
+#endif
     key_event.character = character;
     key_event.unmodified_character = character;
 

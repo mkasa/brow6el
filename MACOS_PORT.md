@@ -117,6 +117,20 @@ Made the script OS-aware via `uname -s` / `uname -m`:
   (non-macOS-guarded) fix — it improves Linux too. Verified: `g`, `t`, `j`, `k`, `↑`,
   `↓` all repaint the viewport on a tall page.
 
+### Step 5 — macOS special-key fix (Backspace/Enter/Tab/arrows in forms) (DONE)
+- **Symptom:** in a text field, typing worked but **Backspace and Ctrl-H did nothing**.
+- **Cause** (`src/input_handler.cpp`, `sendKeyEvent`): `native_key_code` was set to the
+  **Windows** virtual-key code. On macOS `CefKeyEvent.native_key_code` is a **macOS**
+  (Carbon `kVK_*`) keycode. `VK_BACK` is `0x08`, but macOS keycode `8` is the physical
+  **'C'** key — so Chromium saw Backspace as `keyCode=67, key=Unidentified` and never ran
+  delete-backward. All synthesized special keys were mis-mapped (`VK_UP 0x26` → macOS 'j',
+  etc.).
+- **Fix:** added `MacNativeKeyCode()` (VK → macOS keycode) and, under `#ifdef __APPLE__`,
+  set `native_key_code` from it in the special-key path. Verified: a focused field goes
+  `HELLO → HELL → HEL → HE` on Backspace/Ctrl-H, with `key=Backspace keyCode=8`. Also
+  repairs Enter/Tab/Escape/Delete/arrow keys in forms on macOS. Character typing is
+  unaffected (it uses CHAR events + the `character` field).
+
 ## Remaining work
 
 The functional port is complete. Only distribution polish remains, and it is optional:
