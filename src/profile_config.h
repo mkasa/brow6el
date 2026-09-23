@@ -81,9 +81,9 @@ private:
   std::string proxy_password_ = "";
   
   // Zoom settings
-  double zoom_level_ = 1.0;
+  double zoom_level_ = 2.0;
   double zoom_step_ = 0.5;
-  std::string default_zoom_behavior_ = "none"; // "auto", "fixed", or "none"
+  std::string default_zoom_behavior_ = "fixed"; // "auto", "fixed", or "none"
   std::map<std::string, double> site_zoom_levels_; // domain -> zoom level
 
   std::string expandPath(const std::string &path) const;

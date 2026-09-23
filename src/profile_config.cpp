@@ -285,7 +285,7 @@ void ProfileConfig::writeConfig(std::ofstream &file, bool use_defaults,
   file << "\n";
   file << "# Zoom Configuration\n";
   file << "# Default zoom level (1.0 = 100%, 2.0 = 200%)\n";
-  file << "zoom_level=" << (use_defaults ? "1.0" : std::to_string(zoom_level_)) << "\n";
+  file << "zoom_level=" << (use_defaults ? "2.0" : std::to_string(zoom_level_)) << "\n";
   file << "# Zoom step size for +/- adjustments\n";
   file << "zoom_step=" << (use_defaults ? "0.5" : std::to_string(zoom_step_)) << "\n";
   file << "# Default zoom behavior: auto, fixed, or none\n";
@@ -293,7 +293,7 @@ void ProfileConfig::writeConfig(std::ofstream &file, bool use_defaults,
   file << "#         (larger cells = zoom in, smaller cells = zoom out)\n";
   file << "# - fixed: Use zoom_level setting at startup\n";
   file << "# - none: Start at 1.0 (100%), manual adjustment only\n";
-  file << "default_zoom_behavior=" << (use_defaults ? "none" : default_zoom_behavior_) << "\n";
+  file << "default_zoom_behavior=" << (use_defaults ? "fixed" : default_zoom_behavior_) << "\n";
   file << "#\n";
   file << "# Per-site zoom levels are configured in ~/.brow6el/zoom.conf\n";
   file << "# (Site-specific settings override auto/fixed behavior)\n";
