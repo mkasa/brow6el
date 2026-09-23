@@ -2,8 +2,11 @@
 
 #include "image_renderer.h"
 #include "include/internal/cef_types_wrappers.h"
+#include <chrono>
 #include <cstdint>
+#include <deque>
 #include <mutex>
+#include <string>
 #include <vector>
 
 class KittyRenderer : public ImageRenderer {
@@ -51,10 +54,28 @@ public:
 
   static std::mutex &getTerminalMutex();
 
+  // Enable transmission through POSIX shared memory (t=s). Set once at startup
+  // after TerminalDetector::checkKittyShmSupport() confirms the terminal can
+  // read it; otherwise frames are sent inline as base64.
+  static void setSharedMemoryEnabled(bool enabled);
+
 private:
   void renderMonolithic(const unsigned char *buffer, int width, int height);
   void transmitImage(const unsigned char *buffer, int width, int height,
                      int pos_x, int pos_y, uint32_t image_id, int z_index = 1);
+  bool transmitImageShm(const unsigned char *buffer, int width, int height,
+                        int cols, int rows, uint32_t image_id);
+  void reapSharedMemory(bool all);
+
+  // Shared-memory objects handed to the terminal. The terminal unlinks each
+  // one after reading it; we unlink stragglers so a terminal that never reads
+  // them can't leak frames into kernel memory.
+  struct PendingShm {
+    std::string name;
+    std::chrono::steady_clock::time_point created;
+  };
+  std::deque<PendingShm> pending_shm_;
+  uint32_t shm_counter_ = 0;
   
   int width_;
   int height_;

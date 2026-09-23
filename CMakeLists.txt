@@ -256,6 +256,7 @@ else()
         ${CEF_STANDARD_LIBS}
         ${SIXEL_LIBRARIES}
         pthread
+        rt
         z
     )
 

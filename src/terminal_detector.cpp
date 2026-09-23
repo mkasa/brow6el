@@ -1,6 +1,11 @@
 #include "terminal_detector.h"
+#include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
+#include <string>
+#include <sys/mman.h>
 #include <iostream>
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -174,6 +179,104 @@ bool TerminalDetector::checkKittySupport() {
   tcflush(STDIN_FILENO, TCIFLUSH);
 
   return has_graphics_response;
+}
+
+bool TerminalDetector::checkKittyShmSupport() {
+  if (!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO)) {
+    return false;
+  }
+
+  // Escape hatch: BROW6EL_KITTY_SHM=0 forces direct (base64) transmission
+  const char *env = getenv("BROW6EL_KITTY_SHM");
+  if (env && strcmp(env, "0") == 0) {
+    return false;
+  }
+
+  // Create a 1x1 RGB image in shared memory for the terminal to read
+  char name[32];
+  snprintf(name, sizeof(name), "/b6el-probe-%d", (int)getpid());
+  shm_unlink(name);
+  int fd = shm_open(name, O_CREAT | O_EXCL | O_RDWR, 0600);
+  if (fd < 0) {
+    return false;
+  }
+  const unsigned char pixel[3] = {0, 0, 0};
+  bool ok = ftruncate(fd, sizeof(pixel)) == 0;
+  if (ok) {
+    void *map = mmap(nullptr, sizeof(pixel), PROT_WRITE, MAP_SHARED, fd, 0);
+    ok = map != MAP_FAILED;
+    if (ok) {
+      memcpy(map, pixel, sizeof(pixel));
+      munmap(map, sizeof(pixel));
+    }
+  }
+  close(fd);
+  if (!ok) {
+    shm_unlink(name);
+    return false;
+  }
+
+  // Payload is the base64-encoded shm name
+  static const char b64[] =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  std::string encoded;
+  size_t len = strlen(name);
+  for (size_t i = 0; i < len; i += 3) {
+    uint32_t n = (unsigned char)name[i] << 16;
+    if (i + 1 < len) n |= (unsigned char)name[i + 1] << 8;
+    if (i + 2 < len) n |= (unsigned char)name[i + 2];
+    encoded.push_back(b64[(n >> 18) & 63]);
+    encoded.push_back(b64[(n >> 12) & 63]);
+    encoded.push_back(i + 1 < len ? b64[(n >> 6) & 63] : '=');
+    encoded.push_back(i + 2 < len ? b64[n & 63] : '=');
+  }
+
+  struct termios old_tio, new_tio;
+  if (tcgetattr(STDIN_FILENO, &old_tio) != 0) {
+    shm_unlink(name);
+    return false;
+  }
+  new_tio = old_tio;
+  new_tio.c_lflag &= ~(ICANON | ECHO);
+  tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);
+
+  // a=q: load and validate without storing; the terminal replies OK or error
+  printf("\033_Gi=32,s=1,v=1,a=q,t=s,f=24,S=3;%s\033\\", encoded.c_str());
+  fflush(stdout);
+
+  char response[512] = {0};
+  ssize_t got = 0;
+  bool answered = false;
+  bool supported = false;
+  for (int attempt = 0; attempt < 3 && !answered; attempt++) {
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds);
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = attempt == 0 ? 300000 : 100000;
+    if (select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv) <= 0) {
+      continue;
+    }
+    ssize_t n = read(STDIN_FILENO, response + got, sizeof(response) - got - 1);
+    if (n <= 0) {
+      continue;
+    }
+    got += n;
+    const char *reply = strstr(response, "_Gi=32;");
+    if (reply && strstr(reply, "\033\\")) {
+      answered = true;
+      supported = strncmp(reply + 7, "OK", 2) == 0;
+    }
+  }
+
+  tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
+  tcflush(STDIN_FILENO, TCIFLUSH);
+
+  // The terminal is supposed to unlink after reading; make sure it's gone
+  shm_unlink(name);
+
+  return supported;
 }
 
 void TerminalDetector::querySixelGeometry(int &width, int &height) {

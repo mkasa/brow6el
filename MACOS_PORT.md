@@ -159,6 +159,26 @@ brew install mkasa/brow6el/brow6el
 - Verified end-to-end from the published tap (fresh `brew untap`/`tap`/`install`):
   exit 0, no linkage errors, renders pages.
 
+### Step 7 — Rendering speed: Kitty first, shared-memory transport (IN PROGRESS)
+
+Profiling showed Sixel encoding is the bottleneck: libsixel takes ~120 ms per
+1600×1000 frame and ~420 ms per full-screen Retina frame, and it runs on CEF's
+UI thread. Changes so far:
+- **Kitty is always used when the terminal supports it** (`main.cpp`),
+  whatever `graphics_protocol` in `browser.conf` says. `--sixel` still opts out.
+- **Shared-memory transmission (`t=s`)**. At startup
+  `TerminalDetector::checkKittyShmSupport()` sends an `a=q` probe backed by a
+  1×1 POSIX shm object. If the terminal replies OK, `KittyRenderer` writes
+  each frame as RGBA into a fresh shm object and sends only its name, instead of
+  ~23 MB of base64 per Retina frame. If the probe fails, frames go out as base64
+  as before. `BROW6EL_KITTY_SHM=0` forces base64. Leftover shm objects are
+  unlinked after 2 s. Startup prints `Kitty transmission: ...`.
+- Removed the per-frame `/tmp/kitty_render.log` fopen from the Kitty hot path.
+- Linux: link `rt` for `shm_open` on older glibc.
+
+Still to do: move encoding off the CEF UI thread, event-driven message pump
+(`external_message_pump`), and send only dirty regions.
+
 ## Remaining work
 
 The port and its distribution are complete. Optional polish only:

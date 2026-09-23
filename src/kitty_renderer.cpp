@@ -2,9 +2,11 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <fcntl.h>
 #include <iostream>
 #include <mutex>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <termios.h>
 #include <unistd.h>
 #include <zlib.h>
@@ -14,6 +16,13 @@ extern std::mutex g_terminal_mutex;
 
 // Global instance for dialog cropping
 static KittyRenderer* g_kitty_renderer_instance = nullptr;
+
+// Whether the terminal accepted a shared-memory probe at startup
+static bool g_kitty_shm_enabled = false;
+
+void KittyRenderer::setSharedMemoryEnabled(bool enabled) {
+  g_kitty_shm_enabled = enabled;
+}
 
 void KittyRenderer::setGlobalInstance(KittyRenderer* instance) {
   g_kitty_renderer_instance = instance;
@@ -85,6 +94,7 @@ KittyRenderer::~KittyRenderer() {
   // Clean up - delete all images
   std::lock_guard<std::mutex> lock(g_terminal_mutex);
   printf("\033_Ga=d,d=a;\033\\");
+  reapSharedMemory(true);
   
   // Show terminal cursor again
   printf("\033[?25h");
@@ -229,12 +239,6 @@ void KittyRenderer::renderMonolithic(const unsigned char *buffer, int width,
   use_alt_buffer_ = !use_alt_buffer_;
   uint32_t current_id = use_alt_buffer_ ? alt_image_id_ : main_image_id_;
   
-  FILE* log = fopen("/tmp/kitty_render.log", "a");
-  if (log) {
-    fprintf(log, "[KITTY] Rendering to buffer %u (alt=%d)\n", current_id, use_alt_buffer_);
-    fclose(log);
-  }
-  
   // Transmit to current buffer (old buffer stays visible during transmission)
   transmitImage(buffer, width, height, 0, 0, current_id, -1);
 
@@ -252,6 +256,15 @@ void KittyRenderer::transmitImage(const unsigned char *buffer, int buffer_width,
 
   if (width <= 0 || height <= 0)
     return;
+
+  // Calculate number of columns and rows
+  int cols = (width + cell_width_ - 1) / cell_width_;
+  int rows = (height + cell_height_ - 1) / cell_height_;
+
+  if (g_kitty_shm_enabled &&
+      transmitImageShm(buffer, width, height, cols, rows, image_id)) {
+    return;
+  }
 
   // Convert BGRA to RGB (skip alpha channel to reduce bandwidth by 25%)
   size_t rgb_size = width * height * 3;
@@ -271,10 +284,6 @@ void KittyRenderer::transmitImage(const unsigned char *buffer, int buffer_width,
   // Skip compression - send uncompressed for better performance during typing
   // Base64 encode the raw RGB data
   std::string encoded = base64_encode(rgb_buffer.data(), rgb_size);
-
-  // Calculate number of columns and rows
-  int cols = (width + cell_width_ - 1) / cell_width_;
-  int rows = (height + cell_height_ - 1) / cell_height_;
 
   // Transmit in larger chunks for better performance (reduce protocol overhead)
   const size_t chunk_size = 16384;  // 16KB chunks instead of 4KB
@@ -309,6 +318,71 @@ void KittyRenderer::transmitImage(const unsigned char *buffer, int buffer_width,
   
   // Ensure all image data is flushed to terminal
   fflush(stdout);
+}
+
+bool KittyRenderer::transmitImageShm(const unsigned char *buffer, int width,
+                                     int height, int cols, int rows,
+                                     uint32_t image_id) {
+  reapSharedMemory(false);
+
+  // POSIX shm names are limited to 31 characters on macOS
+  char name[32];
+  snprintf(name, sizeof(name), "/b6el-%d-%u", (int)getpid(), shm_counter_++);
+
+  size_t size = (size_t)width * height * 4;
+  int fd = shm_open(name, O_CREAT | O_EXCL | O_RDWR, 0600);
+  if (fd < 0) {
+    return false;
+  }
+  if (ftruncate(fd, size) != 0) {
+    close(fd);
+    shm_unlink(name);
+    return false;
+  }
+  void *map = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  close(fd);
+  if (map == MAP_FAILED) {
+    shm_unlink(name);
+    return false;
+  }
+
+  // CEF gives BGRA; Kitty's f=32 is RGBA. Force opaque alpha so transparent
+  // page regions don't show the terminal background through.
+  const uint32_t *src = reinterpret_cast<const uint32_t *>(buffer);
+  uint32_t *dst = static_cast<uint32_t *>(map);
+  size_t pixels = (size_t)width * height;
+  for (size_t i = 0; i < pixels; i++) {
+    uint32_t p = src[i]; // little-endian: 0xAARRGGBB
+    dst[i] = 0xFF000000u | ((p & 0x000000FFu) << 16) | (p & 0x0000FF00u) |
+             ((p & 0x00FF0000u) >> 16);
+  }
+  munmap(map, size);
+
+  std::string encoded =
+      base64_encode(reinterpret_cast<const unsigned char *>(name), strlen(name));
+
+  // t=s: terminal reads the pixels from shared memory, then unlinks it.
+  // S= gives the exact size since macOS rounds shm objects up to a page.
+  printf("\033_Ga=T,t=s,f=32,s=%d,v=%d,S=%zu,c=%d,r=%d,i=%u,z=-1,q=2;%s\033\\",
+         width, height, size, cols, rows, image_id, encoded.c_str());
+  fflush(stdout);
+
+  pending_shm_.push_back({name, std::chrono::steady_clock::now()});
+  return true;
+}
+
+void KittyRenderer::reapSharedMemory(bool all) {
+  // Give the terminal a generous window to read each frame before unlinking
+  // it ourselves; shm_unlink on an already-consumed name is a harmless ENOENT.
+  const auto max_age = std::chrono::seconds(2);
+  const size_t max_pending = 32;
+  auto now = std::chrono::steady_clock::now();
+  while (!pending_shm_.empty() &&
+         (all || pending_shm_.size() > max_pending ||
+          now - pending_shm_.front().created > max_age)) {
+    shm_unlink(pending_shm_.front().name.c_str());
+    pending_shm_.pop_front();
+  }
 }
 
 // Draw an overlay rectangle at specified z-index for dialogs

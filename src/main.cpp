@@ -8,6 +8,7 @@
 #include "include/cef_request_context.h"
 #include "include/cef_values.h"
 #include "input_handler.h"
+#include "kitty_renderer.h"
 #include "platform_paths.h"
 #include "profile_config.h"
 #include "terminal_detector.h"
@@ -305,6 +306,12 @@ int main(int argc, char *argv[]) {
   std::cout << "Graphics detection: Sixel=" << (termInfo.supports_sixel ? "YES" : "NO") 
             << ", Kitty=" << (termInfo.supports_kitty ? "YES" : "NO") << std::endl;
 
+  // Kitty graphics always wins when the terminal supports it, regardless of
+  // browser.conf; only an explicit --sixel/--force-sixel opts out.
+  if (termInfo.supports_kitty && graphics_protocol_override != "sixel") {
+    config.overrideGraphicsProtocol("kitty");
+  }
+
   // Check if terminal supports graphics (either sixel or kitty)
   std::string graphics_protocol = config.getGraphicsProtocol();
   bool has_graphics_support = false;
@@ -338,6 +345,15 @@ int main(int argc, char *argv[]) {
     std::cout << "  Sixel: mlterm, xterm, wezterm, foot, etc." << std::endl;
     std::cout << "  Kitty: kitty, ghostty, wezterm, etc." << std::endl;
     return 1;
+  }
+
+  // Prefer shared-memory transmission for Kitty: the terminal reads pixels
+  // straight from memory instead of parsing megabytes of base64 per frame
+  if (config.getGraphicsProtocol() == "kitty") {
+    bool shm = TerminalDetector::checkKittyShmSupport();
+    KittyRenderer::setSharedMemoryEnabled(shm);
+    std::cout << "Kitty transmission: "
+              << (shm ? "shared memory" : "direct (base64)") << std::endl;
   }
 
   // Redirect stderr to suppress GL errors and other noise from Chromium
