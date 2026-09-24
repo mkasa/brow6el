@@ -175,9 +175,19 @@ UI thread. Changes so far:
   unlinked after 2 s. Startup prints `Kitty transmission: ...`.
 - Removed the per-frame `/tmp/kitty_render.log` fopen from the Kitty hot path.
 - Linux: link `rt` for `shm_open` on older glibc.
+- **Partial updates (dirty regions)**. A full frame is the base image
+  (`z=-1000`). Later paints send only CEF's dirty rects, grown to whole cells,
+  as small patch images stacked above it at increasing z. A patch deletes older
+  patches it fully covers. A full frame (which drops all patches) is sent
+  instead when more than half the screen changed (scrolling, navigation),
+  after 64 patches, on forced renders, or after a paint was skipped while a
+  dialog was open. Each update is wrapped in synchronized output (`?2026`).
+  `BROW6EL_KITTY_PARTIAL=0` forces full frames. Startup prints `Kitty updates: ...`.
+- Full frames now delete the previous base image instead of leaving both
+  double-buffer images placed at the same z.
 
 Still to do: move encoding off the CEF UI thread, event-driven message pump
-(`external_message_pump`), and send only dirty regions.
+(`external_message_pump`).
 
 ## Remaining work
 

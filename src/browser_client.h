@@ -375,6 +375,7 @@ private:
   bool visual_mode_active_ = false;
   bool first_load_complete_ = false;
   bool force_next_paint_ = false;
+  bool paint_skipped_ = false; // A paint was dropped while a dialog was open
   int paint_count_ = 0;
 
   // Input mode display

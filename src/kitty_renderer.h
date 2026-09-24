@@ -46,9 +46,6 @@ public:
   static void setGlobalInstance(KittyRenderer* instance);
   static KittyRenderer* getGlobalInstance();
 
-  // Kitty-specific method to draw overlay rectangles (for dialogs)
-  void drawOverlay(int x, int y, int width, int height, uint32_t rgba_color, int z_index = 2);
-  
   // Static helper to draw dialog background overlay (doesn't need renderer instance)
   static void drawDialogOverlay(int start_row, int num_rows, uint32_t rgba_color);
 
@@ -59,13 +56,32 @@ public:
   // read it; otherwise frames are sent inline as base64.
   static void setSharedMemoryEnabled(bool enabled);
 
+  // Send only the regions CEF reports as dirty, as small patches stacked on
+  // the last full frame. On by default; BROW6EL_KITTY_PARTIAL=0 disables it.
+  static void setPartialUpdatesEnabled(bool enabled);
+
 private:
   void renderMonolithic(const unsigned char *buffer, int width, int height);
-  void transmitImage(const unsigned char *buffer, int width, int height,
-                     int pos_x, int pos_y, uint32_t image_id, int z_index = 1);
-  bool transmitImageShm(const unsigned char *buffer, int width, int height,
-                        int cols, int rows, uint32_t image_id);
+  bool renderPartial(const unsigned char *buffer, int width, int height,
+                     const std::vector<CefRect> &dirtyRects);
+  void deletePatches();
+  // Transmit the w x h region at (x, y) of a BGRA buffer that is stride pixels
+  // wide, placed at the cursor with the given z-index
+  void transmitImage(const unsigned char *buffer, int stride, int x, int y,
+                     int w, int h, uint32_t image_id, int z_index);
+  bool transmitImageShm(const unsigned char *buffer, int stride, int x, int y,
+                        int w, int h, int cols, int rows, uint32_t image_id,
+                        int z_index);
   void reapSharedMemory(bool all);
+
+  // Partial updates: small images stacked above the base frame, newest on top
+  struct Patch {
+    uint32_t id;
+    int x, y, w, h;
+  };
+  std::vector<Patch> patches_;
+  uint32_t next_patch_id_ = 0x40000000;
+  int next_patch_z_ = 0;
 
   // Shared-memory objects handed to the terminal. The terminal unlinks each
   // one after reading it; we unlink stragglers so a terminal that never reads

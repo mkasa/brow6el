@@ -354,6 +354,13 @@ int main(int argc, char *argv[]) {
     KittyRenderer::setSharedMemoryEnabled(shm);
     std::cout << "Kitty transmission: "
               << (shm ? "shared memory" : "direct (base64)") << std::endl;
+
+    // Escape hatch: BROW6EL_KITTY_PARTIAL=0 always sends full frames
+    const char *partial_env = getenv("BROW6EL_KITTY_PARTIAL");
+    bool partial = !(partial_env && strcmp(partial_env, "0") == 0);
+    KittyRenderer::setPartialUpdatesEnabled(partial);
+    std::cout << "Kitty updates: " << (partial ? "partial (dirty regions)" : "full frames")
+              << std::endl;
   }
 
   // Redirect stderr to suppress GL errors and other noise from Chromium

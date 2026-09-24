@@ -206,6 +206,8 @@ void BrowserClient::OnPaint(CefRefPtr<CefBrowser> browser,
       js_dialog_active_ || file_input_active_ || download_confirm_active_ ||
       auth_dialog_active_ || bookmarks_active_ || user_scripts_active_ || 
       download_manager_active_) {
+    // CEF's dirty rects for later paints won't include what changed here
+    paint_skipped_ = true;
     return;
   }
 
@@ -246,10 +248,15 @@ void BrowserClient::OnPaint(CefRefPtr<CefBrowser> browser,
       }
 
       // Convert CEF RectList to std::vector<CefRect>
+      // After a skipped paint, pass no rects so the renderer compares whole
+      // frames instead of patching only what CEF reports as changed
       std::vector<CefRect> rects;
-      for (size_t i = 0; i < dirtyRects.size(); i++) {
-        rects.push_back(dirtyRects[i]);
+      if (!paint_skipped_) {
+        for (size_t i = 0; i < dirtyRects.size(); i++) {
+          rects.push_back(dirtyRects[i]);
+        }
       }
+      paint_skipped_ = false;
 
       renderer_->render(buffer, width, height, false, rects);
 

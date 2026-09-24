@@ -24,6 +24,18 @@ void KittyRenderer::setSharedMemoryEnabled(bool enabled) {
   g_kitty_shm_enabled = enabled;
 }
 
+static bool g_kitty_partial_enabled = true;
+
+void KittyRenderer::setPartialUpdatesEnabled(bool enabled) {
+  g_kitty_partial_enabled = enabled;
+}
+
+// Base frames sit below the patches; both stay below text (z < 0) and above
+// cell backgrounds (z > -1073741824)
+static const int kBaseZ = -1000;
+// Past this many patches, the next update is a full frame that drops them all
+static const size_t kMaxPatches = 64;
+
 void KittyRenderer::setGlobalInstance(KittyRenderer* instance) {
   g_kitty_renderer_instance = instance;
 }
@@ -145,7 +157,14 @@ void KittyRenderer::render(const void *buffer, int width, int height,
   }
   
   if (should_render) {
-    renderMonolithic(src_buffer, width, height);
+    // Synchronized update: the terminal shows the frame's images all at once
+    printf("\033[?2026h");
+    if (force_this_render ||
+        !renderPartial(src_buffer, width, height, dirtyRects)) {
+      renderMonolithic(src_buffer, width, height);
+    }
+    printf("\033[?2026l");
+    fflush(stdout);
     
     // Store buffer ONLY when we actually rendered
     // This ensures we compare against the last RENDERED frame, not last received
@@ -230,6 +249,7 @@ void KittyRenderer::renderMonolithic(const unsigned char *buffer, int width,
     printf("\033_Ga=d,d=I,i=%u;\033\\", main_image_id_);
     printf("\033_Ga=d,d=I,i=%u;\033\\", alt_image_id_);
     fflush(stdout);
+    deletePatches();
     force_clear_on_next_render_ = false;
     last_rendered_height_ = height;
     use_alt_buffer_ = false; // Reset to main buffer
@@ -238,22 +258,94 @@ void KittyRenderer::renderMonolithic(const unsigned char *buffer, int width,
   // Toggle between buffers
   use_alt_buffer_ = !use_alt_buffer_;
   uint32_t current_id = use_alt_buffer_ ? alt_image_id_ : main_image_id_;
+  uint32_t previous_id = use_alt_buffer_ ? main_image_id_ : alt_image_id_;
   
   // Transmit to current buffer (old buffer stays visible during transmission)
-  transmitImage(buffer, width, height, 0, 0, current_id, -1);
+  printf("\033[H");
+  transmitImage(buffer, width, 0, 0, width, height, current_id, kBaseZ);
+
+  // The new frame covers everything: drop the previous frame and all patches
+  printf("\033_Ga=d,d=I,i=%u,q=2;\033\\", previous_id);
+  deletePatches();
 
   // Move cursor to top-left
   printf("\033[H");
   fflush(stdout);
 }
 
-void KittyRenderer::transmitImage(const unsigned char *buffer, int buffer_width,
-                                  int buffer_height, int pos_x, int pos_y,
-                                  uint32_t image_id, int z_index) {
-  // For monolithic rendering, always transmit full image
-  int width = buffer_width;
-  int height = buffer_height;
+bool KittyRenderer::renderPartial(const unsigned char *buffer, int width,
+                                  int height,
+                                  const std::vector<CefRect> &dirtyRects) {
+  // Patches need an up-to-date, full-height base frame underneath
+  if (!g_kitty_partial_enabled || dirtyRects.empty() || main_image_id_ == 0 ||
+      force_clear_on_next_render_ || height != last_rendered_height_ ||
+      cell_width_ <= 0 || cell_height_ <= 0) {
+    return false;
+  }
 
+  // Grow each dirty rect to whole cells so every patch is placed exactly on
+  // the cell grid without scaling
+  std::vector<Patch> rects;
+  long long area = 0;
+  for (const CefRect &r : dirtyRects) {
+    int x0 = std::max(0, r.x) / cell_width_ * cell_width_;
+    int y0 = std::max(0, r.y) / cell_height_ * cell_height_;
+    int x1 = std::min(width, r.x + r.width);
+    int y1 = std::min(height, r.y + r.height);
+    x1 = std::min(width, (x1 + cell_width_ - 1) / cell_width_ * cell_width_);
+    y1 = std::min(height, (y1 + cell_height_ - 1) / cell_height_ * cell_height_);
+    if (x1 <= x0 || y1 <= y0) {
+      continue;
+    }
+    rects.push_back({0, x0, y0, x1 - x0, y1 - y0});
+    area += (long long)(x1 - x0) * (y1 - y0);
+  }
+  if (rects.empty()) {
+    return true; // Nothing visible changed
+  }
+
+  // Large changes (scrolling, navigation) are cheaper as one full frame
+  if (area * 2 > (long long)width * height ||
+      patches_.size() + rects.size() > kMaxPatches) {
+    return false;
+  }
+
+  for (Patch &p : rects) {
+    p.id = next_patch_id_++;
+    printf("\033[%d;%dH", p.y / cell_height_ + 1, p.x / cell_width_ + 1);
+    transmitImage(buffer, width, p.x, p.y, p.w, p.h, p.id,
+                  kBaseZ + ++next_patch_z_);
+
+    // Older patches hidden entirely under this one are no longer needed
+    auto covered = [&p](const Patch &old) {
+      return old.x >= p.x && old.y >= p.y && old.x + old.w <= p.x + p.w &&
+             old.y + old.h <= p.y + p.h;
+    };
+    for (const Patch &old : patches_) {
+      if (covered(old)) {
+        printf("\033_Ga=d,d=I,i=%u,q=2;\033\\", old.id);
+      }
+    }
+    patches_.erase(std::remove_if(patches_.begin(), patches_.end(), covered),
+                   patches_.end());
+    patches_.push_back(p);
+  }
+
+  printf("\033[H");
+  return true;
+}
+
+void KittyRenderer::deletePatches() {
+  for (const Patch &p : patches_) {
+    printf("\033_Ga=d,d=I,i=%u,q=2;\033\\", p.id);
+  }
+  patches_.clear();
+  next_patch_z_ = 0;
+}
+
+void KittyRenderer::transmitImage(const unsigned char *buffer, int stride,
+                                  int x, int y, int width, int height,
+                                  uint32_t image_id, int z_index) {
   if (width <= 0 || height <= 0)
     return;
 
@@ -262,7 +354,8 @@ void KittyRenderer::transmitImage(const unsigned char *buffer, int buffer_width,
   int rows = (height + cell_height_ - 1) / cell_height_;
 
   if (g_kitty_shm_enabled &&
-      transmitImageShm(buffer, width, height, cols, rows, image_id)) {
+      transmitImageShm(buffer, stride, x, y, width, height, cols, rows,
+                       image_id, z_index)) {
     return;
   }
 
@@ -270,15 +363,17 @@ void KittyRenderer::transmitImage(const unsigned char *buffer, int buffer_width,
   size_t rgb_size = width * height * 3;
   std::vector<unsigned char> rgb_buffer(rgb_size);
   
-  const unsigned char* src = buffer;
   unsigned char* dst = rgb_buffer.data();
   
   // Optimized BGRA->RGB conversion
-  for (int i = 0; i < width * height; i++) {
-    dst[i * 3 + 0] = src[i * 4 + 2]; // R
-    dst[i * 3 + 1] = src[i * 4 + 1]; // G
-    dst[i * 3 + 2] = src[i * 4 + 0]; // B
-    // Skip alpha channel (src[i * 4 + 3])
+  for (int row = 0; row < height; row++) {
+    const unsigned char *src = buffer + ((size_t)(y + row) * stride + x) * 4;
+    for (int i = 0; i < width; i++, dst += 3) {
+      dst[0] = src[i * 4 + 2]; // R
+      dst[1] = src[i * 4 + 1]; // G
+      dst[2] = src[i * 4 + 0]; // B
+      // Skip alpha channel (src[i * 4 + 3])
+    }
   }
 
   // Skip compression - send uncompressed for better performance during typing
@@ -303,11 +398,12 @@ void KittyRenderer::transmitImage(const unsigned char *buffer, int buffer_width,
       // s=width, v=height: image dimensions
       // c=cols, r=rows: display size in cells
       // i=image_id: image identifier (reused to replace atomically)
-      // z=-1: below text layer (dialogs appear on top)
+      // z<0: below text layer (dialogs appear on top)
+      // C=1: leave the cursor where it is
       // m=1/0: more chunks follow
       // q=2: quiet mode (no responses)
-      printf("\033_Ga=T,f=24,s=%d,v=%d,c=%d,r=%d,i=%u,z=-1,m=%d,q=2;%s\033\\",
-             width, height, cols, rows, image_id, last_chunk ? 0 : 1,
+      printf("\033_Ga=T,f=24,s=%d,v=%d,c=%d,r=%d,i=%u,z=%d,C=1,m=%d,q=2;%s\033\\",
+             width, height, cols, rows, image_id, z_index, last_chunk ? 0 : 1,
              chunk.c_str());
       first_chunk = false;
     } else {
@@ -320,9 +416,10 @@ void KittyRenderer::transmitImage(const unsigned char *buffer, int buffer_width,
   fflush(stdout);
 }
 
-bool KittyRenderer::transmitImageShm(const unsigned char *buffer, int width,
-                                     int height, int cols, int rows,
-                                     uint32_t image_id) {
+bool KittyRenderer::transmitImageShm(const unsigned char *buffer, int stride,
+                                     int x, int y, int width, int height,
+                                     int cols, int rows, uint32_t image_id,
+                                     int z_index) {
   reapSharedMemory(false);
 
   // POSIX shm names are limited to 31 characters on macOS
@@ -348,13 +445,15 @@ bool KittyRenderer::transmitImageShm(const unsigned char *buffer, int width,
 
   // CEF gives BGRA; Kitty's f=32 is RGBA. Force opaque alpha so transparent
   // page regions don't show the terminal background through.
-  const uint32_t *src = reinterpret_cast<const uint32_t *>(buffer);
   uint32_t *dst = static_cast<uint32_t *>(map);
-  size_t pixels = (size_t)width * height;
-  for (size_t i = 0; i < pixels; i++) {
-    uint32_t p = src[i]; // little-endian: 0xAARRGGBB
-    dst[i] = 0xFF000000u | ((p & 0x000000FFu) << 16) | (p & 0x0000FF00u) |
-             ((p & 0x00FF0000u) >> 16);
+  for (int row = 0; row < height; row++) {
+    const uint32_t *src = reinterpret_cast<const uint32_t *>(buffer) +
+                          (size_t)(y + row) * stride + x;
+    for (int i = 0; i < width; i++) {
+      uint32_t p = src[i]; // little-endian: 0xAARRGGBB
+      *dst++ = 0xFF000000u | ((p & 0x000000FFu) << 16) | (p & 0x0000FF00u) |
+               ((p & 0x00FF0000u) >> 16);
+    }
   }
   munmap(map, size);
 
@@ -363,9 +462,8 @@ bool KittyRenderer::transmitImageShm(const unsigned char *buffer, int width,
 
   // t=s: terminal reads the pixels from shared memory, then unlinks it.
   // S= gives the exact size since macOS rounds shm objects up to a page.
-  printf("\033_Ga=T,t=s,f=32,s=%d,v=%d,S=%zu,c=%d,r=%d,i=%u,z=-1,q=2;%s\033\\",
-         width, height, size, cols, rows, image_id, encoded.c_str());
-  fflush(stdout);
+  printf("\033_Ga=T,t=s,f=32,s=%d,v=%d,S=%zu,c=%d,r=%d,i=%u,z=%d,C=1,q=2;%s\033\\",
+         width, height, size, cols, rows, image_id, z_index, encoded.c_str());
 
   pending_shm_.push_back({name, std::chrono::steady_clock::now()});
   return true;
@@ -375,7 +473,7 @@ void KittyRenderer::reapSharedMemory(bool all) {
   // Give the terminal a generous window to read each frame before unlinking
   // it ourselves; shm_unlink on an already-consumed name is a harmless ENOENT.
   const auto max_age = std::chrono::seconds(2);
-  const size_t max_pending = 32;
+  const size_t max_pending = 256;
   auto now = std::chrono::steady_clock::now();
   while (!pending_shm_.empty() &&
          (all || pending_shm_.size() > max_pending ||
@@ -383,24 +481,6 @@ void KittyRenderer::reapSharedMemory(bool all) {
     shm_unlink(pending_shm_.front().name.c_str());
     pending_shm_.pop_front();
   }
-}
-
-// Draw an overlay rectangle at specified z-index for dialogs
-void KittyRenderer::drawOverlay(int x, int y, int width, int height, uint32_t rgba_color, int z_index) {
-  // Create a solid color image buffer (RGB format)
-  std::vector<unsigned char> overlay_buf(width * height * 3);
-  unsigned char r = (rgba_color >> 24) & 0xFF;
-  unsigned char g = (rgba_color >> 16) & 0xFF;
-  unsigned char b = (rgba_color >> 8) & 0xFF;
-  
-  for (int i = 0; i < width * height; i++) {
-    overlay_buf[i * 3 + 0] = r;
-    overlay_buf[i * 3 + 1] = g;
-    overlay_buf[i * 3 + 2] = b;
-  }
-  
-  // Transmit overlay with specified z-index
-  transmitImage(overlay_buf.data(), width, height, x, y, next_image_id_++, z_index);
 }
 
 // Static helper to draw dialog background overlay
