@@ -845,7 +845,7 @@ void InputHandler::readLoop() {
               auth_password_mode_ = true;
               if (browser_client_) {
                 browser_client_->GetStatusBar()->showAuthDialog(
-                    "Username: " + auth_username_buffer_ + " | Password:",
+                    "Username: " + auth_username_buffer_ + " | Password: ",
                     browser_client_->GetAuthRealm());
               }
             } else {
@@ -1088,6 +1088,10 @@ void InputHandler::readLoop() {
             // Handle bookmark actions
             if (c == 'd' || c == 'D') {
               browser_client_->HandleBookmarkDelete();
+            } else if (c == 'j') {
+              browser_client_->HandleBookmarkNavigation(1);
+            } else if (c == 'k') {
+              browser_client_->HandleBookmarkNavigation(-1);
             } else if (c == 'b' || c == 'B') {
               browser_client_->SetBookmarksActive(false);
             }

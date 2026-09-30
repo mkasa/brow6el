@@ -1250,7 +1250,7 @@ bool BrowserClient::GetAuthCredentials(
   }
 
   if (status_bar_) {
-    status_bar_->showAuthDialog("Username:", display_realm);
+    status_bar_->showAuthDialog("Username: ", display_realm);
   }
 
   return true;

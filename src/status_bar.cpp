@@ -9,6 +9,10 @@
 #include <wchar.h>
 #include <cstring>
 
+// The terminal cursor stays hidden while rendering, so text prompts draw a
+// reverse-video block where the next character will be inserted.
+static const char *const kInputCursor = "\033[7m \033[27m";
+
 // Helper to calculate visual display width of a UTF-8 string
 static int getVisualWidth(const std::string &str) {
   // Convert UTF-8 to wide string
@@ -279,7 +283,7 @@ void StatusBar::showURLInput(const std::string &current_url) {
   // Move to bottom line
   std::cout << "\033[" << rows << ";1H";
   std::cout << "\033[44m\033[97m"; // Blue background, white text
-  std::cout << " URL: " << current_url;
+  std::cout << " URL: " << current_url << kInputCursor;
   std::cout << "\033[K";  // Clear to end of line
   std::cout << "\033[0m"; // Reset colors
   std::cout << std::flush;
@@ -299,7 +303,7 @@ void StatusBar::showSearchInput(const std::string &query, int current, int total
   // Move to bottom line
   std::cout << "\033[" << rows << ";1H";
   std::cout << "\033[44m\033[97m"; // Blue background, white text
-  std::cout << " Find: " << query;
+  std::cout << " Find: " << query << kInputCursor;
   
   // Show match count if available
   if (total > 0) {
@@ -326,7 +330,7 @@ void StatusBar::showFileInput(const std::string &default_path) {
   // Move to bottom line
   std::cout << "\033[" << rows << ";1H";
   std::cout << "\033[44m\033[97m"; // Blue background, white text
-  std::cout << " File: " << default_path;
+  std::cout << " File: " << default_path << kInputCursor;
   std::cout << "\033[K";  // Clear to end of line
   std::cout << "\033[0m"; // Reset colors
   std::cout << std::flush;
@@ -368,7 +372,7 @@ void StatusBar::showAuthDialog(const std::string &input_display,
 
   // Input line with current field and value
   std::cout << "\033[40m\033[97m"; // Black background, white text
-  std::cout << " " << input_display;
+  std::cout << " " << input_display << kInputCursor;
   std::cout << "\033[K\033[0m\n";
   
   // Instructions
@@ -563,7 +567,7 @@ void StatusBar::showConsole(const std::vector<std::string> &logs,
   // Draw input line
   std::cout << "\033[" << (rows - 1) << ";1H";
   std::cout << "\033[42m\033[30m"; // Green background, black text
-  std::cout << " > " << input;
+  std::cout << " > " << input << kInputCursor;
   std::cout << "\033[K\033[0m";
 
   std::cout << std::flush;
@@ -788,7 +792,7 @@ void StatusBar::showJSPrompt(const std::string &message,
 
   // Show input line with default value
   std::cout << "\033[40m\033[93m"; // Black background, yellow text
-  std::cout << " > " << default_value;
+  std::cout << " > " << default_value << kInputCursor;
   std::cout << "\033[K\033[0m\n";
 
   // Show help
@@ -933,7 +937,7 @@ void StatusBar::showBookmarks(const std::vector<std::string> &bookmarks,
   std::cout << "\033[" << start_line << ";1H";
   std::cout << "\033[44m\033[97m\033[1m"; // Blue background, white bold text
   std::cout
-      << " 📚 Bookmarks (↑↓ navigate, Enter open, d delete, b/Esc close) ";
+      << " 📚 Bookmarks (↑↓/jk navigate, Enter open, d delete, b/Esc close) ";
   std::cout << "\033[K\033[0m" << std::flush;
   std::cout << "\n";
 
