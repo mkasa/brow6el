@@ -1726,10 +1726,21 @@ void InputHandler::parseMouseEvent(const char *seq, int len) {
 
   int button_type = button & 0x03;
 
-  // Handle scroll events
-  if (button == 64 || button == 65) {
-    int delta_y = (button == 64) ? 120 : -120;
-    browser_->GetHost()->SendMouseWheelEvent(mouse_event, 0, delta_y);
+  // Handle scroll events. Bit 64 marks a wheel event; the low two bits give
+  // the direction (up, down, left, right) and bits 4/8/16 carry modifiers.
+  // Horizontal swipes on a trackpad arrive as 66/67 and must not fall
+  // through to the button handling below, where they'd look like a right
+  // click.
+  if (button & 64) {
+    int delta_x = 0;
+    int delta_y = 0;
+    switch (button & 0x03) {
+    case 0: delta_y = 120; break;
+    case 1: delta_y = -120; break;
+    case 2: delta_x = 120; break;
+    case 3: delta_x = -120; break;
+    }
+    browser_->GetHost()->SendMouseWheelEvent(mouse_event, delta_x, delta_y);
     return;
   }
 

@@ -28,7 +28,8 @@ class BrowserClient : public CefClient,
                       public CefDownloadHandler,
                       public CefDialogHandler,
                       public CefRequestHandler,
-                      public CefFindHandler {
+                      public CefFindHandler,
+                      public CefContextMenuHandler {
 public:
   struct DownloadEntry {
     int32_t id;
@@ -56,6 +57,21 @@ public:
   CefRefPtr<CefDialogHandler> GetDialogHandler() override;
   CefRefPtr<CefRequestHandler> GetRequestHandler() override;
   CefRefPtr<CefFindHandler> GetFindHandler() override { return this; }
+  CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override {
+    return this;
+  }
+
+  // CefContextMenuHandler: there is no native view to attach a menu to in
+  // windowless mode (on macOS it throws an uncaught NSException), so cancel
+  // every context menu.
+  bool RunContextMenu(CefRefPtr<CefBrowser> browser,
+                      CefRefPtr<CefFrame> frame,
+                      CefRefPtr<CefContextMenuParams> params,
+                      CefRefPtr<CefMenuModel> model,
+                      CefRefPtr<CefRunContextMenuCallback> callback) override {
+    callback->Cancel();
+    return true;
+  }
 
   virtual void GetViewRect(CefRefPtr<CefBrowser> browser,
                            CefRect &rect) override;
